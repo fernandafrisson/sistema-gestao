@@ -17,13 +17,8 @@ st.set_page_config(layout="wide")
 # --- USUÁRIOS PARA LOGIN (Exemplo) ---
 # Em um aplicativo real, isso viria de um banco de dados seguro.
 USERS = {
-    "Eduardo": "eduardo123",
-    "Joseane": "joseane123"
-    "Taylan": "taylan123"
-    "Glaucia": "glaucia123"
-    "Danilo": "danilo123"
-
-
+    "admin": "admin123",
+    "taylan": "taylan123"
 }
 
 # --- CONFIGURAÇÃO DO FIREBASE ---
