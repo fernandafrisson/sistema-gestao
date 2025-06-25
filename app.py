@@ -112,7 +112,8 @@ def create_abonada_pdf(data):
     pdf.cell(0, 10, '____________________________', 0, 1, 'C')
     pdf.cell(0, 5, 'Assinatura da Chefia Imediata', 0, 1, 'C')
     
-    return pdf.output(dest='S').encode('latin-1')
+    # CORREÇÃO: Usa pdf.output() para retornar bytes em UTF-8, resolvendo o erro de encoding.
+    return pdf.output()
 
 
 def calcular_status_ferias_saldo(employee_row, all_folgas_df):
@@ -216,7 +217,6 @@ def modulo_rh():
                             ref.set({'id_funcionario': id_funcionario, 'nome_funcionario': funcionario_selecionado, 'tipo': tipo_evento, 'data_inicio': data_inicio.strftime("%Y-%m-%d"), 'data_fim': data_fim.strftime("%Y-%m-%d")})
                             st.success(f"{tipo_evento} para {funcionario_selecionado} registrado com sucesso!")
                             
-                            # Prepara os dados para o PDF se for abonada
                             if tipo_evento == "Abonada":
                                 dados_func = df_funcionarios[df_funcionarios['id'] == id_funcionario].iloc[0]
                                 pdf_data = {
@@ -234,7 +234,6 @@ def modulo_rh():
                         except Exception as e:
                             st.error(f"Erro ao registrar evento: {e}")
             
-            # Botão de download do PDF fora do formulário
             if st.session_state.pdf_data:
                 pdf_bytes = create_abonada_pdf(st.session_state.pdf_data)
                 st.download_button(
