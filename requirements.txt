@@ -5,3 +5,4 @@ plotly
 geopy
 python-docx
 python-dateutil
+fpdf2
