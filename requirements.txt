@@ -1,0 +1,7 @@
+streamlit
+pandas
+firebase-admin
+plotly
+geopy
+python-docx
+python-dateutil
