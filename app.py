@@ -481,7 +481,7 @@ def modulo_denuncias():
 def login_screen():
     st.title("Sistema Vigilância Epidemiológica")
     with st.form("login_form"):
-        st.header("Login do Sistema")
+        st.header("Login")
         username = st.text_input("Usuário", key="login_username")
         password = st.text_input("Senha", type="password", key="login_password")
         submit_button = st.form_submit_button("Entrar")
