@@ -15,18 +15,20 @@ from dateutil.relativedelta import relativedelta # Para cálculos de data
 st.set_page_config(layout="wide")
 
 # --- USUÁRIOS PARA LOGIN (Exemplo) ---
-# Em um aplicativo real, isso viria de um banco de dados seguro.
+# Adicione novos usuários aqui. O formato é "nome_de_usuario": "senha"
 USERS = {
     "admin": "admin123",
-    "taylan": "taylan123"
+    "taylan": "taylan123",
+    "danilo": "danilo123",
+    "eduardo": "eduardo123",
+    "joseane": "joseane123",
+    "glaucia": "galucia123" # Novo usuário adicionado
 }
 
 # --- CONFIGURAÇÃO DO FIREBASE ---
-# Esta função agora verifica se está em ambiente online (usando st.secrets)
-# ou local (usando o arquivo .json)
-def initialize_firebase():
-    try:
-        # Tenta usar as credenciais do Streamlit Secrets
+try:
+    if not firebase_admin._apps:
+        # Tenta usar as credenciais do Streamlit Secrets (para ambiente online)
         if 'firebase_credentials' in st.secrets:
             cred_dict = dict(st.secrets["firebase_credentials"])
             cred = credentials.Certificate(cred_dict)
@@ -34,16 +36,11 @@ def initialize_firebase():
             # Se não encontrar, usa o arquivo local (para desenvolvimento)
             cred = credentials.Certificate("denuncias-48660-firebase-adminsdk-fbsvc-9f27fef1c8.json")
 
-        if not firebase_admin._apps:
-            firebase_admin.initialize_app(cred, {
-                'databaseURL': 'https://denuncias-48660-default-rtdb.firebaseio.com/'
-            })
-    except Exception as e:
-        st.error(f"Erro ao inicializar o Firebase: {e}. Verifique suas credenciais.")
-
-# Inicializa o Firebase
-initialize_firebase()
-
+        firebase_admin.initialize_app(cred, {
+            'databaseURL': 'https://denuncias-48660-default-rtdb.firebaseio.com/'
+        })
+except Exception as e:
+    st.error(f"Erro ao inicializar o Firebase: {e}. Verifique as suas credenciais.")
 
 # --- FUNÇÕES GLOBAIS DE DADOS ---
 @st.cache_data
@@ -254,8 +251,10 @@ def modulo_rh():
 # ========================== MÓDULO DE DENÚNCIAS ===============================
 # ==============================================================================
 def modulo_denuncias():
+    # O código deste módulo permanece o mesmo
     st.title("Denúncias")
 
+    # --- Funções específicas do módulo de denúncias ---
     @st.cache_data
     def geocode_addresses(df):
         geolocator = Nominatim(user_agent=f"streamlit_app_{time.time()}")
@@ -443,7 +442,7 @@ def main_app():
         st.title("Navegação")
         st.write(f"Bem-vindo(a), **{st.session_state['username']}**!")
         
-        # CSS para estilizar o st.radio como botões de abas
+        # CSS para estilizar o st.radio como botões
         st.markdown("""
             <style>
                 /* Oculta o título do st.radio */
@@ -472,12 +471,8 @@ def main_app():
                     cursor: pointer;
                     text-align: center;
                 }
-                /* Esconde o ponto do rádio */
-                div[data-testid="stRadio"] input {
-                    display: none;
-                }
-                 /* Esconde a bolinha que ainda sobra em algumas versões */
-                .st-emotion-cache-1y4p8pa {
+                /* Esconde o ponto do rádio e o círculo residual */
+                div[data-testid="stRadio"] input, .st-emotion-cache-1y4p8pa {
                     display: none;
                 }
                 /* Estilo do botão selecionado */
@@ -520,3 +515,4 @@ if __name__ == "__main__":
         main_app()
     else:
         login_screen()
+
