@@ -479,7 +479,7 @@ def modulo_denuncias():
 
 # --- SISTEMA DE LOGIN E NAVEGAÇÃO ---
 def login_screen():
-    st.title("Sistema Integrado de Gestão")
+    st.title("Sistema Vigilância Epidemiológica")
     with st.form("login_form"):
         st.header("Login do Sistema")
         username = st.text_input("Usuário", key="login_username")
