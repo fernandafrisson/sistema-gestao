@@ -1,4 +1,4 @@
-import streamlit as st
+dimport streamlit as st
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, db
@@ -17,7 +17,7 @@ st.set_page_config(layout="wide")
 # --- USUÁRIOS PARA LOGIN (Exemplo) ---
 # Em um aplicativo real, isso viria de um banco de dados seguro.
 USERS = {
-    "admin": "admin123",
+    "Eduardo": "123456",
     "taylan": "taylan123"
 }
 
