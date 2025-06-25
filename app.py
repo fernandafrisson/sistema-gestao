@@ -9,8 +9,8 @@ import time
 import io
 from docx import Document
 from docx.shared import Pt, Inches
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from dateutil.relativedelta import relativedelta
-from fpdf import FPDF # Nova importação para PDF
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
@@ -65,55 +65,53 @@ def carregar_dados_firebase(node):
 # ======================== MÓDULO DE RECURSOS HUMANOS ==========================
 # ==============================================================================
 
-class PDF(FPDF):
-    def footer(self):
-        self.set_y(-25)
-        self.set_font('Arial', 'I', 8)
-        self.cell(0, 5, 'PREFEITURA MUNICIPAL DA ESTÂNCIA TURÍSTICA DE GUARATINGUETÁ/SP', 0, 1, 'C')
-        self.cell(0, 5, 'Secretaria Municipal de Saúde - Fundo Municipal de Saúde', 0, 1, 'C')
-        self.cell(0, 5, 'Rua Jacques Felix, 02 – São Gonçalo - Guaratinguetá/SP - CEP 12.502-180', 0, 1, 'C')
-        self.cell(0, 5, 'Telefone / Fax: (12) 3123-2900 - e-mail: ccz@guaratingueta.sp.gov.br', 0, 1, 'C')
+def create_abonada_word_report(data):
+    """Cria um documento Word para a Falta Abonada e retorna como bytes."""
+    document = Document()
+    style = document.styles['Normal']
+    font = style.font
+    font.name = 'Calibri'
+    font.size = Pt(11)
 
-def create_abonada_pdf(data):
-    pdf = PDF('P', 'mm', 'A4')
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font('Arial', 'B', 16)
-    pdf.cell(0, 15, 'FALTA ABONADA', 0, 1, 'C')
-    pdf.ln(15)
+    # Título
+    titulo = document.add_heading('FALTA ABONADA', level=1)
+    titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    pdf.set_font('Arial', '', 12)
-    pdf.cell(15, 10, 'Nome: ', 0, 0)
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 10, data.get('nome', ''), 0, 1)
+    document.add_paragraph() # Espaço
 
-    pdf.set_font('Arial', '', 12)
-    pdf.cell(15, 10, 'Função: ', 0, 0)
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 10, data.get('funcao', ''), 0, 1)
-
-    pdf.set_font('Arial', '', 12)
-    pdf.cell(35, 10, 'Unidade de Trabalho: ', 0, 0)
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 10, data.get('unidade', ''), 0, 1)
+    # Dados do funcionário
+    p = document.add_paragraph(); p.add_run('Nome: ').bold = True; p.add_run(data.get('nome', ''))
+    p = document.add_paragraph(); p.add_run('Função: ').bold = True; p.add_run(data.get('funcao', ''))
+    p = document.add_paragraph(); p.add_run('Unidade de Trabalho: ').bold = True; p.add_run(data.get('unidade', ''))
     
-    pdf.ln(10)
-    
-    pdf.multi_cell(0, 10, f"Solicito que a minha falta ao serviço seja abonada no dia: {data.get('data_abonada', '')}")
-    pdf.ln(15)
+    document.add_paragraph() # Espaço
 
-    pdf.set_font('Arial', '', 12)
-    pdf.cell(0, 10, f"Guaratinguetá, {data.get('data_atual', '')}", 0, 1, 'R')
-    pdf.ln(20)
+    # Solicitação
+    document.add_paragraph(f"Solicito que a minha falta ao serviço seja abonada no dia: {data.get('data_abonada', '')}")
+    document.add_paragraph()
 
-    pdf.cell(0, 10, '____________________________', 0, 1, 'C')
-    pdf.cell(0, 5, 'Assinatura do Servidor', 0, 1, 'C')
-    pdf.ln(10)
-    pdf.cell(0, 10, '____________________________', 0, 1, 'C')
-    pdf.cell(0, 5, 'Assinatura da Chefia Imediata', 0, 1, 'C')
-    
-    # CORREÇÃO: Usa pdf.output() para retornar bytes em UTF-8, resolvendo o erro de encoding.
-    return pdf.output()
+    # Data da solicitação
+    p_data = document.add_paragraph(f"Guaratinguetá, {data.get('data_atual', '')}")
+    p_data.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
+    # Assinaturas
+    for _ in range(3): document.add_paragraph()
+    p_assinatura1 = document.add_paragraph('____________________________')
+    p_assinatura1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_label1 = document.add_paragraph('Assinatura do Servidor')
+    p_label1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    for _ in range(2): document.add_paragraph()
+    p_assinatura2 = document.add_paragraph('_____________________________')
+    p_assinatura2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_label2 = document.add_paragraph('Assinatura da Chefia Imediata')
+    p_label2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Salva o documento em um buffer de memória
+    buffer = io.BytesIO()
+    document.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
 
 
 def calcular_status_ferias_saldo(employee_row, all_folgas_df):
@@ -159,8 +157,8 @@ def modulo_rh():
         st.subheader("Cadastro de Novo Funcionário")
         with st.form("novo_funcionario_form", clear_on_submit=True):
             nome = st.text_input("Nome Completo")
-            funcao = st.text_input("Função") # Alterado de Cargo
-            unidade_trabalho = st.text_input("Unidade de Trabalho") # Novo campo
+            funcao = st.text_input("Função")
+            unidade_trabalho = st.text_input("Unidade de Trabalho")
             data_admissao = st.date_input("Data de Admissão", datetime.now())
             submit_funcionario = st.form_submit_button("Cadastrar Funcionário")
 
@@ -168,13 +166,7 @@ def modulo_rh():
                 try:
                     novo_id = str(int(time.time() * 1000))
                     ref = db.reference(f'funcionarios/{novo_id}')
-                    ref.set({
-                        'nome': nome, 
-                        'funcao': funcao, # Alterado de Cargo
-                        'unidade_trabalho': unidade_trabalho, # Novo campo
-                        'data_admissao': data_admissao.strftime("%Y-%m-%d"), 
-                        'id': novo_id
-                    })
+                    ref.set({'nome': nome, 'funcao': funcao, 'unidade_trabalho': unidade_trabalho, 'data_admissao': data_admissao.strftime("%Y-%m-%d"), 'id': novo_id})
                     st.success(f"Funcionário {nome} cadastrado com sucesso!")
                     st.cache_data.clear()
                     st.rerun()
@@ -187,9 +179,9 @@ def modulo_rh():
             lista_funcionarios = sorted(df_funcionarios['nome'].tolist())
             funcionario_selecionado = st.selectbox("Selecione o Funcionário", lista_funcionarios)
             tipo_evento = st.selectbox("Tipo de Evento", ["Férias", "Abonada"], key="tipo_evento_selector")
-
-            if 'pdf_data' not in st.session_state:
-                st.session_state.pdf_data = None
+            
+            if 'doc_data' not in st.session_state:
+                st.session_state.doc_data = None
             
             with st.form("folgas_ferias_form", clear_on_submit=True):
                 if tipo_evento == "Férias":
@@ -219,28 +211,28 @@ def modulo_rh():
                             
                             if tipo_evento == "Abonada":
                                 dados_func = df_funcionarios[df_funcionarios['id'] == id_funcionario].iloc[0]
-                                pdf_data = {
+                                doc_data = {
                                     'nome': dados_func.get('nome', ''),
                                     'funcao': dados_func.get('funcao', ''),
                                     'unidade': dados_func.get('unidade_trabalho', ''),
                                     'data_abonada': data_inicio.strftime('%d-%m-%Y'),
                                     'data_atual': date.today().strftime('%d de %B de %Y')
                                 }
-                                st.session_state.pdf_data = pdf_data
+                                st.session_state.doc_data = doc_data
                             else:
-                                st.session_state.pdf_data = None
+                                st.session_state.doc_data = None
                             
                             st.cache_data.clear()
                         except Exception as e:
                             st.error(f"Erro ao registrar evento: {e}")
             
-            if st.session_state.pdf_data:
-                pdf_bytes = create_abonada_pdf(st.session_state.pdf_data)
+            if st.session_state.doc_data:
+                word_bytes = create_abonada_word_report(st.session_state.doc_data)
                 st.download_button(
-                    label="📥 Baixar Requerimento de Abonada (PDF)",
-                    data=pdf_bytes,
-                    file_name=f"Abonada_{st.session_state.pdf_data['nome']}_{st.session_state.pdf_data['data_abonada']}.pdf",
-                    mime="application/pdf"
+                    label="📥 Baixar Requerimento de Abonada (.docx)",
+                    data=word_bytes,
+                    file_name=f"Abonada_{st.session_state.doc_data['nome']}_{st.session_state.doc_data['data_abonada']}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
 
         else:
