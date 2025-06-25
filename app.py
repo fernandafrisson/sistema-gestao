@@ -259,10 +259,10 @@ def modulo_denuncias():
         geolocator = Nominatim(user_agent=f"streamlit_app_{time.time()}")
         latitudes, longitudes = [], []
         df_copy = df.copy()
-        for col in ['rua', 'numero', 'bairro', 'cep']:
+        for col in ['logradouro', 'numero', 'bairro', 'cep']:
             if col not in df_copy.columns: df_copy[col] = ''
         for index, row in df_copy.iterrows():
-            address = f"{row.get('rua', '')}, {row.get('numero', '')}, {row.get('bairro', '')}, Guaratinguetá, SP, Brasil"
+            address = f"{row.get('logradouro', '')}, {row.get('numero', '')}, {row.get('bairro', '')}, Guaratinguetá, SP, Brasil"
             try:
                 location = geolocator.geocode(address, timeout=10)
                 if location: latitudes.append(location.latitude); longitudes.append(location.longitude)
@@ -282,7 +282,7 @@ def modulo_denuncias():
         p_data = document.add_paragraph(data_formatada); p_data.alignment = 2
         document.add_paragraph('Vigilância Epidemiológica')
         p = document.add_paragraph(); p.add_run('Responsável: ').bold = True; p.add_run(str(data.get('responsavel_atendimento', '')))
-        endereco_completo = f"{data.get('rua', '')}, {data.get('numero', '')} - {data.get('bairro', '')}"
+        endereco_completo = f"{data.get('logradouro', '')}, {data.get('numero', '')} - {data.get('bairro', '')}"
         p = document.add_paragraph(); p.add_run('Endereço: ').bold = True; p.add_run(endereco_completo)
         document.add_paragraph(); p = document.add_paragraph(); p.add_run('Relato da Situação: ').bold = True
         document.add_paragraph(str(data.get('detalhes_denuncia', '')))
@@ -308,7 +308,9 @@ def modulo_denuncias():
             denuncias_padronizadas = []
             for protocolo, dados in denuncias_data.items():
                 if isinstance(dados, dict):
-                    dados['protocolo'] = protocolo; dados.setdefault('conclusao_atendimento', ''); dados.setdefault('cep', ''); dados.setdefault('status', 'Não atendida'); dados.setdefault('auto_infracao', 'Não');
+                    dados['protocolo'] = protocolo
+                    dados.setdefault('logradouro', dados.get('rua', '')) # Garante compatibilidade
+                    dados.setdefault('conclusao_atendimento', ''); dados.setdefault('cep', ''); dados.setdefault('status', 'Não atendida'); dados.setdefault('auto_infracao', 'Não');
                     dados.setdefault('protocolo_auto_infracao', ''); dados.setdefault('auto_imposicao_penalidade', 'Não');
                     dados.setdefault('protocolo_auto_imposicao_penalidade', ''); dados.setdefault('responsavel_atendimento', '');
                     dados.setdefault('relatorio_atendimento', '')
@@ -329,17 +331,17 @@ def modulo_denuncias():
         st.subheader("Registrar Nova Denúncia")
         with st.form("nova_denuncia_form", clear_on_submit=True):
             data_denuncia = st.date_input("Data da Denúncia", datetime.now()); motivo_denuncia = st.text_input("Motivo da Denúncia")
-            bairro = st.text_input("Bairro"); rua = st.text_input("Rua"); numero = st.text_input("Nº"); cep = st.text_input("CEP (Opcional)")
+            bairro = st.text_input("Bairro"); logradouro = st.text_input("Logradouro"); numero = st.text_input("Nº"); cep = st.text_input("CEP (Opcional)")
             detalhes_denuncia = st.text_area("Detalhes da Denúncia"); submit_button = st.form_submit_button("Registrar Denúncia")
         if submit_button:
-            if motivo_denuncia and bairro and rua:
+            if motivo_denuncia and logradouro and bairro:
                 ano_atual = datetime.now().year; ref_contador = db.reference(f'contadores/{ano_atual}')
                 def incrementar(valor_atual):
                     if valor_atual is None: return 1
                     return valor_atual + 1
                 protocolo_gerado = f"{ref_contador.transaction(incrementar):04d}{ano_atual}"
                 if protocolo_gerado:
-                    nova_denuncia = { "data_denuncia": data_denuncia.strftime("%Y-%m-%d"), "motivo_denuncia": motivo_denuncia, "bairro": bairro, "rua": rua, "numero": numero, "cep": cep, "detalhes_denuncia": detalhes_denuncia, "status": "Não atendida", "auto_infracao": "Não", "protocolo_auto_infracao": "", "auto_imposicao_penalidade": "Não", "protocolo_auto_imposicao_penalidade": "", "responsavel_atendimento": "", "relatorio_atendimento": "", "conclusao_atendimento": ""}
+                    nova_denuncia = { "data_denuncia": data_denuncia.strftime("%Y-%m-%d"), "motivo_denuncia": motivo_denuncia, "bairro": bairro, "logradouro": logradouro, "numero": numero, "cep": cep, "detalhes_denuncia": detalhes_denuncia, "status": "Não atendida", "auto_infracao": "Não", "protocolo_auto_infracao": "", "auto_imposicao_penalidade": "Não", "protocolo_auto_imposicao_penalidade": "", "responsavel_atendimento": "", "relatorio_atendimento": "", "conclusao_atendimento": ""}
                     ref = db.reference(f'denuncias/{protocolo_gerado}'); ref.set(nova_denuncia)
                     st.success(f"Denúncia registrada com sucesso! Protocolo: {protocolo_gerado}")
                     carregar_e_cachear_denuncias(); st.cache_data.clear(); st.rerun()
@@ -361,7 +363,7 @@ def modulo_denuncias():
                     data_denuncia_edit = st.date_input("Data da Denúncia", value=pd.to_datetime(dados_originais['data_denuncia']))
                     motivo_denuncia_edit = st.text_input("Motivo da Denúncia", value=dados_originais['motivo_denuncia'])
                     bairro_edit = st.text_input("Bairro", value=dados_originais['bairro'])
-                    rua_edit = st.text_input("Rua", value=dados_originais['rua'])
+                    logradouro_edit = st.text_input("Logradouro", value=dados_originais.get('logradouro', ''))
                     numero_edit = st.text_input("Nº", value=dados_originais['numero'])
                     cep_edit = st.text_input("CEP", value=dados_originais['cep'])
                     detalhes_denuncia_edit = st.text_area("Detalhes da Denúncia", value=dados_originais['detalhes_denuncia'])
@@ -371,7 +373,7 @@ def modulo_denuncias():
                             'data_denuncia': data_denuncia_edit.strftime("%Y-%m-%d"),
                             'motivo_denuncia': motivo_denuncia_edit,
                             'bairro': bairro_edit,
-                            'rua': rua_edit,
+                            'logradouro': logradouro_edit,
                             'numero': numero_edit,
                             'cep': cep_edit,
                             'detalhes_denuncia': detalhes_denuncia_edit
@@ -383,7 +385,9 @@ def modulo_denuncias():
         st.divider()
         st.subheader("Denúncias Recentes")
         if 'denuncias_df' in st.session_state and not st.session_state.denuncias_df.empty:
-            st.dataframe(st.session_state.denuncias_df[['protocolo', 'data_denuncia', 'motivo_denuncia', 'bairro', 'rua', 'numero', 'cep', 'detalhes_denuncia']])
+            cols = ['protocolo', 'data_denuncia', 'motivo_denuncia', 'bairro', 'logradouro', 'numero', 'cep', 'detalhes_denuncia']
+            df_display = st.session_state.denuncias_df[[c for c in cols if c in st.session_state.denuncias_df.columns]]
+            st.dataframe(df_display)
 
     with tab2:
         if 'denuncias_df' in st.session_state and not st.session_state.denuncias_df.empty:
