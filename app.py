@@ -495,74 +495,50 @@ def login_screen():
                 st.error("Usuário ou senha inválidos.")
 
 def main_app():
-    with st.sidebar:
-        st.title("Navegação")
-        st.write(f"Bem-vindo(a), **{st.session_state['username']}**!")
-        
-        # CSS para estilizar o st.radio como botões
-        st.markdown("""
-            <style>
-                /* Oculta o título do st.radio */
-                div[data-testid="stRadio"] > label[data-testid="stWidgetLabel"] {
-                    display: none;
-                }
-                /* Estiliza o container dos botões */
-                div[data-testid="stRadio"] {
-                    display: flex;
-                    flex-direction: column;
-                }
-                /* Estiliza cada opção (label) como um botão */
-                div[data-testid="stRadio"] > div {
-                    margin-bottom: 8px;
-                }
-                div[data-testid="stRadio"] label {
-                    display: flex; /* Para centralizar o conteúdo interno */
-                    align-items: center;
-                    justify-content: center;
-                    padding: 8px 12px;
-                    background-color: #262730;
-                    color: #FAFAFA;
-                    border-radius: 4px; /* Cantos mais quadrados */
-                    border: 1px solid #4A4A4A;
-                    transition: background-color 0.2s, border-color 0.2s;
-                    cursor: pointer;
-                    text-align: center;
-                }
-                /* Esconde o ponto do rádio e o círculo residual */
-                div[data-testid="stRadio"] input, .st-emotion-cache-1y4p8pa {
-                    display: none;
-                }
-                /* Estilo do botão selecionado */
-                div[data-testid="stRadio"] > div:has(input:checked) > label {
-                    background-color: #262730;
-                    color: #00A65A; /* Cor verde para o texto */
-                    border: 1px solid #00A65A; /* Borda verde */
-                    font-weight: 600;
-                }
-                /* Efeito hover para botões não selecionados */
-                div[data-testid="stRadio"] > div:not(:has(input:checked)) > label:hover {
-                    background-color: #3e3e42;
-                    border-color: #FAFAFA;
-                }
-            </style>
-        """, unsafe_allow_html=True)
-    
-        escolha_modulo = st.radio(
-            "Módulos:",
-            ("Denúncias", "Recursos Humanos"),
-            label_visibility="collapsed"
-        )
+    if 'module_choice' not in st.session_state:
+        st.session_state['module_choice'] = None
 
+    if st.session_state['module_choice'] is None:
+        # TELA DE HUB/MENU PRINCIPAL
+        st.title("Painel de Controle")
+        st.header(f"Bem-vindo(a), {st.session_state['username']}!")
+        st.write("Selecione o módulo que deseja acessar:")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🚨 Denúncias", use_container_width=True):
+                st.session_state['module_choice'] = "Denúncias"
+                st.rerun()
+        with col2:
+            if st.button("👥 Recursos Humanos", use_container_width=True):
+                st.session_state['module_choice'] = "Recursos Humanos"
+                st.rerun()
+        
         st.divider()
         if st.button("Logout"):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()
-    
-    if escolha_modulo == "Denúncias":
-        modulo_denuncias()
-    elif escolha_modulo == "Recursos Humanos":
-        modulo_rh()
+            
+    else:
+        # VISUALIZAÇÃO DO MÓDULO ESCOLHIDO
+        with st.sidebar:
+            st.title("Navegação")
+            st.write(f"Usuário: **{st.session_state['username']}**")
+            st.divider()
+            if st.button("⬅️ Voltar ao Menu Principal"):
+                st.session_state['module_choice'] = None
+                st.rerun()
+            st.divider()
+            if st.button("Logout"):
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                st.rerun()
+
+        if st.session_state['module_choice'] == "Denúncias":
+            modulo_denuncias()
+        elif st.session_state['module_choice'] == "Recursos Humanos":
+            modulo_rh()
 
 if __name__ == "__main__":
     if 'logged_in' not in st.session_state:
