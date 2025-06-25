@@ -68,14 +68,16 @@ def carregar_dados_firebase(node):
 
 def create_abonada_word_report(data):
     """Cria um documento Word para a Falta Abonada com base no novo modelo."""
-    try:
-        locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
-    except locale.Error:
-        locale.setlocale(locale.LC_TIME, '')
+    
+    def format_date_pt(dt):
+        """Formata a data com o mês em português."""
+        months = ("Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro")
+        return f"{dt.day} de {months[dt.month - 1]} de {dt.year}"
 
     document = Document()
     black_color = RGBColor(0, 0, 0)
 
+    # Função para adicionar texto preto
     def add_black_run(p, text, bold=False, size=11):
         run = p.add_run(text)
         run.bold = bold
@@ -83,64 +85,66 @@ def create_abonada_word_report(data):
         font.name = 'Calibri'
         font.size = Pt(size)
         font.color.rgb = black_color
+        # Remove espaço após o parágrafo para layout compacto
+        p.paragraph_format.space_after = Pt(0)
 
     # Cabeçalho
-    h1 = document.add_paragraph("Fundo Municipal de Saúde"); h1.alignment = 1
-    h2 = document.add_paragraph("Prefeitura Municipal da Estância Turística de Guaratinguetá"); h2.alignment = 1
-    h3 = document.add_paragraph("São Paulo"); h3.alignment = 1
-    h4 = document.add_paragraph("Secretaria Municipal da Saúde"); h4.alignment = 1
-    for p in [h1,h2,h3,h4]:
-        for run in p.runs: run.font.color.rgb = black_color
+    for text in ["Fundo Municipal de Saúde", "Prefeitura Municipal da Estância Turística de Guaratinguetá", "São Paulo", "Secretaria Municipal da Saúde"]:
+        p = document.add_paragraph()
+        add_black_run(p, text)
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    document.add_paragraph()
-
     # Título Principal
-    titulo = document.add_heading('FALTA ABONADA', level=1); titulo.alignment = 1
-    for run in titulo.runs: run.font.color.rgb = black_color
-    document.add_paragraph()
+    titulo = document.add_heading('FALTA ABONADA', level=1)
+    titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    for run in titulo.runs:
+        run.font.color.rgb = black_color
+    titulo.paragraph_format.space_before = Pt(18)
+    titulo.paragraph_format.space_after = Pt(18)
 
     # Dados do funcionário
     p_nome = document.add_paragraph(); add_black_run(p_nome, 'Nome: '); add_black_run(p_nome, data.get('nome', ''), bold=True)
     p_funcao = document.add_paragraph(); add_black_run(p_funcao, 'Função: '); add_black_run(p_funcao, data.get('funcao', ''), bold=True)
     p_unidade = document.add_paragraph(); add_black_run(p_unidade, 'Unidade de Trabalho: '); add_black_run(p_unidade, data.get('unidade', ''), bold=True)
-    document.add_paragraph()
-
+    
     # Solicitação
     solicitacao_text = f"Solicito que a minha falta ao serviço seja abonada no dia: {data.get('data_abonada', '')}"
-    add_black_run(document.add_paragraph(), solicitacao_text)
-    document.add_paragraph()
+    p_solicitacao = document.add_paragraph(); add_black_run(p_solicitacao, solicitacao_text)
+    p_solicitacao.paragraph_format.space_before = Pt(18)
+    p_solicitacao.paragraph_format.space_after = Pt(18)
 
     # Data da solicitação
-    data_atual_formatada = date.today().strftime('%d de %B de %Y').capitalize()
-    p_data = document.add_paragraph(f"Guaratinguetá, {data_atual_formatada}"); p_data.alignment = 2
+    data_atual_formatada = format_date_pt(date.today())
+    p_data = document.add_paragraph(f"Guaratinguetá, {data_atual_formatada}"); p_data.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     for run in p_data.runs: run.font.color.rgb = black_color
+    p_data.paragraph_format.space_after = Pt(36)
 
     # Assinaturas
-    for _ in range(2): document.add_paragraph()
-    p_ass1 = document.add_paragraph('____________________________'); p_ass1.alignment = 1
-    p_lab1 = document.add_paragraph('Assinatura do Servidor'); p_lab1.alignment = 1
-    p_ass2 = document.add_paragraph('_____________________________'); p_ass2.alignment = 1
-    p_lab2 = document.add_paragraph('Assinatura da Chefia Imediata'); p_lab2.alignment = 1
-    document.add_paragraph()
+    p_ass1 = document.add_paragraph('____________________________'); p_ass1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_lab1 = document.add_paragraph('Assinatura do Servidor'); p_lab1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_ass2 = document.add_paragraph('_____________________________'); p_ass2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_lab2 = document.add_paragraph('Assinatura da Chefia Imediata'); p_lab2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_lab2.paragraph_format.space_after = Pt(18)
 
     # Seção de Pessoal
     p_info = document.add_paragraph(); add_black_run(p_info, 'Informação da Seção de Pessoal:', bold=True)
     add_black_run(document.add_paragraph(), "Refere-se à:     1ª (   )     2ª (    )    3ª (   ) do Primeiro Semestre de: ____________")
     add_black_run(document.add_paragraph(), "          \t\t 1ª (   )     2ª (   )    3ª (   ) do Segundo Semestre de: ____________")
-    document.add_paragraph()
     p_visto = document.add_paragraph("     ___________________________________________");
     p_visto_label = document.add_paragraph("                                        (visto do funcionário da seção de pessoal)")
-    document.add_paragraph()
     p_abone = document.add_paragraph("                     Abone-se: _____/_____/______")
-    document.add_paragraph()
+    p_abone.paragraph_format.space_after = Pt(18)
+
     p_secretario_sig = document.add_paragraph("_________________________________"); p_secretario_sig.alignment = 1
     p_secretario_label = document.add_paragraph("Secretário Municipal da Saúde"); p_secretario_label.alignment = 1
     
     for p in document.paragraphs:
+        if not p.runs:
+             p.paragraph_format.space_after = Pt(0)
         for run in p.runs:
             if run.font.color.rgb is None:
                 run.font.color.rgb = black_color
-
+    
     buffer = io.BytesIO()
     document.save(buffer)
     buffer.seek(0)
