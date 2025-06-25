@@ -9,7 +9,8 @@ import time
 import io
 from docx import Document
 from docx.shared import Pt, Inches
-from dateutil.relativedelta import relativedelta # Para cálculos de data
+from dateutil.relativedelta import relativedelta
+from fpdf import FPDF # Nova importação para PDF
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
@@ -28,12 +29,10 @@ USERS = {
 # --- CONFIGURAÇÃO DO FIREBASE ---
 try:
     if not firebase_admin._apps:
-        # Tenta usar as credenciais do Streamlit Secrets (para ambiente online)
         if 'firebase_credentials' in st.secrets:
             cred_dict = dict(st.secrets["firebase_credentials"])
             cred = credentials.Certificate(cred_dict)
         else:
-            # Se não encontrar, usa o arquivo local (para desenvolvimento)
             cred = credentials.Certificate("denuncias-48660-firebase-adminsdk-fbsvc-9f27fef1c8.json")
 
         firebase_admin.initialize_app(cred, {
@@ -45,7 +44,6 @@ except Exception as e:
 # --- FUNÇÕES GLOBAIS DE DADOS ---
 @st.cache_data
 def carregar_dados_firebase(node):
-    """Carrega dados de um nó específico do Firebase."""
     try:
         ref = db.reference(f'/{node}')
         data = ref.get()
@@ -67,59 +65,86 @@ def carregar_dados_firebase(node):
 # ======================== MÓDULO DE RECURSOS HUMANOS ==========================
 # ==============================================================================
 
+class PDF(FPDF):
+    def footer(self):
+        self.set_y(-25)
+        self.set_font('Arial', 'I', 8)
+        self.cell(0, 5, 'PREFEITURA MUNICIPAL DA ESTÂNCIA TURÍSTICA DE GUARATINGUETÁ/SP', 0, 1, 'C')
+        self.cell(0, 5, 'Secretaria Municipal de Saúde - Fundo Municipal de Saúde', 0, 1, 'C')
+        self.cell(0, 5, 'Rua Jacques Felix, 02 – São Gonçalo - Guaratinguetá/SP - CEP 12.502-180', 0, 1, 'C')
+        self.cell(0, 5, 'Telefone / Fax: (12) 3123-2900 - e-mail: ccz@guaratingueta.sp.gov.br', 0, 1, 'C')
+
+def create_abonada_pdf(data):
+    pdf = PDF('P', 'mm', 'A4')
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font('Arial', 'B', 16)
+    pdf.cell(0, 15, 'FALTA ABONADA', 0, 1, 'C')
+    pdf.ln(15)
+    
+    pdf.set_font('Arial', '', 12)
+    pdf.cell(15, 10, 'Nome: ', 0, 0)
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 10, data.get('nome', ''), 0, 1)
+
+    pdf.set_font('Arial', '', 12)
+    pdf.cell(15, 10, 'Função: ', 0, 0)
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 10, data.get('funcao', ''), 0, 1)
+
+    pdf.set_font('Arial', '', 12)
+    pdf.cell(35, 10, 'Unidade de Trabalho: ', 0, 0)
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 10, data.get('unidade', ''), 0, 1)
+    
+    pdf.ln(10)
+    
+    pdf.multi_cell(0, 10, f"Solicito que a minha falta ao serviço seja abonada no dia: {data.get('data_abonada', '')}")
+    pdf.ln(15)
+
+    pdf.set_font('Arial', '', 12)
+    pdf.cell(0, 10, f"Guaratinguetá, {data.get('data_atual', '')}", 0, 1, 'R')
+    pdf.ln(20)
+
+    pdf.cell(0, 10, '____________________________', 0, 1, 'C')
+    pdf.cell(0, 5, 'Assinatura do Servidor', 0, 1, 'C')
+    pdf.ln(10)
+    pdf.cell(0, 10, '____________________________', 0, 1, 'C')
+    pdf.cell(0, 5, 'Assinatura da Chefia Imediata', 0, 1, 'C')
+    
+    return pdf.output(dest='S').encode('latin-1')
+
+
 def calcular_status_ferias_saldo(employee_row, all_folgas_df):
-    """
-    Calcula o período aquisitivo de referência, o saldo de férias e o status.
-    """
     try:
         today = date.today()
         if 'data_admissao' not in employee_row or pd.isna(employee_row['data_admissao']):
             return "Admissão Inválida", "Erro"
-            
         data_admissao = pd.to_datetime(employee_row['data_admissao']).date()
-        
         ferias_do_funcionario = pd.DataFrame()
         if not all_folgas_df.empty and 'id_funcionario' in all_folgas_df.columns:
-            ferias_do_funcionario = all_folgas_df[
-                (all_folgas_df['id_funcionario'] == str(employee_row['id'])) &
-                (all_folgas_df['tipo'] == 'Férias')
-            ].copy()
+            ferias_do_funcionario = all_folgas_df[(all_folgas_df['id_funcionario'] == str(employee_row['id'])) & (all_folgas_df['tipo'] == 'Férias')].copy()
             if not ferias_do_funcionario.empty:
                 ferias_do_funcionario['data_inicio'] = pd.to_datetime(ferias_do_funcionario['data_inicio']).dt.date
                 ferias_do_funcionario['data_fim'] = pd.to_datetime(ferias_do_funcionario['data_fim']).dt.date
-
         periodo_aquisitivo_inicio = data_admissao
-
         while True:
             periodo_aquisitivo_fim = periodo_aquisitivo_inicio + relativedelta(years=1) - relativedelta(days=1)
             periodo_concessivo_fim = periodo_aquisitivo_fim + relativedelta(years=1)
-
             if today <= periodo_aquisitivo_fim:
                 return f"{periodo_aquisitivo_inicio.strftime('%d/%m/%Y')} a {periodo_aquisitivo_fim.strftime('%d/%m/%Y')}", "Em Aquisição"
-            
-            ferias_neste_periodo = pd.DataFrame()
             dias_gozados = 0
             if not ferias_do_funcionario.empty:
-                ferias_neste_periodo = ferias_do_funcionario[
-                    (ferias_do_funcionario['data_inicio'] > periodo_aquisitivo_fim) &
-                    (ferias_do_funcionario['data_inicio'] <= periodo_concessivo_fim)
-                ]
-            
-            if not ferias_neste_periodo.empty:
-                dias_gozados = sum((fim - inicio).days + 1 for inicio, fim in zip(ferias_neste_periodo['data_inicio'], ferias_neste_periodo['data_fim']))
-
+                ferias_neste_periodo = ferias_do_funcionario[(ferias_do_funcionario['data_inicio'] > periodo_aquisitivo_fim) & (ferias_do_funcionario['data_inicio'] <= periodo_concessivo_fim)]
+                if not ferias_neste_periodo.empty:
+                    dias_gozados = sum((fim - inicio).days + 1 for inicio, fim in zip(ferias_neste_periodo['data_inicio'], ferias_neste_periodo['data_fim']))
             if dias_gozados < 30:
                 status = f"Parcialmente Agendada ({dias_gozados}/30 dias)" if dias_gozados > 0 else "PENDENTE DE AGENDAMENTO"
                 return f"{periodo_aquisitivo_inicio.strftime('%d/%m/%Y')} a {periodo_aquisitivo_fim.strftime('%d/%m/%Y')}", status
-            
             periodo_aquisitivo_inicio += relativedelta(years=1)
-
-            if periodo_aquisitivo_inicio.year > today.year + 5:
-                return "N/A", "Limite de cálculo atingido"
-
+            if periodo_aquisitivo_inicio.year > today.year + 5: return "N/A", "Limite de cálculo atingido"
     except Exception as e:
         return "Erro de Cálculo", f"Erro: {e}"
-
 
 def modulo_rh():
     st.title("Recursos Humanos")
@@ -133,15 +158,22 @@ def modulo_rh():
         st.subheader("Cadastro de Novo Funcionário")
         with st.form("novo_funcionario_form", clear_on_submit=True):
             nome = st.text_input("Nome Completo")
-            cargo = st.text_input("Cargo")
+            funcao = st.text_input("Função") # Alterado de Cargo
+            unidade_trabalho = st.text_input("Unidade de Trabalho") # Novo campo
             data_admissao = st.date_input("Data de Admissão", datetime.now())
             submit_funcionario = st.form_submit_button("Cadastrar Funcionário")
 
-            if submit_funcionario and nome and cargo:
+            if submit_funcionario and nome and funcao and unidade_trabalho:
                 try:
                     novo_id = str(int(time.time() * 1000))
                     ref = db.reference(f'funcionarios/{novo_id}')
-                    ref.set({'nome': nome, 'cargo': cargo, 'data_admissao': data_admissao.strftime("%Y-%m-%d"), 'id': novo_id})
+                    ref.set({
+                        'nome': nome, 
+                        'funcao': funcao, # Alterado de Cargo
+                        'unidade_trabalho': unidade_trabalho, # Novo campo
+                        'data_admissao': data_admissao.strftime("%Y-%m-%d"), 
+                        'id': novo_id
+                    })
                     st.success(f"Funcionário {nome} cadastrado com sucesso!")
                     st.cache_data.clear()
                     st.rerun()
@@ -153,12 +185,12 @@ def modulo_rh():
         if not df_funcionarios.empty and 'nome' in df_funcionarios.columns:
             lista_funcionarios = sorted(df_funcionarios['nome'].tolist())
             funcionario_selecionado = st.selectbox("Selecione o Funcionário", lista_funcionarios)
-            
-            # Seletor de tipo de evento FORA do formulário para permitir a atualização da UI
             tipo_evento = st.selectbox("Tipo de Evento", ["Férias", "Abonada"], key="tipo_evento_selector")
 
+            if 'pdf_data' not in st.session_state:
+                st.session_state.pdf_data = None
+            
             with st.form("folgas_ferias_form", clear_on_submit=True):
-                # Lógica condicional para exibir os campos de data
                 if tipo_evento == "Férias":
                     st.write("Período de Férias:")
                     col1, col2 = st.columns(2)
@@ -166,10 +198,10 @@ def modulo_rh():
                         data_inicio = st.date_input("Data de Início")
                     with col2:
                         data_fim = st.date_input("Data de Fim")
-                else: # Se for "Abonada"
+                else: 
                     st.write("Data da Abonada:")
                     data_inicio = st.date_input("Data")
-                    data_fim = data_inicio # Data fim é igual ao início
+                    data_fim = data_inicio
                 
                 submit_evento = st.form_submit_button("Registrar Evento")
 
@@ -183,10 +215,35 @@ def modulo_rh():
                             ref = db.reference(f'folgas_ferias/{evento_id}')
                             ref.set({'id_funcionario': id_funcionario, 'nome_funcionario': funcionario_selecionado, 'tipo': tipo_evento, 'data_inicio': data_inicio.strftime("%Y-%m-%d"), 'data_fim': data_fim.strftime("%Y-%m-%d")})
                             st.success(f"{tipo_evento} para {funcionario_selecionado} registrado com sucesso!")
+                            
+                            # Prepara os dados para o PDF se for abonada
+                            if tipo_evento == "Abonada":
+                                dados_func = df_funcionarios[df_funcionarios['id'] == id_funcionario].iloc[0]
+                                pdf_data = {
+                                    'nome': dados_func.get('nome', ''),
+                                    'funcao': dados_func.get('funcao', ''),
+                                    'unidade': dados_func.get('unidade_trabalho', ''),
+                                    'data_abonada': data_inicio.strftime('%d-%m-%Y'),
+                                    'data_atual': date.today().strftime('%d de %B de %Y')
+                                }
+                                st.session_state.pdf_data = pdf_data
+                            else:
+                                st.session_state.pdf_data = None
+                            
                             st.cache_data.clear()
-                            st.rerun()
                         except Exception as e:
                             st.error(f"Erro ao registrar evento: {e}")
+            
+            # Botão de download do PDF fora do formulário
+            if st.session_state.pdf_data:
+                pdf_bytes = create_abonada_pdf(st.session_state.pdf_data)
+                st.download_button(
+                    label="📥 Baixar Requerimento de Abonada (PDF)",
+                    data=pdf_bytes,
+                    file_name=f"Abonada_{st.session_state.pdf_data['nome']}_{st.session_state.pdf_data['data_abonada']}.pdf",
+                    mime="application/pdf"
+                )
+
         else:
             st.info("Nenhum funcionário cadastrado.")
 
@@ -242,8 +299,8 @@ def modulo_rh():
                 return ''
 
             st.dataframe(
-                df_display[['nome', 'cargo', 'data_admissao', 'Período Aquisitivo de Referência', 'Status Agendamento']]
-                .rename(columns={'nome': 'Nome', 'cargo': 'Cargo', 'data_admissao': 'Data de Admissão'})
+                df_display[['nome', 'funcao', 'data_admissao', 'Período Aquisitivo de Referência', 'Status Agendamento']]
+                .rename(columns={'nome': 'Nome', 'funcao': 'Função', 'data_admissao': 'Data de Admissão'})
                 .style.apply(lambda row: [style_status(row['Status Agendamento'])]*len(row), axis=1),
                 use_container_width=True,
                 hide_index=True
