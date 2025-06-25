@@ -11,7 +11,7 @@ from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from dateutil.relativedelta import relativedelta
-import locale # Importado para formatar a data em português
+import locale
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
@@ -67,70 +67,79 @@ def carregar_dados_firebase(node):
 # ==============================================================================
 
 def create_abonada_word_report(data):
-    """Cria um documento Word para a Falta Abonada com texto preto e data em PT-BR."""
-    
-    # Define o locale para português para formatar o mês corretamente
+    """Cria um documento Word para a Falta Abonada com base no novo modelo."""
     try:
         locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
     except locale.Error:
-        # Fallback para o locale padrão se pt_BR não estiver disponível
         locale.setlocale(locale.LC_TIME, '')
 
     document = Document()
     black_color = RGBColor(0, 0, 0)
 
-    def add_colored_text(paragraph, text, bold=False):
-        run = paragraph.add_run(text)
+    def add_black_run(p, text, bold=False, size=11):
+        run = p.add_run(text)
         run.bold = bold
         font = run.font
-        font.color.rgb = black_color
         font.name = 'Calibri'
-        font.size = Pt(11)
+        font.size = Pt(size)
+        font.color.rgb = black_color
+
+    # Cabeçalho
+    h1 = document.add_paragraph("Fundo Municipal de Saúde"); h1.alignment = 1
+    h2 = document.add_paragraph("Prefeitura Municipal da Estância Turística de Guaratinguetá"); h2.alignment = 1
+    h3 = document.add_paragraph("São Paulo"); h3.alignment = 1
+    h4 = document.add_paragraph("Secretaria Municipal da Saúde"); h4.alignment = 1
+    for p in [h1,h2,h3,h4]:
+        for run in p.runs: run.font.color.rgb = black_color
+    
+    document.add_paragraph()
 
     # Título Principal
-    titulo = document.add_heading('FALTA ABONADA', level=1)
-    titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    for run in titulo.runs:
-        run.font.color.rgb = black_color
-        run.font.name = 'Calibri'
-
+    titulo = document.add_heading('FALTA ABONADA', level=1); titulo.alignment = 1
+    for run in titulo.runs: run.font.color.rgb = black_color
     document.add_paragraph()
 
     # Dados do funcionário
-    p_nome = document.add_paragraph(); add_colored_text(p_nome, 'Nome: ', bold=True); add_colored_text(p_nome, data.get('nome', ''))
-    p_funcao = document.add_paragraph(); add_colored_text(p_funcao, 'Função: ', bold=True); add_colored_text(p_funcao, data.get('funcao', ''))
-    p_unidade = document.add_paragraph(); add_colored_text(p_unidade, 'Unidade de Trabalho: ', bold=True); add_colored_text(p_unidade, data.get('unidade', ''))
-    
+    p_nome = document.add_paragraph(); add_black_run(p_nome, 'Nome: '); add_black_run(p_nome, data.get('nome', ''), bold=True)
+    p_funcao = document.add_paragraph(); add_black_run(p_funcao, 'Função: '); add_black_run(p_funcao, data.get('funcao', ''), bold=True)
+    p_unidade = document.add_paragraph(); add_black_run(p_unidade, 'Unidade de Trabalho: '); add_black_run(p_unidade, data.get('unidade', ''), bold=True)
     document.add_paragraph()
 
     # Solicitação
     solicitacao_text = f"Solicito que a minha falta ao serviço seja abonada no dia: {data.get('data_abonada', '')}"
-    add_colored_text(document.add_paragraph(), solicitacao_text)
+    add_black_run(document.add_paragraph(), solicitacao_text)
     document.add_paragraph()
 
-    # Data da solicitação em português
+    # Data da solicitação
     data_atual_formatada = date.today().strftime('%d de %B de %Y').capitalize()
-    p_data = document.add_paragraph(f"Guaratinguetá, {data_atual_formatada}")
-    p_data.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    for run in p_data.runs:
-        run.font.color.rgb = black_color
+    p_data = document.add_paragraph(f"Guaratinguetá, {data_atual_formatada}"); p_data.alignment = 2
+    for run in p_data.runs: run.font.color.rgb = black_color
 
     # Assinaturas
-    for _ in range(3): document.add_paragraph()
-    p_assinatura1 = document.add_paragraph('____________________________')
-    p_assinatura1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_label1 = document.add_paragraph('Assinatura do Servidor')
-    p_label1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
     for _ in range(2): document.add_paragraph()
-    p_assinatura2 = document.add_paragraph('_____________________________')
-    p_assinatura2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_label2 = document.add_paragraph('Assinatura da Chefia Imediata')
-    p_label2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_ass1 = document.add_paragraph('____________________________'); p_ass1.alignment = 1
+    p_lab1 = document.add_paragraph('Assinatura do Servidor'); p_lab1.alignment = 1
+    p_ass2 = document.add_paragraph('_____________________________'); p_ass2.alignment = 1
+    p_lab2 = document.add_paragraph('Assinatura da Chefia Imediata'); p_lab2.alignment = 1
+    document.add_paragraph()
 
-    for p in [p_assinatura1, p_label1, p_assinatura2, p_label2]:
+    # Seção de Pessoal
+    p_info = document.add_paragraph(); add_black_run(p_info, 'Informação da Seção de Pessoal:', bold=True)
+    add_black_run(document.add_paragraph(), "Refere-se à:     1ª (   )     2ª (    )    3ª (   ) do Primeiro Semestre de: ____________")
+    add_black_run(document.add_paragraph(), "          \t\t 1ª (   )     2ª (   )    3ª (   ) do Segundo Semestre de: ____________")
+    document.add_paragraph()
+    p_visto = document.add_paragraph("     ___________________________________________");
+    p_visto_label = document.add_paragraph("                                        (visto do funcionário da seção de pessoal)")
+    document.add_paragraph()
+    p_abone = document.add_paragraph("                     Abone-se: _____/_____/______")
+    document.add_paragraph()
+    p_secretario_sig = document.add_paragraph("_________________________________"); p_secretario_sig.alignment = 1
+    p_secretario_label = document.add_paragraph("Secretário Municipal da Saúde"); p_secretario_label.alignment = 1
+    
+    for p in document.paragraphs:
         for run in p.runs:
-            run.font.color.rgb = black_color
+            if run.font.color.rgb is None:
+                run.font.color.rgb = black_color
 
     buffer = io.BytesIO()
     document.save(buffer)
