@@ -154,18 +154,22 @@ def modulo_rh():
             lista_funcionarios = sorted(df_funcionarios['nome'].tolist())
             funcionario_selecionado = st.selectbox("Selecione o Funcionário", lista_funcionarios)
             
+            # Seletor de tipo de evento FORA do formulário para permitir a atualização da UI
+            tipo_evento = st.selectbox("Tipo de Evento", ["Férias", "Abonada"], key="tipo_evento_selector")
+
             with st.form("folgas_ferias_form", clear_on_submit=True):
-                tipo_evento = st.selectbox("Tipo de Evento", ["Férias", "Abonada"])
-                
+                # Lógica condicional para exibir os campos de data
                 if tipo_evento == "Férias":
+                    st.write("Período de Férias:")
                     col1, col2 = st.columns(2)
                     with col1:
                         data_inicio = st.date_input("Data de Início")
                     with col2:
                         data_fim = st.date_input("Data de Fim")
-                else: 
-                    data_inicio = st.date_input("Data da Abonada")
-                    data_fim = data_inicio
+                else: # Se for "Abonada"
+                    st.write("Data da Abonada:")
+                    data_inicio = st.date_input("Data")
+                    data_fim = data_inicio # Data fim é igual ao início
                 
                 submit_evento = st.form_submit_button("Registrar Evento")
 
@@ -251,6 +255,7 @@ def modulo_rh():
 # ========================== MÓDULO DE DENÚNCIAS ===============================
 # ==============================================================================
 def modulo_denuncias():
+    # O código deste módulo permanece o mesmo
     st.title("Denúncias")
 
     # --- Funções específicas do módulo de denúncias ---
@@ -479,9 +484,9 @@ def modulo_denuncias():
 
 # --- SISTEMA DE LOGIN E NAVEGAÇÃO ---
 def login_screen():
-    st.title("Sistema Vigilância Epidemiológica")
+    st.title("Sistema Integrado de Gestão")
     with st.form("login_form"):
-        st.header("Login")
+        st.header("Login do Sistema")
         username = st.text_input("Usuário", key="login_username")
         password = st.text_input("Senha", type="password", key="login_password")
         submit_button = st.form_submit_button("Entrar")
