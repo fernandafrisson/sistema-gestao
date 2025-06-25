@@ -8,9 +8,10 @@ from geopy.geocoders import Nominatim
 import time
 import io
 from docx import Document
-from docx.shared import Pt, Inches
+from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from dateutil.relativedelta import relativedelta
+import locale # Importado para formatar a data em português
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
@@ -66,33 +67,53 @@ def carregar_dados_firebase(node):
 # ==============================================================================
 
 def create_abonada_word_report(data):
-    """Cria um documento Word para a Falta Abonada e retorna como bytes."""
-    document = Document()
-    style = document.styles['Normal']
-    font = style.font
-    font.name = 'Calibri'
-    font.size = Pt(11)
+    """Cria um documento Word para a Falta Abonada com texto preto e data em PT-BR."""
+    
+    # Define o locale para português para formatar o mês corretamente
+    try:
+        locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
+    except locale.Error:
+        # Fallback para o locale padrão se pt_BR não estiver disponível
+        locale.setlocale(locale.LC_TIME, '')
 
-    # Título
+    document = Document()
+    black_color = RGBColor(0, 0, 0)
+
+    def add_colored_text(paragraph, text, bold=False):
+        run = paragraph.add_run(text)
+        run.bold = bold
+        font = run.font
+        font.color.rgb = black_color
+        font.name = 'Calibri'
+        font.size = Pt(11)
+
+    # Título Principal
     titulo = document.add_heading('FALTA ABONADA', level=1)
     titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    document.add_paragraph() # Espaço
+    for run in titulo.runs:
+        run.font.color.rgb = black_color
+        run.font.name = 'Calibri'
 
-    # Dados do funcionário
-    p = document.add_paragraph(); p.add_run('Nome: ').bold = True; p.add_run(data.get('nome', ''))
-    p = document.add_paragraph(); p.add_run('Função: ').bold = True; p.add_run(data.get('funcao', ''))
-    p = document.add_paragraph(); p.add_run('Unidade de Trabalho: ').bold = True; p.add_run(data.get('unidade', ''))
-    
-    document.add_paragraph() # Espaço
-
-    # Solicitação
-    document.add_paragraph(f"Solicito que a minha falta ao serviço seja abonada no dia: {data.get('data_abonada', '')}")
     document.add_paragraph()
 
-    # Data da solicitação
-    p_data = document.add_paragraph(f"Guaratinguetá, {data.get('data_atual', '')}")
+    # Dados do funcionário
+    p_nome = document.add_paragraph(); add_colored_text(p_nome, 'Nome: ', bold=True); add_colored_text(p_nome, data.get('nome', ''))
+    p_funcao = document.add_paragraph(); add_colored_text(p_funcao, 'Função: ', bold=True); add_colored_text(p_funcao, data.get('funcao', ''))
+    p_unidade = document.add_paragraph(); add_colored_text(p_unidade, 'Unidade de Trabalho: ', bold=True); add_colored_text(p_unidade, data.get('unidade', ''))
+    
+    document.add_paragraph()
+
+    # Solicitação
+    solicitacao_text = f"Solicito que a minha falta ao serviço seja abonada no dia: {data.get('data_abonada', '')}"
+    add_colored_text(document.add_paragraph(), solicitacao_text)
+    document.add_paragraph()
+
+    # Data da solicitação em português
+    data_atual_formatada = date.today().strftime('%d de %B de %Y').capitalize()
+    p_data = document.add_paragraph(f"Guaratinguetá, {data_atual_formatada}")
     p_data.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    for run in p_data.runs:
+        run.font.color.rgb = black_color
 
     # Assinaturas
     for _ in range(3): document.add_paragraph()
@@ -107,7 +128,10 @@ def create_abonada_word_report(data):
     p_label2 = document.add_paragraph('Assinatura da Chefia Imediata')
     p_label2.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    # Salva o documento em um buffer de memória
+    for p in [p_assinatura1, p_label1, p_assinatura2, p_label2]:
+        for run in p.runs:
+            run.font.color.rgb = black_color
+
     buffer = io.BytesIO()
     document.save(buffer)
     buffer.seek(0)
@@ -216,7 +240,6 @@ def modulo_rh():
                                     'funcao': dados_func.get('funcao', ''),
                                     'unidade': dados_func.get('unidade_trabalho', ''),
                                     'data_abonada': data_inicio.strftime('%d-%m-%Y'),
-                                    'data_atual': date.today().strftime('%d de %B de %Y')
                                 }
                                 st.session_state.doc_data = doc_data
                             else:
