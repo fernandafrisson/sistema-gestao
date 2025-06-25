@@ -251,7 +251,6 @@ def modulo_rh():
 # ========================== MÓDULO DE DENÚNCIAS ===============================
 # ==============================================================================
 def modulo_denuncias():
-    # O código deste módulo permanece o mesmo
     st.title("Denúncias")
 
     # --- Funções específicas do módulo de denúncias ---
@@ -327,8 +326,8 @@ def modulo_denuncias():
     tab1, tab2, tab3 = st.tabs(["📋 Registrar Denúncia", "🛠️ Gerenciamento", "📊 Dashboard"])
 
     with tab1:
+        st.subheader("Registrar Nova Denúncia")
         with st.form("nova_denuncia_form", clear_on_submit=True):
-            st.subheader("Formulário de Nova Denúncia")
             data_denuncia = st.date_input("Data da Denúncia", datetime.now()); motivo_denuncia = st.text_input("Motivo da Denúncia")
             bairro = st.text_input("Bairro"); rua = st.text_input("Rua"); numero = st.text_input("Nº"); cep = st.text_input("CEP (Opcional)")
             detalhes_denuncia = st.text_area("Detalhes da Denúncia"); submit_button = st.form_submit_button("Registrar Denúncia")
@@ -344,7 +343,44 @@ def modulo_denuncias():
                     ref = db.reference(f'denuncias/{protocolo_gerado}'); ref.set(nova_denuncia)
                     st.success(f"Denúncia registrada com sucesso! Protocolo: {protocolo_gerado}")
                     carregar_e_cachear_denuncias(); st.cache_data.clear(); st.rerun()
-            else: st.warning("Por favor, preencha os campos obrigatórios (Motivo, Bairro, Rua).")
+            else: st.warning("Por favor, preencha os campos obrigatórios.")
+        
+        st.divider()
+        st.subheader("Editar Denúncia Registrada")
+        if 'denuncias_df' in st.session_state and not st.session_state.denuncias_df.empty:
+            protocolo_para_editar = st.selectbox(
+                "Selecione uma denúncia para editar", 
+                st.session_state.denuncias_df['protocolo'].tolist(),
+                index=None,
+                placeholder="Escolha o protocolo..."
+            )
+            if protocolo_para_editar:
+                dados_originais = st.session_state.denuncias_df[st.session_state.denuncias_df['protocolo'] == protocolo_para_editar].iloc[0]
+                with st.form("edit_denuncia_form"):
+                    st.write(f"Editando protocolo: **{protocolo_para_editar}**")
+                    data_denuncia_edit = st.date_input("Data da Denúncia", value=pd.to_datetime(dados_originais['data_denuncia']))
+                    motivo_denuncia_edit = st.text_input("Motivo da Denúncia", value=dados_originais['motivo_denuncia'])
+                    bairro_edit = st.text_input("Bairro", value=dados_originais['bairro'])
+                    rua_edit = st.text_input("Rua", value=dados_originais['rua'])
+                    numero_edit = st.text_input("Nº", value=dados_originais['numero'])
+                    cep_edit = st.text_input("CEP", value=dados_originais['cep'])
+                    detalhes_denuncia_edit = st.text_area("Detalhes da Denúncia", value=dados_originais['detalhes_denuncia'])
+                    
+                    if st.form_submit_button("Salvar Alterações"):
+                        dados_atualizados = {
+                            'data_denuncia': data_denuncia_edit.strftime("%Y-%m-%d"),
+                            'motivo_denuncia': motivo_denuncia_edit,
+                            'bairro': bairro_edit,
+                            'rua': rua_edit,
+                            'numero': numero_edit,
+                            'cep': cep_edit,
+                            'detalhes_denuncia': detalhes_denuncia_edit
+                        }
+                        ref = db.reference(f'denuncias/{protocolo_para_editar}'); ref.update(dados_atualizados)
+                        st.success("Denúncia atualizada com sucesso!")
+                        carregar_e_cachear_denuncias(); st.cache_data.clear(); st.rerun()
+        
+        st.divider()
         st.subheader("Denúncias Recentes")
         if 'denuncias_df' in st.session_state and not st.session_state.denuncias_df.empty:
             st.dataframe(st.session_state.denuncias_df[['protocolo', 'data_denuncia', 'motivo_denuncia', 'bairro', 'rua', 'numero', 'cep', 'detalhes_denuncia']])
@@ -515,4 +551,4 @@ if __name__ == "__main__":
         main_app()
     else:
         login_screen()
-
+``
