@@ -387,7 +387,24 @@ def modulo_denuncias():
         if 'denuncias_df' in st.session_state and not st.session_state.denuncias_df.empty:
             cols = ['protocolo', 'data_denuncia', 'motivo_denuncia', 'bairro', 'logradouro', 'numero', 'cep', 'detalhes_denuncia']
             df_display = st.session_state.denuncias_df[[c for c in cols if c in st.session_state.denuncias_df.columns]]
-            st.dataframe(df_display)
+            
+            # Renomeia as colunas para exibição
+            df_display = df_display.rename(columns={
+                'protocolo': 'PROTOCOLO',
+                'data_denuncia': 'DATA DA DENÚNCIA',
+                'motivo_denuncia': 'MOTIVO DA DENÚNCIA',
+                'bairro': 'BAIRRO',
+                'logradouro': 'LOGRADOURO',
+                'numero': 'Nº',
+                'cep': 'CEP',
+                'detalhes_denuncia': 'DETALHES DA DENÚNCIA'
+            })
+            
+            st.dataframe(
+                df_display,
+                hide_index=True,
+                use_container_width=True
+            )
 
     with tab2:
         if 'denuncias_df' in st.session_state and not st.session_state.denuncias_df.empty:
