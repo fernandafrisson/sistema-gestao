@@ -13,6 +13,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from dateutil.relativedelta import relativedelta
 import locale
 from collections import Counter
+import geopandas as gpd # <-- NOVA BIBLIOTECA
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
@@ -61,7 +62,8 @@ def carregar_dados_firebase(node):
 
 @st.cache_data
 def carregar_quarteiroes_csv():
-    url_csv = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quarteirao.csv'
+    # Esta função continua a mesma para a lista de seleção
+    url_csv = 'https://raw.githubusercontent.com/fernandamission/sistema-gestao/main/Quarteirao.csv' 
     try:
         df_quarteiroes = pd.read_csv(url_csv, header=None, encoding='latin-1')
         quarteiroes_lista = sorted(df_quarteiroes[0].astype(str).unique().tolist())
@@ -70,26 +72,50 @@ def carregar_quarteiroes_csv():
         st.error(f"Não foi possível carregar a lista de quarteirões. Verifique o link no código. Erro: {e}")
         return []
 
+# --- NOVA FUNÇÃO PARA CARREGAR DADOS GEOGRÁFICOS DO KML ---
 @st.cache_data
-def carregar_geo_quarteiroes():
-    url_geo_csv = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/geo_quadras.csv'
+def carregar_geo_kml():
+    """Lê um arquivo KML de uma URL e extrai as coordenadas e nomes dos quarteirões."""
+    # IMPORTANTE: COLE AQUI A URL "RAW" DO SEU ARQUIVO .KML
+    url_kml = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quadras%20de%20Guar%C3%A1.kml'
+    
     try:
-        df_geo = pd.read_csv(url_geo_csv, delimiter=';', encoding='latin-1')
-        df_geo.rename(columns={'numero_da_quadra': 'quadra','latitude': 'lat','longitude': 'lon'}, inplace=True)
-        df_geo['quadra'] = df_geo['quadra'].astype(str)
-        df_geo['lat'] = pd.to_numeric(df_geo['lat'], errors='coerce')
-        df_geo['lon'] = pd.to_numeric(df_geo['lon'], errors='coerce')
+        # Habilita o driver KML do fiona (necessário para o geopandas)
+        gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'r'
+        
+        # Lê o arquivo KML diretamente da URL
+        gdf = gpd.read_file(url_kml, driver='KML')
+
+        # Prepara um DataFrame vazio para os resultados
+        pontos = []
+
+        # Itera sobre cada geometria (Placemark) no KML
+        for index, row in gdf.iterrows():
+            # O nome do quarteirão geralmente está na coluna 'Name'
+            quadra_nome = row['Name']
+            
+            # Extrai as coordenadas. A geometria pode ser um Ponto, Linha ou Polígono
+            # Para o mapa, vamos pegar o centroide (o ponto central) da geometria
+            if row['geometry'].geom_type == 'Point':
+                lon, lat = row['geometry'].x, row['geometry'].y
+            else: # Para Linhas ou Polígonos
+                centroid = row['geometry'].centroid
+                lon, lat = centroid.x, centroid.y
+            
+            pontos.append({'quadra': str(quadra_nome), 'lat': lat, 'lon': lon})
+
+        df_geo = pd.DataFrame(pontos)
         df_geo.dropna(subset=['lat', 'lon'], inplace=True)
         return df_geo
+
     except Exception as e:
-        st.error(f"Não foi possível carregar os dados de geolocalização. Verifique o link ou o formato do arquivo. Erro: {e}")
+        st.error(f"Não foi possível carregar os dados de geolocalização do KML. Verifique o link ou o formato do arquivo. Erro: {e}")
         return pd.DataFrame()
 
-# ==============================================================================
-# O restante do seu código (módulos de RH, Denúncias, etc.) permanece igual.
-# A única outra alteração é no `modulo_boletim`.
-# ... (código dos outros módulos)
-# ==============================================================================
+
+# (O restante do código, incluindo modulo_rh, modulo_denuncias, etc., permanece o mesmo.
+#  A próxima alteração será apenas no modulo_boletim)
+
 def create_abonada_word_report(data):
     def format_date_pt(dt):
         months = ("Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro")
@@ -619,22 +645,22 @@ def create_boletim_word_report(data):
     buffer.seek(0)
     return buffer.getvalue()
 
-# --- MÓDULO DE BOLETIM DE PROGRAMAÇÃO CORRIGIDO ---
 def modulo_boletim():
     st.title("Boletim de Programação Diária")
 
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_folgas = carregar_dados_firebase('folgas_ferias')
     lista_quarteiroes = carregar_quarteiroes_csv() 
-    df_geo_quarteiroes = carregar_geo_quarteiroes() 
+    # ATUALIZADO para usar a função do KML
+    df_geo_quarteiroes = carregar_geo_kml() 
 
     tab1, tab2, tab3 = st.tabs(["🗓️ Criar Boletim", "🔍 Visualizar/Editar Boletim", "🗺️ Mapa de Atividades"])
 
     with tab1:
+        # (O código desta aba permanece o mesmo)
         st.subheader("Novo Boletim de Programação")
         data_boletim = st.date_input("Data do Trabalho", date.today())
         
-        # Garante que df_funcionarios é um DataFrame antes de usar
         if isinstance(df_funcionarios, pd.DataFrame) and not df_funcionarios.empty:
             funcionarios_disponiveis_full = df_funcionarios.copy()
             if not df_folgas.empty:
@@ -644,7 +670,7 @@ def modulo_boletim():
             
             lista_nomes_disponiveis_full = sorted(funcionarios_disponiveis_full['nome'].tolist())
         else:
-            lista_nomes_disponiveis_full = [] # Lista vazia se não houver funcionários
+            lista_nomes_disponiveis_full = []
             st.warning("Não há funcionários cadastrados para criar um boletim.")
 
         atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização"]
@@ -654,7 +680,6 @@ def modulo_boletim():
         st.divider()
         
         st.markdown("**Turno da Manhã**")
-        # CORREÇÃO: Usar .copy() para criar uma cópia da lista
         funcionarios_manha_disponiveis = lista_nomes_disponiveis_full.copy()
         equipes_manha = []
         for i in range(1, 6):
@@ -678,7 +703,6 @@ def modulo_boletim():
         st.divider()
 
         st.markdown("**Turno da Tarde**")
-        # CORREÇÃO: Usar .copy() para criar uma cópia da lista
         funcionarios_tarde_disponiveis = lista_nomes_disponiveis_full.copy()
         equipes_tarde = []
         for i in range(1, 6):
@@ -796,8 +820,8 @@ def modulo_boletim():
                     st.warning(f"Nenhum boletim encontrado para o dia {data_mapa.strftime('%d/%m/%Y')}.")
                 else:
                     todos_os_quarteiroes_do_dia = []
-                    equipes_manha = boletim_mapa_data.get('equipes_manha', [])
-                    equipes_tarde = boletim_mapa_data.get('equipes_tarde', [])
+                    equipes_manha = boletim_mapa_data.get('equipes_manha') or []
+                    equipes_tarde = boletim_mapa_data.get('equipes_tarde') or []
                     
                     for equipe in equipes_manha + equipes_tarde:
                         todos_os_quarteiroes_do_dia.extend(equipe.get('quarteiroes', []))
