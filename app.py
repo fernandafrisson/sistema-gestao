@@ -660,7 +660,7 @@ def modulo_boletim():
         st.markdown("**Turno da Manhã**")
         funcionarios_manha_disponiveis = lista_nomes_disponiveis_full.copy()
         equipes_manha = []
-        for i in range(1, 6):
+        for i in range(1, 16):
             st.markdown(f"--- *Equipe {i}* ---")
             cols = st.columns([2, 2, 3]) 
             with cols[0]:
