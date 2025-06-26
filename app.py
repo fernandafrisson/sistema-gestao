@@ -62,7 +62,8 @@ def carregar_dados_firebase(node):
 
 @st.cache_data
 def carregar_quarteiroes_csv():
-    url_csv = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quarteirao.csv' 
+    # Esta função continua a mesma para a lista de seleção
+    url_csv = 'https://raw.githubusercontent.com/fernandamission/sistema-gestao/main/Quarteirao.csv' 
     try:
         df_quarteiroes = pd.read_csv(url_csv, header=None, encoding='latin-1')
         quarteiroes_lista = sorted(df_quarteiroes[0].astype(str).unique().tolist())
@@ -71,29 +72,37 @@ def carregar_quarteiroes_csv():
         st.error(f"Não foi possível carregar a lista de quarteirões. Verifique o link no código. Erro: {e}")
         return []
 
-# --- FUNÇÃO CORRIGIDA E SIMPLIFICADA PARA LER O KML ---
+# --- NOVA FUNÇÃO PARA CARREGAR DADOS GEOGRÁFICOS DO KML ---
 @st.cache_data
 def carregar_geo_kml():
     """Lê um arquivo KML de uma URL e extrai as coordenadas e nomes dos quarteirões."""
-    url_kml = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quadras%20de%20Guar%C3%A1.kml'
+    # IMPORTANTE: COLE AQUI A URL "RAW" DO SEU ARQUIVO .KML
+    url_kml = 'COLE_SUA_URL_RAW_DO_ARQUIVO_KML_AQUI'
     
     try:
-        # CORREÇÃO: A linha que ativava o driver foi removida.
-        # O Geopandas moderno detecta o formato KML automaticamente.
-        gdf = gpd.read_file(url_kml)
+        # Habilita o driver KML do fiona (necessário para o geopandas)
+        gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'r'
+        
+        # Lê o arquivo KML diretamente da URL
+        gdf = gpd.read_file(url_kml, driver='KML')
 
+        # Prepara um DataFrame vazio para os resultados
         pontos = []
+
+        # Itera sobre cada geometria (Placemark) no KML
         for index, row in gdf.iterrows():
+            # O nome do quarteirão geralmente está na coluna 'Name'
             quadra_nome = row['Name']
             
-            if row['geometry'] is not None and hasattr(row['geometry'], 'geom_type'):
-                if row['geometry'].geom_type == 'Point':
-                    lon, lat = row['geometry'].x, row['geometry'].y
-                else: 
-                    centroid = row['geometry'].centroid
-                    lon, lat = centroid.x, centroid.y
-                
-                pontos.append({'quadra': str(quadra_nome), 'lat': lat, 'lon': lon})
+            # Extrai as coordenadas. A geometria pode ser um Ponto, Linha ou Polígono
+            # Para o mapa, vamos pegar o centroide (o ponto central) da geometria
+            if row['geometry'].geom_type == 'Point':
+                lon, lat = row['geometry'].x, row['geometry'].y
+            else: # Para Linhas ou Polígonos
+                centroid = row['geometry'].centroid
+                lon, lat = centroid.x, centroid.y
+            
+            pontos.append({'quadra': str(quadra_nome), 'lat': lat, 'lon': lon})
 
         df_geo = pd.DataFrame(pontos)
         df_geo.dropna(subset=['lat', 'lon'], inplace=True)
@@ -104,11 +113,8 @@ def carregar_geo_kml():
         return pd.DataFrame()
 
 
-# ==============================================================================
-# O restante do seu código (módulos de RH, Denúncias, etc.) permanece o mesmo.
-# A única outra alteração é no `modulo_boletim`.
-# ... (código dos outros módulos)
-# ==============================================================================
+# (O restante do código, incluindo modulo_rh, modulo_denuncias, etc., permanece o mesmo.
+#  A próxima alteração será apenas no modulo_boletim)
 
 def create_abonada_word_report(data):
     def format_date_pt(dt):
@@ -169,7 +175,6 @@ def create_abonada_word_report(data):
     document.save(buffer)
     buffer.seek(0)
     return buffer.getvalue()
-
 def calcular_status_ferias_saldo(employee_row, all_folgas_df):
     try:
         today = date.today()
@@ -200,7 +205,6 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
             if periodo_aquisitivo_inicio.year > today.year + 5: return "N/A", "Limite de cálculo atingido"
     except Exception as e:
         return "Erro de Cálculo", f"Erro: {e}"
-
 def get_abonadas_ano(employee_id, all_folgas_df):
     try:
         current_year = date.today().year
@@ -210,7 +214,6 @@ def get_abonadas_ano(employee_id, all_folgas_df):
         return len(abonadas_funcionario)
     except Exception:
         return 0
-
 def get_ultimas_ferias(employee_id, all_folgas_df):
     try:
         if all_folgas_df.empty or 'id_funcionario' not in all_folgas_df.columns:
@@ -223,7 +226,6 @@ def get_ultimas_ferias(employee_id, all_folgas_df):
         return ultima_ferias['data_inicio'].strftime('%d/%m/%Y')
     except Exception:
         return "Erro"
-
 def modulo_rh():
     st.title("Recursos Humanos")
     df_funcionarios = carregar_dados_firebase('funcionarios')
@@ -649,11 +651,13 @@ def modulo_boletim():
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_folgas = carregar_dados_firebase('folgas_ferias')
     lista_quarteiroes = carregar_quarteiroes_csv() 
+    # ATUALIZADO para usar a função do KML
     df_geo_quarteiroes = carregar_geo_kml() 
 
     tab1, tab2, tab3 = st.tabs(["🗓️ Criar Boletim", "🔍 Visualizar/Editar Boletim", "🗺️ Mapa de Atividades"])
 
     with tab1:
+        # (O código desta aba permanece o mesmo)
         st.subheader("Novo Boletim de Programação")
         data_boletim = st.date_input("Data do Trabalho", date.today())
         
