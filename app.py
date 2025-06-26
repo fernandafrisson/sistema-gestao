@@ -77,7 +77,7 @@ def carregar_quarteiroes_csv():
 def carregar_geo_kml():
     """Lê um arquivo KML de uma URL e extrai as coordenadas e nomes dos quarteirões."""
     # IMPORTANTE: COLE AQUI A URL "RAW" DO SEU ARQUIVO .KML
-    url_kml = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quadras%20de%20Guar%C3%A1.kml'
+    url_kml = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/refs/heads/main/Quadras%20de%20Guar%C3%A1.kml'
     
     try:
         # Habilita o driver KML do fiona (necessário para o geopandas)
