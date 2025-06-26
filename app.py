@@ -360,7 +360,7 @@ def modulo_rh():
                 
                 col1, col2 = st.columns([1, 3])
                 with col1:
-                    st.image("https://placehold.co/200x200/262730/FFFFFF?text=FOTO", use_column_width=True)
+                    st.image("https://placehold.co/200x200/262730/FFFFFF?text=FOTO", use_container_width=True) # Correção aqui
                 with col2:
                     st.markdown(f"**Nome:** {dados_func.get('nome', 'N/A')}")
                     st.markdown(f"**Matrícula:** {dados_func.get('matricula', 'N/A')}")
@@ -402,8 +402,7 @@ def modulo_rh():
                         'data_admissao': data_admissao.strftime("%Y-%m-%d")
                     })
                     st.success(f"Funcionário {nome} cadastrado com sucesso!")
-                    st.cache_data.clear()
-                    st.rerun()
+                    st.cache_data.clear(); st.rerun()
                 except Exception as e:
                     st.error(f"Erro ao cadastrar funcionário: {e}")
         
