@@ -72,7 +72,7 @@ def carregar_quarteiroes_csv():
 
 @st.cache_data
 def carregar_geo_quarteiroes():
-    url_geo_csv = 'https://raw.githubusercontent.com/fernandamission/sistema-gestao/main/geo_quadras.csv'
+    url_geo_csv = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/geo_quadras.csv'
     try:
         df_geo = pd.read_csv(url_geo_csv, delimiter=';', encoding='latin-1')
         df_geo.rename(columns={'numero_da_quadra': 'quadra','latitude': 'lat','longitude': 'lon'}, inplace=True)
