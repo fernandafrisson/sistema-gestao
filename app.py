@@ -75,7 +75,7 @@ def carregar_quarteiroes_csv():
 def carregar_geo_kml():
     url_kml = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quadras%20de%20Guar%C3%A1.kml'
     try:
-        gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'r'
+        
         gdf = gpd.read_file(url_kml)
         pontos = []
         for index, row in gdf.iterrows():
