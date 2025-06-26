@@ -214,7 +214,7 @@ def modulo_rh():
     tab_rh1, tab_rh2, tab_rh3 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "👨‍💼 Gerenciar Funcionários"])
     with tab_rh1:
         st.subheader("Registro de Férias e Abonadas")
-        if not df_funcionarios.empty and 'nome' in df_funcionarios.columns:
+        if df_funcionarios is not None and not df_funcionarios.empty and 'nome' in df_funcionarios.columns:
             lista_funcionarios = sorted(df_funcionarios['nome'].tolist())
             funcionario_selecionado = st.selectbox("Selecione o Funcionário", lista_funcionarios)
             tipo_evento = st.selectbox("Tipo de Evento", ["Férias", "Abonada"], key="tipo_evento_selector")
@@ -259,8 +259,8 @@ def modulo_rh():
             st.info("Nenhum funcionário cadastrado.")
         st.divider()
         st.subheader("Histórico de Férias e Abonadas")
-        df_folgas_filtrado = df_folgas.copy()
-        if not df_folgas_filtrado.empty:
+        if not df_folgas.empty:
+            df_folgas_filtrado = df_folgas.copy()
             st.markdown("##### Filtrar Histórico")
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -287,7 +287,7 @@ def modulo_rh():
         col_ficha, col_tabela = st.columns([0.7, 2.3]) 
         with col_tabela:
             st.subheader("Equipe e Status de Férias")
-            if not df_funcionarios.empty and 'id' in df_funcionarios.columns:
+            if df_funcionarios is not None and not df_funcionarios.empty and 'id' in df_funcionarios.columns:
                 ferias_info = [calcular_status_ferias_saldo(func, df_folgas) for _, func in df_funcionarios.iterrows()]
                 abonadas_info = [get_abonadas_ano(func_id, df_folgas) for func_id in df_funcionarios['id']]
                 df_display = df_funcionarios.copy()
@@ -303,7 +303,7 @@ def modulo_rh():
                 st.info("Nenhum funcionário cadastrado.")
         with col_ficha:
             st.subheader("Consultar Ficha")
-            if not df_funcionarios.empty:
+            if df_funcionarios is not None and not df_funcionarios.empty:
                 funcionario_ficha = st.selectbox("Selecione um funcionário", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione...")
                 if funcionario_ficha:
                     dados_func = df_funcionarios[df_funcionarios['nome'] == funcionario_ficha].iloc[0]
@@ -340,7 +340,7 @@ def modulo_rh():
                     st.error(f"Erro ao cadastrar funcionário: {e}")
         st.divider()
         st.subheader("Editar Funcionário")
-        if not df_funcionarios.empty:
+        if df_funcionarios is not None and not df_funcionarios.empty:
             func_para_editar = st.selectbox("Selecione para editar", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione um funcionário...")
             if func_para_editar:
                 dados_func_originais = df_funcionarios[df_funcionarios['nome'] == func_para_editar].iloc[0]
@@ -360,7 +360,7 @@ def modulo_rh():
                         st.cache_data.clear(); st.rerun()
         st.divider()
         st.subheader("🚨 Deletar Funcionário")
-        if not df_funcionarios.empty:
+        if df_funcionarios is not None and not df_funcionarios.empty:
             func_para_deletar = st.selectbox("Selecione para deletar", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione um funcionário...")
             if func_para_deletar:
                 st.warning(f"**Atenção:** Você está prestes a deletar **{func_para_deletar}** e todos os seus registos de férias e abonadas. Esta ação é irreversível.")
@@ -390,8 +390,6 @@ def modulo_boletim():
     lista_quarteiroes = carregar_quarteiroes_csv() 
     df_geo_quarteiroes = carregar_geo_kml() 
 
-    # --- LÓGICA DOS BOTÕES DINÂMICOS ---
-    # Inicializa os contadores de equipe no estado da sessão se não existirem
     if 'num_equipes_manha' not in st.session_state:
         st.session_state.num_equipes_manha = 1
     if 'num_equipes_tarde' not in st.session_state:
@@ -422,7 +420,6 @@ def modulo_boletim():
             motoristas = st.multiselect("Motorista(s)", options=lista_nomes_disponiveis_full)
             st.divider()
             
-            # --- TURNO DA MANHÃ DINÂMICO ---
             st.markdown("**Turno da Manhã**")
             equipes_manha = []
             funcionarios_manha_disponiveis = lista_nomes_disponiveis_full.copy()
@@ -435,19 +432,17 @@ def modulo_boletim():
                     atividades = st.multiselect("Atividades", options=atividades_gerais_options, key=f"manha_atividades_{i}")
                 with cols[2]:
                     quarteiroes = st.multiselect("Quarteirões", options=lista_quarteiroes, key=f"manha_quarteiroes_{i}")
-                
                 if membros:
                     equipes_manha.append({"membros": membros, "atividades": atividades, "quarteiroes": quarteiroes})
                     for membro in membros:
                         if membro in funcionarios_manha_disponiveis:
                            funcionarios_manha_disponiveis.remove(membro)
-
+            
             st.markdown("**Faltas - Manhã**")
             faltas_manha_nomes = st.multiselect("Funcionários Ausentes (Manhã)", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], key="falta_manha_nomes")
             motivo_falta_manha = st.text_input("Motivo(s) (Manhã)", key="falta_manha_motivo")
             st.divider()
-
-            # --- TURNO DA TARDE DINÂMICO ---
+            
             st.markdown("**Turno da Tarde**")
             equipes_tarde = []
             funcionarios_tarde_disponiveis = lista_nomes_disponiveis_full.copy()
@@ -465,12 +460,11 @@ def modulo_boletim():
                     for membro in membros:
                         if membro in funcionarios_tarde_disponiveis:
                             funcionarios_tarde_disponiveis.remove(membro)
-
+            
             st.markdown("**Faltas - Tarde**")
             faltas_tarde_nomes = st.multiselect("Funcionários Ausentes (Tarde)", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], key="falta_tarde_nomes")
             motivo_falta_tarde = st.text_input("Motivo(s) (Tarde)", key="falta_tarde_motivo")
             
-            # Botão de salvar dentro do formulário
             submitted = st.form_submit_button("Salvar Boletim")
             if submitted:
                 boletim_id = data_boletim.strftime("%Y-%m-%d")
@@ -478,13 +472,11 @@ def modulo_boletim():
                 try:
                     ref = db.reference(f'boletins/{boletim_id}'); ref.set(boletim_data)
                     st.success(f"Boletim para o dia {data_boletim.strftime('%d/%m/%Y')} salvo com sucesso!")
-                    # Reseta os contadores após salvar
                     st.session_state.num_equipes_manha = 1
                     st.session_state.num_equipes_tarde = 1
                 except Exception as e:
                     st.error(f"Erro ao salvar o boletim: {e}")
         
-        # Botões para adicionar/remover equipes FORA do formulário
         st.divider()
         col1, col2 = st.columns(2)
         with col1:
@@ -507,7 +499,6 @@ def modulo_boletim():
                     st.rerun()
 
     with tab2:
-        # Conteúdo da Aba 2 (Visualizar/Editar) totalmente restaurado
         st.subheader("Visualizar e Editar Boletim Diário")
         data_para_ver = st.date_input("Selecione a data do boletim que deseja ver", date.today(), key="edit_date")
         if st.button("Buscar Boletim", key="search_edit"):
@@ -536,16 +527,18 @@ def modulo_boletim():
                     equipes_manha_edit_data = []
                     st.markdown("**Equipes - Manhã**")
                     saved_teams_manha = boletim_data.get('equipes_manha', [])
-                    # Loop baseado no número de equipes salvas
                     for i in range(len(saved_teams_manha)):
                         st.markdown(f"--- *Equipe {i+1}* ---")
+                        default_membros = saved_teams_manha[i].get('membros',[])
+                        default_atividades = saved_teams_manha[i].get('atividades',[])
+                        default_quarteiroes = saved_teams_manha[i].get('quarteiroes',[])
                         cols = st.columns([2, 2, 3])
                         with cols[0]:
-                            membros = st.multiselect("Membros", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], max_selections=2, default=saved_teams_manha[i].get('membros',[]), key=f"edit_manha_membros_{i}")
+                            membros = st.multiselect("Membros", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], max_selections=2, default=default_membros, key=f"edit_manha_membros_{i}")
                         with cols[1]:
-                            atividades = st.multiselect("Atividades ", options=atividades_gerais_options, default=saved_teams_manha[i].get('atividades',[]), key=f"edit_manha_atividades_{i}")
+                            atividades = st.multiselect("Atividades ", options=atividades_gerais_options, default=default_atividades, key=f"edit_manha_atividades_{i}")
                         with cols[2]:
-                            quarteiroes = st.multiselect("Quarteirões", options=lista_quarteiroes, default=saved_teams_manha[i].get('quarteiroes',[]), key=f"edit_manha_quarteiroes_{i}")
+                            quarteiroes = st.multiselect("Quarteirões", options=lista_quarteiroes, default=default_quarteiroes, key=f"edit_manha_quarteiroes_{i}")
                         if membros:
                             equipes_manha_edit_data.append({"membros": membros, "atividades": atividades, "quarteiroes": quarteiroes})
                     
@@ -557,16 +550,18 @@ def modulo_boletim():
                     equipes_tarde_edit_data = []
                     st.markdown("**Equipes - Tarde**")
                     saved_teams_tarde = boletim_data.get('equipes_tarde', [])
-                    # Loop baseado no número de equipes salvas
                     for i in range(len(saved_teams_tarde)):
                         st.markdown(f"--- *Equipe {i+1}* ---")
+                        default_membros = saved_teams_tarde[i].get('membros',[])
+                        default_atividades = saved_teams_tarde[i].get('atividades',[])
+                        default_quarteiroes = saved_teams_tarde[i].get('quarteiroes',[])
                         cols = st.columns([2, 2, 3])
                         with cols[0]:
-                            membros = st.multiselect("Membros ", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], max_selections=2, default=saved_teams_tarde[i].get('membros',[]), key=f"edit_tarde_membros_{i}")
+                            membros = st.multiselect("Membros ", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], max_selections=2, default=default_membros, key=f"edit_tarde_membros_{i}")
                         with cols[1]:
-                            atividades = st.multiselect("Atividades  ", options=atividades_gerais_options, default=saved_teams_tarde[i].get('atividades',[]), key=f"edit_tarde_atividades_{i}")
+                            atividades = st.multiselect("Atividades  ", options=atividades_gerais_options, default=default_atividades, key=f"edit_tarde_atividades_{i}")
                         with cols[2]:
-                             quarteiroes = st.multiselect("Quarteirões ", options=lista_quarteiroes, default=saved_teams_tarde[i].get('quarteiroes',[]), key=f"edit_tarde_quarteiroes_{i}")
+                             quarteiroes = st.multiselect("Quarteirões ", options=lista_quarteiroes, default=default_quarteiroes, key=f"edit_tarde_quarteiroes_{i}")
                         if membros:
                             equipes_tarde_edit_data.append({"membros": membros, "atividades": atividades, "quarteiroes": quarteiroes})
                             
@@ -582,7 +577,6 @@ def modulo_boletim():
                         st.session_state.boletim_encontrado = boletim_atualizado
 
     with tab3:
-        # (O código desta aba permanece o mesmo)
         st.subheader("Mapa de Atividades por Dia")
         data_mapa = st.date_input("Selecione a data para visualizar o mapa", date.today(), key="mapa_data")
         if st.button("Visualizar Mapa"):
@@ -626,9 +620,64 @@ def modulo_boletim():
                         st.plotly_chart(fig, use_container_width=True)
 
 def login_screen():
-    # ... (código do login)
+    st.title("Sistema Integrado de Gestão")
+    with st.form("login_form"):
+        st.header("Login do Sistema")
+        username = st.text_input("Usuário", key="login_username")
+        password = st.text_input("Senha", type="password", key="login_password")
+        submit_button = st.form_submit_button("Entrar")
+        if submit_button:
+            if username in USERS and USERS[username] == password:
+                st.session_state['logged_in'] = True
+                st.session_state['username'] = username
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos.")
+
 def main_app():
-    # ... (código da app principal)
+    if 'module_choice' not in st.session_state:
+        st.session_state['module_choice'] = None
+    if st.session_state['module_choice'] is None:
+        st.title("Painel de Controle")
+        st.header(f"Bem-vindo(a), {st.session_state['username']}!")
+        st.write("Selecione o módulo que deseja acessar:")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🚨 Denúncias", use_container_width=True):
+                st.session_state['module_choice'] = "Denúncias"
+                st.rerun()
+        with col2:
+            if st.button("👥 Recursos Humanos", use_container_width=True):
+                st.session_state['module_choice'] = "Recursos Humanos"
+                st.rerun()
+        with col3:
+            if st.button("🗓️ Boletim Diário", use_container_width=True):
+                st.session_state['module_choice'] = "Boletim"
+                st.rerun()
+        st.divider()
+        if st.button("Logout"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
+    else:
+        with st.sidebar:
+            st.title("Navegação")
+            st.write(f"Usuário: **{st.session_state['username']}**")
+            st.divider()
+            if st.button("⬅️ Voltar ao Menu Principal"):
+                st.session_state['module_choice'] = None
+                st.rerun()
+            st.divider()
+            if st.button("Logout"):
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                st.rerun()
+        if st.session_state['module_choice'] == "Denúncias":
+            modulo_denuncias()
+        elif st.session_state['module_choice'] == "Recursos Humanos":
+            modulo_rh()
+        elif st.session_state['module_choice'] == "Boletim":
+            modulo_boletim()
 
 if __name__ == "__main__":
     if 'logged_in' not in st.session_state:
