@@ -225,7 +225,7 @@ def modulo_rh():
     df_folgas = carregar_dados_firebase('folgas_ferias')
 
     # Nova ordem das abas
-    tab_rh1, tab_rh2, tab_rh3 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "👨‍💼 Cadastrar Funcionário"])
+    tab_rh1, tab_rh2, tab_rh3 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "👨‍💼 Gerenciar Funcionários"])
 
     with tab_rh1:
         st.subheader("Registro de Férias e Abonadas")
@@ -378,7 +378,7 @@ def modulo_rh():
 
 
     with tab_rh3:
-        st.subheader("Cadastro de Novo Funcionário")
+        st.subheader("Cadastrar Novo Funcionário")
         with st.form("novo_funcionario_form_2", clear_on_submit=True):
             nome = st.text_input("Nome Completo")
             matricula = st.text_input("Número da Matrícula") # Novo campo
@@ -406,6 +406,53 @@ def modulo_rh():
                     st.rerun()
                 except Exception as e:
                     st.error(f"Erro ao cadastrar funcionário: {e}")
+        
+        st.divider()
+        st.subheader("Editar Funcionário")
+        if not df_funcionarios.empty:
+            func_para_editar = st.selectbox("Selecione para editar", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione um funcionário...")
+            if func_para_editar:
+                dados_func_originais = df_funcionarios[df_funcionarios['nome'] == func_para_editar].iloc[0]
+                with st.form("edit_funcionario_form"):
+                    st.write(f"Editando dados de **{func_para_editar}**")
+                    nome_edit = st.text_input("Nome Completo", value=dados_func_originais.get('nome'))
+                    matricula_edit = st.text_input("Número da Matrícula", value=dados_func_originais.get('matricula'))
+                    telefone_edit = st.text_input("Telefone", value=dados_func_originais.get('telefone'))
+                    funcao_edit = st.text_input("Função", value=dados_func_originais.get('funcao'))
+                    unidade_edit = st.text_input("Unidade de Trabalho", value=dados_func_originais.get('unidade_trabalho'))
+                    data_admissao_edit = st.date_input("Data de Admissão", value=pd.to_datetime(dados_func_originais.get('data_admissao')))
+
+                    if st.form_submit_button("Salvar Alterações"):
+                        dados_atualizados = {
+                            'nome': nome_edit, 'matricula': matricula_edit, 'telefone': telefone_edit,
+                            'funcao': funcao_edit, 'unidade_trabalho': unidade_edit,
+                            'data_admissao': data_admissao_edit.strftime('%Y-%m-%d')
+                        }
+                        ref = db.reference(f"funcionarios/{dados_func_originais['id']}")
+                        ref.update(dados_atualizados)
+                        st.success("Dados do funcionário atualizados com sucesso!")
+                        st.cache_data.clear(); st.rerun()
+
+        st.divider()
+        st.subheader("🚨 Deletar Funcionário")
+        if not df_funcionarios.empty:
+            func_para_deletar = st.selectbox("Selecione para deletar", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione um funcionário...")
+            if func_para_deletar:
+                st.warning(f"**Atenção:** Você está prestes a deletar **{func_para_deletar}** e todos os seus registos de férias e abonadas. Esta ação é irreversível.")
+                if st.button("Confirmar Deleção", type="primary"):
+                    try:
+                        id_func_deletar = df_funcionarios[df_funcionarios['nome'] == func_para_deletar]['id'].iloc[0]
+                        # Deletar do nó de funcionários
+                        db.reference(f'funcionarios/{id_func_deletar}').delete()
+                        # Deletar registros de folgas/férias associados
+                        folgas_ref = db.reference('folgas_ferias')
+                        folgas_para_deletar = folgas_ref.order_by_child('id_funcionario').equal_to(id_func_deletar).get()
+                        for key in folgas_para_deletar:
+                            folgas_ref.child(key).delete()
+                        st.success(f"Funcionário {func_para_deletar} deletado com sucesso.")
+                        st.cache_data.clear(); st.rerun()
+                    except Exception as e:
+                        st.error(f"Ocorreu um erro ao deletar: {e}")
 
 # ==============================================================================
 # ========================== MÓDULO DE DENÚNCIAS ===============================
