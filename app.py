@@ -12,6 +12,7 @@ from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from dateutil.relativedelta import relativedelta
 import locale
+from collections import Counter
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
@@ -736,7 +737,6 @@ def modulo_boletim():
         
         data_boletim = st.date_input("Data do Trabalho", date.today())
         
-        # Filtra funcionários disponíveis para o dia inteiro
         funcionarios_disponiveis_full = df_funcionarios.copy()
         if not df_folgas.empty:
             ausentes_ids = df_folgas[
@@ -748,59 +748,65 @@ def modulo_boletim():
         lista_nomes_disponiveis_full = sorted(funcionarios_disponiveis_full['nome'].tolist())
         atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização"]
 
-        with st.form("boletim_form"):
-            bairros = st.text_area("Bairros a serem trabalhados")
-            atividades_gerais = st.multiselect("Atividades Gerais do Dia", atividades_gerais_options)
-            motoristas = st.multiselect("Motorista(s)", options=lista_nomes_disponiveis_full)
-            st.divider()
-            
-            # --- MANHÃ ---
-            st.markdown("**Turno da Manhã**")
-            equipes_manha = {}
-            for i in range(1, 6):
-                cols = st.columns([2,2])
-                with cols[0]:
-                    equipes_manha[f"equipe_{i}_membros"] = st.multiselect(f"Equipa {i} (Manhã) - Membros", options=lista_nomes_disponiveis_full, max_selections=2, key=f"manha_membros_{i}")
-                with cols[1]:
-                    equipes_manha[f"equipe_{i}_atividades"] = st.multiselect("Atividades", options=atividades_gerais_options, key=f"manha_atividades_{i}")
-            
-            st.markdown("**Faltas - Manhã**")
-            faltas_manha_nomes = st.multiselect("Funcionários Ausentes", options=sorted(df_funcionarios['nome'].tolist()), key="falta_manha_nomes")
-            motivo_falta_manha = st.text_input("Motivo(s)", key="falta_manha_motivo")
-            
-            st.divider()
-            
-            # --- TARDE ---
-            st.markdown("**Turno da Tarde**")
-            equipes_tarde = {}
-            for i in range(1, 6):
-                cols = st.columns([2,2])
-                with cols[0]:
-                    equipes_tarde[f"equipe_{i}_membros"] = st.multiselect(f"Equipa {i} (Tarde) - Membros", options=lista_nomes_disponiveis_full, max_selections=2, key=f"tarde_membros_{i}")
-                with cols[1]:
-                    equipes_tarde[f"equipe_{i}_atividades"] = st.multiselect("Atividades", options=atividades_gerais_options, key=f"tarde_atividades_{i}")
-            
-            st.markdown("**Faltas - Tarde**")
-            faltas_tarde_nomes = st.multiselect("Funcionários Ausentes", options=sorted(df_funcionarios['nome'].tolist()), key="falta_tarde_nomes")
-            motivo_falta_tarde = st.text_input("Motivo(s)", key="falta_tarde_motivo")
+        bairros = st.text_area("Bairros a serem trabalhados")
+        atividades_gerais = st.multiselect("Atividades Gerais do Dia", atividades_gerais_options)
+        motoristas = st.multiselect("Motorista(s)", options=lista_nomes_disponiveis_full)
+        st.divider()
+        
+        # Manhã
+        st.markdown("**Turno da Manhã**")
+        funcionarios_manha_disponiveis = lista_nomes_disponiveis_full.copy()
+        equipes_manha = []
+        for i in range(1, 6):
+            cols = st.columns([2, 2])
+            with cols[0]:
+                membros = st.multiselect(f"Equipa {i} (Manhã) - Membros", options=funcionarios_manha_disponiveis, max_selections=2, key=f"manha_membros_{i}")
+            with cols[1]:
+                atividades = st.multiselect("Atividades da Equipa", options=atividades_gerais_options, key=f"manha_atividades_{i}")
+            if membros:
+                equipes_manha.append({"membros": membros, "atividades": atividades})
+                # Atualiza a lista de disponíveis para o próximo widget
+                for membro in membros:
+                    funcionarios_manha_disponiveis.remove(membro)
+        
+        st.markdown("**Faltas - Manhã**")
+        faltas_manha_nomes = st.multiselect("Funcionários Ausentes", options=sorted(df_funcionarios['nome'].tolist()), key="falta_manha_nomes")
+        motivo_falta_manha = st.text_input("Motivo(s)", key="falta_manha_motivo")
+        
+        st.divider()
 
-            submit_boletim = st.form_submit_button("Salvar Boletim")
+        # Tarde
+        st.markdown("**Turno da Tarde**")
+        funcionarios_tarde_disponiveis = lista_nomes_disponiveis_full.copy()
+        equipes_tarde = []
+        for i in range(1, 6):
+            cols = st.columns([2, 2])
+            with cols[0]:
+                membros = st.multiselect(f"Equipa {i} (Tarde) - Membros", options=funcionarios_tarde_disponiveis, max_selections=2, key=f"tarde_membros_{i}")
+            with cols[1]:
+                atividades = st.multiselect("Atividades", options=atividades_gerais_options, key=f"tarde_atividades_{i}")
+            if membros:
+                equipes_tarde.append({"membros": membros, "atividades": atividades})
+                for membro in membros:
+                    funcionarios_tarde_disponiveis.remove(membro)
 
-            if submit_boletim:
-                boletim_id = data_boletim.strftime("%Y-%m-%d")
-                boletim_data = {
-                    "data": boletim_id, "bairros": bairros, "atividades_gerais": atividades_gerais,
-                    "motoristas": motoristas,
-                    "equipes_manha": {f"equipe_{i}": {"membros": equipes_manha[f"equipe_{i}_membros"], "atividades": equipes_manha[f"equipe_{i}_atividades"]} for i in range(1, 6) if equipes_manha[f"equipe_{i}_membros"]},
-                    "equipes_tarde": {f"equipe_{i}": {"membros": equipes_tarde[f"equipe_{i}_membros"], "atividades": equipes_tarde[f"equipe_{i}_atividades"]} for i in range(1, 6) if equipes_tarde[f"equipe_{i}_membros"]},
-                    "faltas_manha": {"nomes": faltas_manha_nomes, "motivo": motivo_falta_manha},
-                    "faltas_tarde": {"nomes": faltas_tarde_nomes, "motivo": motivo_falta_tarde}
-                }
-                try:
-                    ref = db.reference(f'boletins/{boletim_id}'); ref.set(boletim_data)
-                    st.success(f"Boletim para o dia {data_boletim.strftime('%d/%m/%Y')} salvo com sucesso!")
-                except Exception as e:
-                    st.error(f"Erro ao salvar o boletim: {e}")
+        st.markdown("**Faltas - Tarde**")
+        faltas_tarde_nomes = st.multiselect("Funcionários Ausentes", options=sorted(df_funcionarios['nome'].tolist()), key="falta_tarde_nomes")
+        motivo_falta_tarde = st.text_input("Motivo(s)", key="falta_tarde_motivo")
+        
+        if st.button("Salvar Boletim", use_container_width=True):
+            boletim_id = data_boletim.strftime("%Y-%m-%d")
+            boletim_data = {
+                "data": boletim_id, "bairros": bairros, "atividades_gerais": atividades_gerais,
+                "motoristas": motoristas, "equipes_manha": equipes_manha, "equipes_tarde": equipes_tarde,
+                "faltas_manha": {"nomes": faltas_manha_nomes, "motivo": motivo_falta_manha},
+                "faltas_tarde": {"nomes": faltas_tarde_nomes, "motivo": motivo_falta_tarde}
+            }
+            try:
+                ref = db.reference(f'boletins/{boletim_id}'); ref.set(boletim_data)
+                st.success(f"Boletim para o dia {data_boletim.strftime('%d/%m/%Y')} salvo com sucesso!")
+            except Exception as e:
+                st.error(f"Erro ao salvar o boletim: {e}")
 
     with tab_boletim2:
         st.subheader("Visualizar e Editar Boletim Diário")
@@ -823,30 +829,34 @@ def modulo_boletim():
                         st.divider()
                         col_manha_edit, col_tarde_edit = st.columns(2)
                         
-                        equipes_manha_edit_data = {}
+                        equipes_manha_edit_data = []
                         with col_manha_edit:
                             st.markdown("**Equipes - Manhã**")
-                            saved_teams = boletim_data.get('equipes_manha', {})
-                            for i in range(1, 6):
-                                st.markdown(f"--- *Equipa {i}* ---")
-                                default_membros = saved_teams.get(f"equipe_{i}", {}).get('membros', [])
-                                default_atividades = saved_teams.get(f"equipe_{i}", {}).get('atividades', [])
-                                equipes_manha_edit_data[f"equipe_{i}_membros"] = st.multiselect("Membros", options=sorted(df_funcionarios['nome'].tolist()), max_selections=2, default=default_membros, key=f"edit_manha_membros_{i}")
-                                equipes_manha_edit_data[f"equipe_{i}_atividades"] = st.multiselect("Atividades", options=atividades_gerais_options, default=default_atividades, key=f"edit_manha_atividades_{i}")
+                            saved_teams = boletim_data.get('equipes_manha', [])
+                            for i in range(5):
+                                st.markdown(f"--- *Equipa {i+1}* ---")
+                                default_membros = saved_teams[i]['membros'] if i < len(saved_teams) else []
+                                default_atividades = saved_teams[i]['atividades'] if i < len(saved_teams) else []
+                                membros = st.multiselect("Membros", options=sorted(df_funcionarios['nome'].tolist()), max_selections=2, default=default_membros, key=f"edit_manha_membros_{i}")
+                                atividades = st.multiselect("Atividades", options=atividades_gerais_options, default=default_atividades, key=f"edit_manha_atividades_{i}")
+                                if membros:
+                                    equipes_manha_edit_data.append({"membros": membros, "atividades": atividades})
                             st.markdown("**Faltas - Manhã**")
                             faltas_manha_nomes_edit = st.multiselect("Ausentes", options=sorted(df_funcionarios['nome'].tolist()), default=boletim_data.get('faltas_manha', {}).get('nomes', []), key="edit_falta_manha_nomes")
                             motivo_falta_manha_edit = st.text_input("Motivo", value=boletim_data.get('faltas_manha', {}).get('motivo', ''), key="edit_falta_manha_motivo")
 
-                        equipes_tarde_edit_data = {}
+                        equipes_tarde_edit_data = []
                         with col_tarde_edit:
                             st.markdown("**Equipes - Tarde**")
-                            saved_teams = boletim_data.get('equipes_tarde', {})
-                            for i in range(1, 6):
-                                st.markdown(f"--- *Equipa {i}* ---")
-                                default_membros = saved_teams.get(f"equipe_{i}", {}).get('membros', [])
-                                default_atividades = saved_teams.get(f"equipe_{i}", {}).get('atividades', [])
-                                equipes_tarde_edit_data[f"equipe_{i}_membros"] = st.multiselect("Membros", options=sorted(df_funcionarios['nome'].tolist()), max_selections=2, default=default_membros, key=f"edit_tarde_membros_{i}")
-                                equipes_tarde_edit_data[f"equipe_{i}_atividades"] = st.multiselect("Atividades", options=atividades_gerais_options, default=default_atividades, key=f"edit_tarde_atividades_{i}")
+                            saved_teams = boletim_data.get('equipes_tarde', [])
+                            for i in range(5):
+                                st.markdown(f"--- *Equipa {i+1}* ---")
+                                default_membros = saved_teams[i]['membros'] if i < len(saved_teams) else []
+                                default_atividades = saved_teams[i]['atividades'] if i < len(saved_teams) else []
+                                membros = st.multiselect("Membros", options=sorted(df_funcionarios['nome'].tolist()), max_selections=2, default=default_membros, key=f"edit_tarde_membros_{i}")
+                                atividades = st.multiselect("Atividades", options=atividades_gerais_options, default=default_atividades, key=f"edit_tarde_atividades_{i}")
+                                if membros:
+                                    equipes_tarde_edit_data.append({"membros": membros, "atividades": atividades})
                             st.markdown("**Faltas - Tarde**")
                             faltas_tarde_nomes_edit = st.multiselect("Ausentes", options=sorted(df_funcionarios['nome'].tolist()), default=boletim_data.get('faltas_tarde', {}).get('nomes', []), key="edit_falta_tarde_nomes")
                             motivo_falta_tarde_edit = st.text_input("Motivo", value=boletim_data.get('faltas_tarde', {}).get('motivo', ''), key="edit_falta_tarde_motivo")
@@ -854,9 +864,8 @@ def modulo_boletim():
                         if st.form_submit_button("Salvar Alterações no Boletim"):
                             boletim_atualizado = {
                                 "data": boletim_id, "bairros": bairros_edit, "atividades_gerais": atividades_gerais_edit,
-                                "motoristas": motoristas_edit, 
-                                "equipes_manha": {f"equipe_{i}": {"membros": equipes_manha_edit_data[f"equipe_{i}_membros"], "atividades": equipes_manha_edit_data[f"equipe_{i}_atividades"]} for i in range(1, 6) if equipes_manha_edit_data[f"equipe_{i}_membros"]},
-                                "equipes_tarde": {f"equipe_{i}": {"membros": equipes_tarde_edit_data[f"equipe_{i}_membros"], "atividades": equipes_tarde_edit_data[f"equipe_{i}_atividades"]} for i in range(1, 6) if equipes_tarde_edit_data[f"equipe_{i}_membros"]},
+                                "motoristas": motoristas_edit, "equipes_manha": equipes_manha_edit_data,
+                                "equipes_tarde": equipes_tarde_edit_data,
                                 "faltas_manha": {"nomes": faltas_manha_nomes_edit, "motivo": motivo_falta_manha_edit},
                                 "faltas_tarde": {"nomes": faltas_tarde_nomes_edit, "motivo": motivo_falta_tarde_edit}
                             }
