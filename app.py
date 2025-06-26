@@ -326,55 +326,59 @@ def modulo_rh():
             st.write("Nenhum registro de ausência encontrado.")
 
     with tab_rh2:
-        st.subheader("Equipe e Status de Férias")
-        if not df_funcionarios.empty and 'id' in df_funcionarios.columns:
-            ferias_info = [calcular_status_ferias_saldo(func, df_folgas) for _, func in df_funcionarios.iterrows()]
-            abonadas_info = [get_abonadas_ano(func_id, df_folgas) for func_id in df_funcionarios['id']]
-            
-            df_display = df_funcionarios.copy()
-            df_display['Período Aquisitivo de Referência'] = [info[0] for info in ferias_info]
-            df_display['Status Agendamento'] = [info[1] for info in ferias_info]
-            df_display['Abonadas no Ano'] = abonadas_info
-            
-            def style_status(val):
-                if "PENDENTE" in val:
-                    return 'background-color: #ffc44b;' # Amarelo
-                if "Parcialmente" in val:
-                    return 'background-color: #a9d1f7;' # Azul claro
-                return ''
+        # Nova estrutura com colunas
+        col_ficha, col_tabela = st.columns([1, 2])
 
-            st.dataframe(
-                df_display[['nome', 'funcao', 'data_admissao', 'Período Aquisitivo de Referência', 'Status Agendamento', 'Abonadas no Ano']]
-                .rename(columns={'nome': 'Nome', 'funcao': 'Função', 'data_admissao': 'Data de Admissão'})
-                .style.apply(lambda row: [style_status(row['Status Agendamento'])]*len(row), axis=1),
-                use_container_width=True,
-                hide_index=True
-            )
-        
-        st.divider()
-        st.subheader("Consultar Ficha do Funcionário")
-        if not df_funcionarios.empty:
-            funcionario_ficha = st.selectbox("Selecione um funcionário para ver os detalhes", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione...")
-            if funcionario_ficha:
-                dados_func = df_funcionarios[df_funcionarios['nome'] == funcionario_ficha].iloc[0]
+        with col_tabela:
+            st.subheader("Equipe e Status de Férias")
+            if not df_funcionarios.empty and 'id' in df_funcionarios.columns:
+                ferias_info = [calcular_status_ferias_saldo(func, df_folgas) for _, func in df_funcionarios.iterrows()]
+                abonadas_info = [get_abonadas_ano(func_id, df_folgas) for func_id in df_funcionarios['id']]
                 
-                col1, col2 = st.columns([1, 3])
-                with col1:
-                    st.image("https://placehold.co/200x200/262730/FFFFFF?text=FOTO", use_container_width=True) # Correção aqui
-                with col2:
+                df_display = df_funcionarios.copy()
+                df_display['Período Aquisitivo de Referência'] = [info[0] for info in ferias_info]
+                df_display['Status Agendamento'] = [info[1] for info in ferias_info]
+                df_display['Abonadas no Ano'] = abonadas_info
+                
+                def style_status(val):
+                    if "PENDENTE" in val:
+                        return 'background-color: #ffc44b;' # Amarelo
+                    if "Parcialmente" in val:
+                        return 'background-color: #a9d1f7;' # Azul claro
+                    return ''
+
+                st.dataframe(
+                    df_display[['nome', 'funcao', 'data_admissao', 'Período Aquisitivo de Referência', 'Status Agendamento', 'Abonadas no Ano']]
+                    .rename(columns={'nome': 'Nome', 'funcao': 'Função', 'data_admissao': 'Data de Admissão'})
+                    .style.apply(lambda row: [style_status(row['Status Agendamento'])]*len(row), axis=1),
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info("Nenhum funcionário cadastrado.")
+
+        with col_ficha:
+            st.subheader("Consultar Ficha do Funcionário")
+            if not df_funcionarios.empty:
+                funcionario_ficha = st.selectbox("Selecione um funcionário", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione...")
+                if funcionario_ficha:
+                    dados_func = df_funcionarios[df_funcionarios['nome'] == funcionario_ficha].iloc[0]
+                    
+                    st.image("https://placehold.co/200x200/FFFFFF/333333?text=FOTO", use_column_width=True)
+                    
                     st.markdown(f"**Nome:** {dados_func.get('nome', 'N/A')}")
                     st.markdown(f"**Matrícula:** {dados_func.get('matricula', 'N/A')}")
                     st.markdown(f"**Telefone:** {dados_func.get('telefone', 'N/A')}")
-                
-                st.markdown("**Informações adicionais:**")
-                abonadas_ano = get_abonadas_ano(dados_func.get('id'), df_folgas)
-                ultimas_ferias = get_ultimas_ferias(dados_func.get('id'), df_folgas)
-                
-                st.markdown(f"- **Abonadas realizadas no ano:** {abonadas_ano}")
-                st.markdown(f"- **Últimas Férias:** {ultimas_ferias}")
-
-        else:
-            st.info("Nenhum funcionário cadastrado.")
+                    
+                    st.divider()
+                    st.markdown("**Informações Adicionais:**")
+                    abonadas_ano = get_abonadas_ano(dados_func.get('id'), df_folgas)
+                    ultimas_ferias = get_ultimas_ferias(dados_func.get('id'), df_folgas)
+                    
+                    st.markdown(f"- **Abonadas no ano:** {abonadas_ano}")
+                    st.markdown(f"- **Últimas Férias:** {ultimas_ferias}")
+            else:
+                st.info("Nenhum funcionário cadastrado.")
 
 
     with tab_rh3:
