@@ -31,6 +31,7 @@ try:
             cred_dict = dict(st.secrets["firebase_credentials"])
             cred = credentials.Certificate(cred_dict)
         else:
+            # Lembre-se de ter o arquivo de credenciais na mesma pasta do seu app
             cred = credentials.Certificate("denuncias-48660-firebase-adminsdk-fbsvc-9f27fef1c8.json")
 
         firebase_admin.initialize_app(cred, {
@@ -125,11 +126,11 @@ def create_abonada_word_report(data):
 
     # Seção de Pessoal
     p_info = document.add_paragraph(); add_black_run(p_info, 'Informação da Seção de Pessoal:', bold=True)
-    add_black_run(document.add_paragraph(), "Refere-se à:     1ª (   )     2ª (    )    3ª (   ) do Primeiro Semestre de: ____________")
-    add_black_run(document.add_paragraph(), "          \t\t 1ª (   )     2ª (   )    3ª (   ) do Segundo Semestre de: ____________")
+    add_black_run(document.add_paragraph(), "Refere-se à:      1ª (   )      2ª (   )    3ª (  ) do Primeiro Semestre de: ____________")
+    add_black_run(document.add_paragraph(), "                 \t\t 1ª (   )      2ª (   )    3ª (  ) do Segundo Semestre de: ____________")
     p_visto = document.add_paragraph("     ___________________________________________");
-    p_visto_label = document.add_paragraph("                                        (visto do funcionário da seção de pessoal)")
-    p_abone = document.add_paragraph("                     Abone-se: _____/_____/______")
+    p_visto_label = document.add_paragraph("                                      (visto do funcionário da seção de pessoal)")
+    p_abone = document.add_paragraph("                         Abone-se: _____/_____/______")
     p_abone.paragraph_format.space_after = Pt(18)
 
     p_secretario_sig = document.add_paragraph("_________________________________"); p_secretario_sig.alignment = 1
@@ -137,7 +138,7 @@ def create_abonada_word_report(data):
     
     for p in document.paragraphs:
         if not p.runs:
-             p.paragraph_format.space_after = Pt(0)
+              p.paragraph_format.space_after = Pt(0)
         for run in p.runs:
             if run.font.color.rgb is None:
                 run.font.color.rgb = black_color
@@ -466,9 +467,9 @@ def modulo_denuncias():
         document.add_paragraph(str(data.get('conclusao_atendimento', '')))
         footer = document.sections[0].footer; footer_para = footer.paragraphs[0]
         footer_para.text = ("PREFEITURA MUNICIPAL DA ESTÂNCIA TURÍSTICA DE GUARATINGUETÁ/SP\n"
-                          "Secretaria Municipal de Saúde - Fundo Municipal de Saúde\n"
-                          "Rua Jacques Felix, 02 – São Gonçalo - Guaratinguetá/SP - CEP 12.502-180\n"
-                          "Telefone / Fax: (12) 3123-2900 - e-mail: ccz@guaratingueta.sp.gov.br")
+                            "Secretaria Municipal de Saúde - Fundo Municipal de Saúde\n"
+                            "Rua Jacques Felix, 02 – São Gonçalo - Guaratinguetá/SP - CEP 12.502-180\n"
+                            "Telefone / Fax: (12) 3123-2900 - e-mail: ccz@guaratingueta.sp.gov.br")
         footer_para.alignment = 1
         font_footer = footer_para.style.font
         font_footer.name = 'Arial'; font_footer.size = Pt(8)
@@ -651,74 +652,87 @@ def modulo_denuncias():
             else: st.warning("Não foi possível geolocalizar nenhum endereço.")
         else: st.info("Nenhuma denúncia registrada.")
 
-# --- SISTEMA DE LOGIN E NAVEGAÇÃO ---
-def login_screen():
-    st.title("Sistema Integrado de Gestão")
-    with st.form("login_form"):
-        st.header("Login do Sistema")
-        username = st.text_input("Usuário", key="login_username")
-        password = st.text_input("Senha", type="password", key="login_password")
-        submit_button = st.form_submit_button("Entrar")
+# --- NOVA FUNÇÃO PARA GERAR O BOLETIM EM WORD ---
+def create_boletim_word_report(data):
+    """Cria um documento Word para o Boletim de Programação Diária."""
+    document = Document()
+    style = document.styles['Normal']
+    font = style.font
+    font.name = 'Calibri'
+    font.size = Pt(11)
 
-        if submit_button:
-            if username in USERS and USERS[username] == password:
-                st.session_state['logged_in'] = True
-                st.session_state['username'] = username
-                st.rerun()
-            else:
-                st.error("Usuário ou senha inválidos.")
+    # Título
+    titulo = document.add_heading('Boletim de Programação Diária', level=1)
+    titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-def main_app():
-    if 'module_choice' not in st.session_state:
-        st.session_state['module_choice'] = None
+    # Data do Boletim
+    try:
+        data_obj = datetime.strptime(data.get('data', ''), '%Y-%m-%d')
+        data_formatada = data_obj.strftime('%d/%m/%Y')
+    except (ValueError, TypeError):
+        data_formatada = "Data não informada"
+    
+    p_data = document.add_paragraph(f"Data: {data_formatada}")
+    p_data.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_data.paragraph_format.space_after = Pt(18)
 
-    if st.session_state['module_choice'] is None:
-        # TELA DE HUB/MENU PRINCIPAL
-        st.title("Painel de Controle")
-        st.header(f"Bem-vindo(a), {st.session_state['username']}!")
-        st.write("Selecione o módulo que deseja acessar:")
+    # Informações Gerais
+    document.add_heading('Informações Gerais', level=2)
+    p = document.add_paragraph()
+    p.add_run('Bairros a serem trabalhados: ').bold = True
+    p.add_run(data.get('bairros', 'N/A'))
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("🚨 Denúncias", use_container_width=True):
-                st.session_state['module_choice'] = "Denúncias"
-                st.rerun()
-        with col2:
-            if st.button("👥 Recursos Humanos", use_container_width=True):
-                st.session_state['module_choice'] = "Recursos Humanos"
-                st.rerun()
-        with col3:
-            if st.button("🗓️ Boletim Diário", use_container_width=True):
-                st.session_state['module_choice'] = "Boletim"
-                st.rerun()
+    p = document.add_paragraph()
+    p.add_run('Atividades Gerais do Dia: ').bold = True
+    p.add_run(', '.join(data.get('atividades_gerais', ['N/A'])))
+    
+    p = document.add_paragraph()
+    p.add_run('Motorista(s): ').bold = True
+    p.add_run(', '.join(data.get('motoristas', ['N/A'])))
+    p.paragraph_format.space_after = Pt(18)
+
+    # Função para adicionar seções de turno
+    def add_turno_section(doc, turno_nome, equipes_data, faltas_data):
+        doc.add_heading(f'Turno da {turno_nome}', level=2)
         
-        st.divider()
-        if st.button("Logout"):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
-            
-    else:
-        # VISUALIZAÇÃO DO MÓDULO ESCOLHIDO
-        with st.sidebar:
-            st.title("Navegação")
-            st.write(f"Usuário: **{st.session_state['username']}**")
-            st.divider()
-            if st.button("⬅️ Voltar ao Menu Principal"):
-                st.session_state['module_choice'] = None
-                st.rerun()
-            st.divider()
-            if st.button("Logout"):
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-                st.rerun()
+        # Equipes
+        equipes = equipes_data or []
+        if not equipes:
+            doc.add_paragraph("Nenhuma equipe programada para este turno.")
+        else:
+            for i, equipe in enumerate(equipes):
+                membros = equipe.get('membros', [])
+                atividades = equipe.get('atividades', [])
+                p = doc.add_paragraph()
+                p.add_run(f'Equipe {i+1}: ').bold = True
+                p.add_run(', '.join(membros if membros else ['N/A']))
+                
+                p_atividades = doc.add_paragraph(f"    Atividades: {', '.join(atividades) if atividades else 'N/A'}")
+                p_atividades.paragraph_format.space_before = Pt(0)
+                p_atividades.paragraph_format.space_after = Pt(6)
 
-        if st.session_state['module_choice'] == "Denúncias":
-            modulo_denuncias()
-        elif st.session_state['module_choice'] == "Recursos Humanos":
-            modulo_rh()
-        elif st.session_state['module_choice'] == "Boletim":
-            modulo_boletim()
+        # Faltas
+        doc.add_paragraph().add_run('Faltas:').bold = True
+        nomes_faltas = faltas_data.get('nomes', [])
+        motivo_falta = faltas_data.get('motivo', '')
+        if not nomes_faltas:
+            doc.add_paragraph("Nenhuma falta registrada.")
+        else:
+            doc.add_paragraph(f"  Nomes: {', '.join(nomes_faltas)}")
+            doc.add_paragraph(f"  Motivo: {motivo_falta if motivo_falta else 'Não especificado'}")
+        
+        doc.add_paragraph().paragraph_format.space_after = Pt(18)
+
+    # Seções Manhã e Tarde
+    add_turno_section(document, "Manhã", data.get('equipes_manha', []), data.get('faltas_manha', {}))
+    add_turno_section(document, "Tarde", data.get('equipes_tarde', []), data.get('faltas_tarde', {}))
+
+    # Salva o documento no buffer
+    buffer = io.BytesIO()
+    document.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
 
 # --- NOVO MÓDULO DE BOLETIM DE PROGRAMAÇÃO ---
 def modulo_boletim():
@@ -764,7 +778,8 @@ def modulo_boletim():
                 equipes_manha.append({"membros": membros, "atividades": atividades})
                 # Atualiza a lista de disponíveis para o próximo widget
                 for membro in membros:
-                    funcionarios_manha_disponiveis.remove(membro)
+                    if membro in funcionarios_manha_disponiveis:
+                       funcionarios_manha_disponiveis.remove(membro)
         
         st.markdown("**Faltas - Manhã**")
         faltas_manha_nomes = st.multiselect("Funcionários Ausentes", options=sorted(df_funcionarios['nome'].tolist()), key="falta_manha_nomes")
@@ -785,7 +800,8 @@ def modulo_boletim():
             if membros:
                 equipes_tarde.append({"membros": membros, "atividades": atividades})
                 for membro in membros:
-                    funcionarios_tarde_disponiveis.remove(membro)
+                    if membro in funcionarios_tarde_disponiveis:
+                        funcionarios_tarde_disponiveis.remove(membro)
 
         st.markdown("**Faltas - Tarde**")
         faltas_tarde_nomes = st.multiselect("Funcionários Ausentes", options=sorted(df_funcionarios['nome'].tolist()), key="falta_tarde_nomes")
@@ -815,13 +831,16 @@ def modulo_boletim():
             boletim_data = ref.get()
             # Guarda os dados encontrados na session_state para o botão de download
             st.session_state.boletim_encontrado = boletim_data
-        else:
-            if 'boletim_encontrado' not in st.session_state:
-                st.session_state.boletim_encontrado = None
+            if not boletim_data:
+                st.warning(f"Nenhum boletim encontrado para a data {data_para_ver.strftime('%d/%m/%Y')}.")
+        
+        # Garante que a chave existe antes de acessá-la
+        if 'boletim_encontrado' not in st.session_state:
+            st.session_state.boletim_encontrado = None
 
         if st.session_state.boletim_encontrado:
             boletim_data = st.session_state.boletim_encontrado
-            st.success(f"Boletim de {data_para_ver.strftime('%d/%m/%Y')} carregado.")
+            st.success(f"Boletim de {pd.to_datetime(boletim_data['data']).strftime('%d/%m/%Y')} carregado.")
             
             # Botão de download
             boletim_doc_bytes = create_boletim_word_report(boletim_data)
@@ -834,6 +853,7 @@ def modulo_boletim():
             
             with st.expander("Ver/Editar Boletim", expanded=True):
                 with st.form("edit_boletim_form"):
+                    boletim_id = boletim_data['data'] # Pega o ID para salvar
                     bairros_edit = st.text_area("Bairros", value=boletim_data.get('bairros', ''))
                     atividades_gerais_edit = st.multiselect("Atividades Gerais", atividades_gerais_options, default=boletim_data.get('atividades_gerais', []))
                     motoristas_edit = st.multiselect("Motoristas", options=sorted(df_funcionarios['nome'].tolist()), default=boletim_data.get('motoristas', []))
@@ -881,6 +901,7 @@ def modulo_boletim():
                             "faltas_manha": {"nomes": faltas_manha_nomes_edit, "motivo": motivo_falta_manha_edit},
                             "faltas_tarde": {"nomes": faltas_tarde_nomes_edit, "motivo": motivo_falta_tarde_edit}
                         }
+                        ref = db.reference(f'boletins/{boletim_id}')
                         ref.set(boletim_atualizado)
                         st.success("Boletim atualizado com sucesso!")
                         st.session_state.boletim_encontrado = boletim_atualizado # Atualiza o estado
