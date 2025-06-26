@@ -17,14 +17,11 @@ from collections import Counter
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
 
-# Adicione novos usuários aqui. O formato é "nome_de_usuario": "senha"
+# --- USUÁRIOS PARA LOGIN (Exemplo) ---
 USERS = {
     "admin": "admin123",
     "taylan": "taylan123",
-    "danilo": "danilo123",
-    "eduardo": "eduardo123",
-    "joseane": "joseane123",
-    "glaucia": "galucia123" # Novo usuário adicionado
+    "fernanda": "fernanda123"
 }
 
 # --- CONFIGURAÇÃO DO FIREBASE ---
