@@ -73,36 +73,29 @@ def carregar_quarteiroes_csv():
         return []
 
 # --- NOVA FUNÇÃO PARA CARREGAR DADOS GEOGRÁFICOS DO KML ---
+# --- FUNÇÃO CORRIGIDA E SIMPLIFICADA PARA LER O KML ---
 @st.cache_data
 def carregar_geo_kml():
     """Lê um arquivo KML de uma URL e extrai as coordenadas e nomes dos quarteirões."""
-    # IMPORTANTE: COLE AQUI A URL "RAW" DO SEU ARQUIVO .KML
-    url_kml = 'COLE_SUA_URL_RAW_DO_ARQUIVO_KML_AQUI'
+    url_kml = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quadras%20de%20Guar%C3%A1.kml'
     
     try:
-        # Habilita o driver KML do fiona (necessário para o geopandas)
-        gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'r'
-        
-        # Lê o arquivo KML diretamente da URL
-        gdf = gpd.read_file(url_kml, driver='KML')
+        # A linha que causava o erro foi REMOVIDA.
+        # O Geopandas moderno detecta o formato KML automaticamente pela URL.
+        gdf = gpd.read_file(url_kml)
 
-        # Prepara um DataFrame vazio para os resultados
         pontos = []
-
-        # Itera sobre cada geometria (Placemark) no KML
         for index, row in gdf.iterrows():
-            # O nome do quarteirão geralmente está na coluna 'Name'
             quadra_nome = row['Name']
             
-            # Extrai as coordenadas. A geometria pode ser um Ponto, Linha ou Polígono
-            # Para o mapa, vamos pegar o centroide (o ponto central) da geometria
-            if row['geometry'].geom_type == 'Point':
-                lon, lat = row['geometry'].x, row['geometry'].y
-            else: # Para Linhas ou Polígonos
-                centroid = row['geometry'].centroid
-                lon, lat = centroid.x, centroid.y
-            
-            pontos.append({'quadra': str(quadra_nome), 'lat': lat, 'lon': lon})
+            if row['geometry'] is not None and hasattr(row['geometry'], 'geom_type'):
+                if row['geometry'].geom_type == 'Point':
+                    lon, lat = row['geometry'].x, row['geometry'].y
+                else: 
+                    centroid = row['geometry'].centroid
+                    lon, lat = centroid.x, centroid.y
+                
+                pontos.append({'quadra': str(quadra_nome), 'lat': lat, 'lon': lon})
 
         df_geo = pd.DataFrame(pontos)
         df_geo.dropna(subset=['lat', 'lon'], inplace=True)
