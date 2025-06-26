@@ -16,7 +16,6 @@ import locale
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
 
-# --- USUÁRIOS PARA LOGIN (Exemplo) ---
 # Adicione novos usuários aqui. O formato é "nome_de_usuario": "senha"
 USERS = {
     "admin": "admin123",
@@ -182,35 +181,53 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
     except Exception as e:
         return "Erro de Cálculo", f"Erro: {e}"
 
+def get_abonadas_ano(employee_id, all_folgas_df):
+    """Conta o número de abonadas de um funcionário no ano corrente."""
+    try:
+        current_year = date.today().year
+        if all_folgas_df.empty or 'id_funcionario' not in all_folgas_df.columns:
+            return 0
+        
+        abonadas_funcionario = all_folgas_df[
+            (all_folgas_df['id_funcionario'] == str(employee_id)) &
+            (all_folgas_df['tipo'] == 'Abonada') &
+            (pd.to_datetime(all_folgas_df['data_inicio']).dt.year == current_year)
+        ]
+        return len(abonadas_funcionario)
+    except Exception:
+        return 0
+
+def get_ultimas_ferias(employee_id, all_folgas_df):
+    """Retorna a data das últimas férias gozadas."""
+    try:
+        if all_folgas_df.empty or 'id_funcionario' not in all_folgas_df.columns:
+            return "Nenhum registro"
+
+        ferias_do_funcionario = all_folgas_df[
+            (all_folgas_df['id_funcionario'] == str(employee_id)) &
+            (all_folgas_df['tipo'] == 'Férias')
+        ].copy()
+
+        if ferias_do_funcionario.empty:
+            return "Nenhuma férias registrada"
+
+        ferias_do_funcionario['data_inicio'] = pd.to_datetime(ferias_do_funcionario['data_inicio'])
+        ultima_ferias = ferias_do_funcionario.sort_values(by='data_inicio', ascending=False).iloc[0]
+        
+        return ultima_ferias['data_inicio'].strftime('%d/%m/%Y')
+    except Exception:
+        return "Erro"
+
 def modulo_rh():
     st.title("Recursos Humanos")
 
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_folgas = carregar_dados_firebase('folgas_ferias')
 
-    tab_rh1, tab_rh2, tab_rh3 = st.tabs(["👨‍💼 Cadastrar Funcionário", "✈️ Gerenciar Ausências", "👥 Visualizar Equipe"])
+    # Nova ordem das abas
+    tab_rh1, tab_rh2, tab_rh3 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "👨‍💼 Cadastrar Funcionário"])
 
     with tab_rh1:
-        st.subheader("Cadastro de Novo Funcionário")
-        with st.form("novo_funcionario_form", clear_on_submit=True):
-            nome = st.text_input("Nome Completo")
-            funcao = st.text_input("Função")
-            unidade_trabalho = st.text_input("Unidade de Trabalho")
-            data_admissao = st.date_input("Data de Admissão", datetime.now())
-            submit_funcionario = st.form_submit_button("Cadastrar Funcionário")
-
-            if submit_funcionario and nome and funcao and unidade_trabalho:
-                try:
-                    novo_id = str(int(time.time() * 1000))
-                    ref = db.reference(f'funcionarios/{novo_id}')
-                    ref.set({'nome': nome, 'funcao': funcao, 'unidade_trabalho': unidade_trabalho, 'data_admissao': data_admissao.strftime("%Y-%m-%d"), 'id': novo_id})
-                    st.success(f"Funcionário {nome} cadastrado com sucesso!")
-                    st.cache_data.clear()
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao cadastrar funcionário: {e}")
-
-    with tab_rh2:
         st.subheader("Registro de Férias e Abonadas")
         if not df_funcionarios.empty and 'nome' in df_funcionarios.columns:
             lista_funcionarios = sorted(df_funcionarios['nome'].tolist())
@@ -270,7 +287,6 @@ def modulo_rh():
                     file_name=f"Abonada_{st.session_state.doc_data['nome']}_{st.session_state.doc_data['data_abonada']}.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
-
         else:
             st.info("Nenhum funcionário cadastrado.")
 
@@ -309,14 +325,16 @@ def modulo_rh():
         else:
             st.write("Nenhum registro de ausência encontrado.")
 
-    with tab_rh3:
+    with tab_rh2:
         st.subheader("Equipe e Status de Férias")
         if not df_funcionarios.empty and 'id' in df_funcionarios.columns:
             ferias_info = [calcular_status_ferias_saldo(func, df_folgas) for _, func in df_funcionarios.iterrows()]
+            abonadas_info = [get_abonadas_ano(func_id, df_folgas) for func_id in df_funcionarios['id']]
             
             df_display = df_funcionarios.copy()
             df_display['Período Aquisitivo de Referência'] = [info[0] for info in ferias_info]
             df_display['Status Agendamento'] = [info[1] for info in ferias_info]
+            df_display['Abonadas no Ano'] = abonadas_info
             
             def style_status(val):
                 if "PENDENTE" in val:
@@ -326,14 +344,68 @@ def modulo_rh():
                 return ''
 
             st.dataframe(
-                df_display[['nome', 'funcao', 'data_admissao', 'Período Aquisitivo de Referência', 'Status Agendamento']]
+                df_display[['nome', 'funcao', 'data_admissao', 'Período Aquisitivo de Referência', 'Status Agendamento', 'Abonadas no Ano']]
                 .rename(columns={'nome': 'Nome', 'funcao': 'Função', 'data_admissao': 'Data de Admissão'})
                 .style.apply(lambda row: [style_status(row['Status Agendamento'])]*len(row), axis=1),
                 use_container_width=True,
                 hide_index=True
             )
+        
+        st.divider()
+        st.subheader("Consultar Ficha do Funcionário")
+        if not df_funcionarios.empty:
+            funcionario_ficha = st.selectbox("Selecione um funcionário para ver os detalhes", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione...")
+            if funcionario_ficha:
+                dados_func = df_funcionarios[df_funcionarios['nome'] == funcionario_ficha].iloc[0]
+                
+                col1, col2 = st.columns([1, 3])
+                with col1:
+                    st.image("https://placehold.co/200x200/262730/FFFFFF?text=FOTO", use_column_width=True)
+                with col2:
+                    st.markdown(f"**Nome:** {dados_func.get('nome', 'N/A')}")
+                    st.markdown(f"**Matrícula:** {dados_func.get('matricula', 'N/A')}")
+                    st.markdown(f"**Telefone:** {dados_func.get('telefone', 'N/A')}")
+                
+                st.markdown("**Informações adicionais:**")
+                abonadas_ano = get_abonadas_ano(dados_func.get('id'), df_folgas)
+                ultimas_ferias = get_ultimas_ferias(dados_func.get('id'), df_folgas)
+                
+                st.markdown(f"- **Abonadas realizadas no ano:** {abonadas_ano}")
+                st.markdown(f"- **Últimas Férias:** {ultimas_ferias}")
+
         else:
             st.info("Nenhum funcionário cadastrado.")
+
+
+    with tab_rh3:
+        st.subheader("Cadastro de Novo Funcionário")
+        with st.form("novo_funcionario_form_2", clear_on_submit=True):
+            nome = st.text_input("Nome Completo")
+            matricula = st.text_input("Número da Matrícula") # Novo campo
+            telefone = st.text_input("Telefone") # Novo campo
+            funcao = st.text_input("Função")
+            unidade_trabalho = st.text_input("Unidade de Trabalho")
+            data_admissao = st.date_input("Data de Admissão", datetime.now())
+            submit_funcionario = st.form_submit_button("Cadastrar Funcionário")
+
+            if submit_funcionario and nome and funcao and unidade_trabalho:
+                try:
+                    novo_id = str(int(time.time() * 1000))
+                    ref = db.reference(f'funcionarios/{novo_id}')
+                    ref.set({
+                        'id': novo_id,
+                        'nome': nome, 
+                        'matricula': matricula,
+                        'telefone': telefone,
+                        'funcao': funcao, 
+                        'unidade_trabalho': unidade_trabalho, 
+                        'data_admissao': data_admissao.strftime("%Y-%m-%d")
+                    })
+                    st.success(f"Funcionário {nome} cadastrado com sucesso!")
+                    st.cache_data.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao cadastrar funcionário: {e}")
 
 # ==============================================================================
 # ========================== MÓDULO DE DENÚNCIAS ===============================
