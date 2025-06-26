@@ -59,17 +59,17 @@ def carregar_dados_firebase(node):
         st.error(f"Erro ao carregar dados do nó '{node}': {e}")
         return pd.DataFrame()
 
-# --- FUNÇÃO ATUALIZADA PARA LER O CSV DO GITHUB ---
+# --- FUNÇÃO CORRIGIDA PARA LER O CSV DO GITHUB ---
 @st.cache_data
 def carregar_quarteiroes_csv():
-    """Lê o arquivo CSV de quarteirões diretamente de uma URL do GitHub."""
+    """Lê o arquivo CSV de quarteirões diretamente de uma URL do GitHub, especificando a codificação correta."""
     
-    # IMPORTANTE: Substitua a URL abaixo pela URL RAW do seu arquivo no GitHub!
     url_csv = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quarteirao.csv'
     
     try:
-        # Tenta ler o CSV diretamente da URL
-        df_quarteiroes = pd.read_csv(url_csv, header=None)
+        # Tenta ler o CSV especificando a codificação 'latin-1'
+        df_quarteiroes = pd.read_csv(url_csv, header=None, encoding='latin-1')
+        
         # Converte todos os valores para string e remove duplicados
         quarteiroes_lista = sorted(df_quarteiroes[0].astype(str).unique().tolist())
         return quarteiroes_lista
@@ -81,11 +81,10 @@ def carregar_quarteiroes_csv():
 # ======================== MÓDULO DE RECURSOS HUMANOS ==========================
 # ==============================================================================
 
+# (O restante do seu código permanece o mesmo. Colei tudo abaixo por conveniência)
+
 def create_abonada_word_report(data):
-    """Cria um documento Word para a Falta Abonada com base no novo modelo."""
-    
     def format_date_pt(dt):
-        """Formata a data com o mês em português."""
         months = ("Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro")
         return f"{dt.day} de {months[dt.month - 1]} de {dt.year}"
 
@@ -385,6 +384,7 @@ def modulo_rh():
 # ========================== MÓDULO DE DENÚNCIAS ===============================
 # ==============================================================================
 def modulo_denuncias():
+    # ... (código do módulo de denúncias, que não foi alterado)
     st.title("Denúncias")
     @st.cache_data
     def geocode_addresses(df):
@@ -681,7 +681,6 @@ def modulo_boletim():
         motoristas = st.multiselect("Motorista(s)", options=lista_nomes_disponiveis_full)
         st.divider()
         
-        # --- Manhã ---
         st.markdown("**Turno da Manhã**")
         funcionarios_manha_disponiveis = lista_nomes_disponiveis_full.copy()
         equipes_manha = []
@@ -706,7 +705,6 @@ def modulo_boletim():
         motivo_falta_manha = st.text_input("Motivo(s)", key="falta_manha_motivo")
         st.divider()
 
-        # --- Tarde ---
         st.markdown("**Turno da Tarde**")
         funcionarios_tarde_disponiveis = lista_nomes_disponiveis_full.copy()
         equipes_tarde = []
