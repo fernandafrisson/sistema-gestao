@@ -75,7 +75,6 @@ def carregar_quarteiroes_csv():
 def carregar_geo_kml():
     url_kml = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quadras%20de%20Guar%C3%A1.kml'
     try:
-        
         gdf = gpd.read_file(url_kml)
         pontos = []
         for index, row in gdf.iterrows():
@@ -93,6 +92,7 @@ def carregar_geo_kml():
     except Exception as e:
         st.error(f"Não foi possível carregar os dados de geolocalização do KML. Verifique o link ou o formato do arquivo. Erro: {e}")
         return pd.DataFrame()
+
 
 def create_abonada_word_report(data):
     def format_date_pt(dt):
@@ -208,19 +208,24 @@ def get_ultimas_ferias(employee_id, all_folgas_df):
     except Exception:
         return "Erro"
 
+# --- MÓDULO RH ATUALIZADO ---
 def modulo_rh():
     st.title("Recursos Humanos")
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_folgas = carregar_dados_firebase('folgas_ferias')
+    
     tab_rh1, tab_rh2, tab_rh3 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "👨‍💼 Gerenciar Funcionários"])
+    
     with tab_rh1:
         st.subheader("Registro de Férias e Abonadas")
         if not df_funcionarios.empty and 'nome' in df_funcionarios.columns:
             lista_funcionarios = sorted(df_funcionarios['nome'].tolist())
             funcionario_selecionado = st.selectbox("Selecione o Funcionário", lista_funcionarios)
             tipo_evento = st.selectbox("Tipo de Evento", ["Férias", "Abonada"], key="tipo_evento_selector")
+            
             if 'doc_data' not in st.session_state:
                 st.session_state.doc_data = None
+
             with st.form("folgas_ferias_form", clear_on_submit=True):
                 if tipo_evento == "Férias":
                     st.write("Período de Férias:")
@@ -229,11 +234,13 @@ def modulo_rh():
                         data_inicio = st.date_input("Data de Início")
                     with col2:
                         data_fim = st.date_input("Data de Fim")
-                else:
+                else:  # Abonada
                     st.write("Data da Abonada:")
                     data_inicio = st.date_input("Data")
                     data_fim = data_inicio
+                
                 submit_evento = st.form_submit_button("Registrar Evento")
+                
                 if submit_evento:
                     if tipo_evento == "Férias" and data_inicio > data_fim:
                         st.error("A data de início não pode ser posterior à data de fim.")
@@ -242,26 +249,110 @@ def modulo_rh():
                             id_funcionario = df_funcionarios[df_funcionarios['nome'] == funcionario_selecionado]['id'].iloc[0]
                             evento_id = str(int(time.time() * 1000))
                             ref = db.reference(f'folgas_ferias/{evento_id}')
-                            ref.set({'id_funcionario': id_funcionario, 'nome_funcionario': funcionario_selecionado, 'tipo': tipo_evento, 'data_inicio': data_inicio.strftime("%Y-%m-%d"), 'data_fim': data_fim.strftime("%Y-%m-%d")})
+                            ref.set({
+                                'id_funcionario': id_funcionario,
+                                'nome_funcionario': funcionario_selecionado,
+                                'tipo': tipo_evento,
+                                'data_inicio': data_inicio.strftime("%Y-%m-%d"),
+                                'data_fim': data_fim.strftime("%Y-%m-%d")
+                            })
                             st.success(f"{tipo_evento} para {funcionario_selecionado} registrado com sucesso!")
+                            
                             if tipo_evento == "Abonada":
                                 dados_func = df_funcionarios[df_funcionarios['id'] == id_funcionario].iloc[0]
-                                doc_data = {'nome': dados_func.get('nome', ''),'funcao': dados_func.get('funcao', ''),'unidade': dados_func.get('unidade_trabalho', ''),'data_abonada': data_inicio.strftime('%d-%m-%Y'),}
+                                doc_data = {
+                                    'nome': dados_func.get('nome', ''),
+                                    'funcao': dados_func.get('funcao', ''),
+                                    'unidade': dados_func.get('unidade_trabalho', ''),
+                                    'data_abonada': data_inicio.strftime('%d-%m-%Y'),
+                                }
                                 st.session_state.doc_data = doc_data
                             else:
                                 st.session_state.doc_data = None
+                            
                             st.cache_data.clear()
+                            st.rerun() # Adicionado para recarregar a página e atualizar as listas
                         except Exception as e:
                             st.error(f"Erro ao registrar evento: {e}")
+
             if st.session_state.doc_data:
                 word_bytes = create_abonada_word_report(st.session_state.doc_data)
-                st.download_button(label="📥 Baixar Requerimento de Abonada (.docx)",data=word_bytes,file_name=f"Abonada_{st.session_state.doc_data['nome']}_{st.session_state.doc_data['data_abonada']}.docx",mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                st.download_button(
+                    label="📥 Baixar Requerimento de Abonada (.docx)",
+                    data=word_bytes,
+                    file_name=f"Abonada_{st.session_state.doc_data['nome']}_{st.session_state.doc_data['data_abonada']}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
         else:
             st.info("Nenhum funcionário cadastrado.")
+        st.divider()
+
+        # --- NOVA SEÇÃO PARA EDITAR FÉRIAS E ABONADAS ---
+        st.subheader("Editar Registro de Férias ou Abonada")
+        if not df_folgas.empty:
+            # Criar uma representação legível para cada evento no selectbox
+            df_folgas['label'] = df_folgas.apply(
+                lambda row: f"{row['tipo']} - {row['nome_funcionario']} ({pd.to_datetime(row['data_inicio']).strftime('%d/%m/%Y')})",
+                axis=1
+            )
+            
+            # Adicionar a opção de placeholder
+            lista_eventos = ["Selecione um registro para editar..."] + df_folgas.sort_values(by='data_inicio', ascending=False)['label'].tolist()
+            
+            evento_label_selecionado = st.selectbox("Selecione o Registro", options=lista_eventos)
+
+            if evento_label_selecionado != "Selecione um registro para editar...":
+                # Encontrar o ID do evento selecionado
+                evento_selecionado_df = df_folgas[df_folgas['label'] == evento_label_selecionado]
+                if not evento_selecionado_df.empty:
+                    dados_evento = evento_selecionado_df.iloc[0]
+                    evento_id = dados_evento.name # O ID do firebase é o índice do dataframe
+
+                    with st.form(f"edit_folga_{evento_id}"):
+                        st.write(f"Editando: **{dados_evento['label']}**")
+                        
+                        tipo_evento_edit = dados_evento['tipo']
+                        
+                        if tipo_evento_edit == "Férias":
+                            st.write("Período de Férias:")
+                            col1_edit, col2_edit = st.columns(2)
+                            with col1_edit:
+                                data_inicio_edit = st.date_input("Nova Data de Início", value=pd.to_datetime(dados_evento['data_inicio']))
+                            with col2_edit:
+                                data_fim_edit = st.date_input("Nova Data de Fim", value=pd.to_datetime(dados_evento['data_fim']))
+                        else: # Abonada
+                            st.write("Data da Abonada:")
+                            data_inicio_edit = st.date_input("Nova Data", value=pd.to_datetime(dados_evento['data_inicio']))
+                            data_fim_edit = data_inicio_edit
+
+                        submit_edit = st.form_submit_button("Salvar Alterações")
+
+                        if submit_edit:
+                            if tipo_evento_edit == "Férias" and data_inicio_edit > data_fim_edit:
+                                st.error("A data de início não pode ser posterior à data de fim.")
+                            else:
+                                try:
+                                    ref = db.reference(f'folgas_ferias/{evento_id}')
+                                    ref.update({
+                                        'data_inicio': data_inicio_edit.strftime("%Y-%m-%d"),
+                                        'data_fim': data_fim_edit.strftime("%Y-%m-%d")
+                                    })
+                                    st.success("Registro atualizado com sucesso!")
+                                    st.cache_data.clear()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao atualizar o registro: {e}")
+                else:
+                    st.warning("Registro não encontrado. Por favor, atualize a página.")
+        else:
+            st.info("Nenhum registro de férias ou abonada para editar.")
+
+
         st.divider()
         st.subheader("Histórico de Férias e Abonadas")
         df_folgas_filtrado = df_folgas.copy()
         if not df_folgas_filtrado.empty:
+            # ... (código do filtro de histórico permanece o mesmo)
             st.markdown("##### Filtrar Histórico")
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -280,10 +371,12 @@ def modulo_rh():
                         df_folgas_filtrado = df_folgas_filtrado[df_folgas_filtrado['tipo'] == filtro_tipo]
                     if filtro_ano != "Todos":
                         df_folgas_filtrado = df_folgas_filtrado[df_folgas_filtrado['ano'] == filtro_ano]
+            
             cols_to_display = [col for col in ['nome_funcionario', 'tipo', 'data_inicio', 'data_fim'] if col in df_folgas_filtrado.columns]
             st.dataframe(df_folgas_filtrado[cols_to_display].rename(columns={'nome_funcionario': 'Funcionário', 'tipo': 'Tipo', 'data_inicio': 'Início', 'data_fim': 'Fim'}), use_container_width=True,hide_index=True)
         else:
             st.write("Nenhum registro de ausência encontrado.")
+            
     with tab_rh2:
         col_ficha, col_tabela = st.columns([0.7, 2.3])
         with col_tabela:
@@ -379,6 +472,7 @@ def modulo_rh():
                         st.error(f"Ocorreu um erro ao deletar: {e}")
 
 def modulo_denuncias():
+    # ... (código do módulo de denúncias permanece o mesmo)
     st.title("Denúncias")
     @st.cache_data
     def geocode_addresses(df):
@@ -565,6 +659,7 @@ def modulo_denuncias():
         else: st.info("Nenhuma denúncia registrada.")
 
 def create_boletim_word_report(data):
+    # ... (código da geração do Word do boletim permanece o mesmo)
     document = Document()
     style = document.styles['Normal']
     font = style.font
@@ -626,6 +721,7 @@ def create_boletim_word_report(data):
     buffer.seek(0)
     return buffer.getvalue()
 
+# --- MÓDULO BOLETIM ATUALIZADO ---
 def modulo_boletim():
     st.title("Boletim de Programação Diária")
 
@@ -634,12 +730,10 @@ def modulo_boletim():
     lista_quarteiroes = carregar_quarteiroes_csv()
     df_geo_quarteiroes = carregar_geo_kml()
 
-    # --- INICIALIZAÇÃO DO SESSION STATE PARA O NÚMERO DE EQUIPES ---
     if 'num_equipes_manha' not in st.session_state:
         st.session_state.num_equipes_manha = 5
     if 'num_equipes_tarde' not in st.session_state:
         st.session_state.num_equipes_tarde = 5
-
 
     tab1, tab2, tab3 = st.tabs(["🗓️ Criar Boletim", "🔍 Visualizar/Editar Boletim", "🗺️ Mapa de Atividades"])
 
@@ -672,7 +766,6 @@ def modulo_boletim():
         motoristas = st.multiselect("Motorista(s)", options=lista_nomes_disponiveis_full)
         st.divider()
         
-        # --- SEÇÃO DINÂMICA PARA TURNO DA MANHÃ ---
         st.markdown("**Turno da Manhã**")
         funcionarios_manha_disponiveis = lista_nomes_disponiveis_full[:]
         equipes_manha = []
@@ -681,7 +774,8 @@ def modulo_boletim():
             st.markdown(f"--- *Equipe {i+1}* ---")
             cols = st.columns([2, 2, 3])
             with cols[0]:
-                membros = st.multiselect(f"Membros da Equipe {i+1}", options=funcionarios_manha_disponiveis, max_selections=2, key=f"manha_membros_{i}")
+                # MUDANÇA: Removido o parâmetro `max_selections`
+                membros = st.multiselect(f"Membros da Equipe {i+1}", options=funcionarios_manha_disponiveis, key=f"manha_membros_{i}")
             with cols[1]:
                 atividades = st.multiselect("Atividades", options=atividades_gerais_options, key=f"manha_atividades_{i}")
             with cols[2]:
@@ -701,7 +795,6 @@ def modulo_boletim():
         motivo_falta_manha = st.text_input("Motivo(s)", key="falta_manha_motivo")
         st.divider()
 
-        # --- SEÇÃO DINÂMICA PARA TURNO DA TARDE ---
         st.markdown("**Turno da Tarde**")
         funcionarios_tarde_disponiveis = lista_nomes_disponiveis_full[:]
         equipes_tarde = []
@@ -710,7 +803,8 @@ def modulo_boletim():
             st.markdown(f"--- *Equipe {i+1}* ---")
             cols = st.columns([2, 2, 3])
             with cols[0]:
-                membros = st.multiselect(f"Membros da Equipe {i+1}", options=funcionarios_tarde_disponiveis, max_selections=2, key=f"tarde_membros_{i}")
+                 # MUDANÇA: Removido o parâmetro `max_selections`
+                membros = st.multiselect(f"Membros da Equipe {i+1}", options=funcionarios_tarde_disponiveis, key=f"tarde_membros_{i}")
             with cols[1]:
                 atividades = st.multiselect("Atividades ", options=atividades_gerais_options, key=f"tarde_atividades_{i}")
             with cols[2]:
@@ -731,21 +825,10 @@ def modulo_boletim():
         
         if st.button("Salvar Boletim", use_container_width=True, type="primary"):
             boletim_id = data_boletim.strftime("%Y-%m-%d")
-            boletim_data = {
-                "data": boletim_id, 
-                "bairros": bairros, 
-                "atividades_gerais": atividades_gerais, 
-                "motoristas": motoristas, 
-                "equipes_manha": equipes_manha, 
-                "equipes_tarde": equipes_tarde, 
-                "faltas_manha": {"nomes": faltas_manha_nomes, "motivo": motivo_falta_manha}, 
-                "faltas_tarde": {"nomes": faltas_tarde_nomes, "motivo": motivo_falta_tarde}
-            }
+            boletim_data = {"data": boletim_id, "bairros": bairros, "atividades_gerais": atividades_gerais, "motoristas": motoristas, "equipes_manha": equipes_manha, "equipes_tarde": equipes_tarde, "faltas_manha": {"nomes": faltas_manha_nomes, "motivo": motivo_falta_manha}, "faltas_tarde": {"nomes": faltas_tarde_nomes, "motivo": motivo_falta_tarde}}
             try:
-                ref = db.reference(f'boletins/{boletim_id}')
-                ref.set(boletim_data)
+                ref = db.reference(f'boletins/{boletim_id}'); ref.set(boletim_data)
                 st.success(f"Boletim para o dia {data_boletim.strftime('%d/%m/%Y')} salvo com sucesso!")
-                # Resetar o número de equipes para o padrão após salvar
                 st.session_state.num_equipes_manha = 5
                 st.session_state.num_equipes_tarde = 5
             except Exception as e:
@@ -770,12 +853,7 @@ def modulo_boletim():
             boletim_data = st.session_state.boletim_encontrado
             st.success(f"Boletim de {pd.to_datetime(boletim_data['data']).strftime('%d/%m/%Y')} carregado.")
             boletim_doc_bytes = create_boletim_word_report(boletim_data)
-            st.download_button(
-                label="📥 Exportar Boletim em .docx",
-                data=boletim_doc_bytes,
-                file_name=f"Boletim_Diario_{boletim_data['data']}.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            )
+            st.download_button(label="📥 Exportar Boletim em .docx", data=boletim_doc_bytes, file_name=f"Boletim_Diario_{boletim_data['data']}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
             
             with st.expander("Ver/Editar Boletim", expanded=True):
                 with st.form("edit_boletim_form"):
@@ -784,8 +862,7 @@ def modulo_boletim():
                     atividades_gerais_edit = st.multiselect("Atividades Gerais", atividades_gerais_options, default=boletim_data.get('atividades_gerais', []))
                     motoristas_edit = st.multiselect("Motoristas", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], default=boletim_data.get('motoristas', []))
                     st.divider()
-
-                    # --- EDIÇÃO DINÂMICA - MANHÃ ---
+                    
                     equipes_manha_edit_data = []
                     st.markdown("**Equipes - Manhã**")
                     saved_teams_manha = boletim_data.get('equipes_manha', [])
@@ -797,7 +874,8 @@ def modulo_boletim():
                         default_quarteiroes = saved_teams_manha[i]['quarteiroes'] if i < len(saved_teams_manha) else []
                         cols = st.columns([2, 2, 3])
                         with cols[0]:
-                            membros = st.multiselect("Membros", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], max_selections=2, default=default_membros, key=f"edit_manha_membros_{i}")
+                             # MUDANÇA: Removido o parâmetro `max_selections`
+                            membros = st.multiselect("Membros", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], default=default_membros, key=f"edit_manha_membros_{i}")
                         with cols[1]:
                             atividades = st.multiselect("Atividades ", options=atividades_gerais_options, default=default_atividades, key=f"edit_manha_atividades_{i}")
                         with cols[2]:
@@ -810,7 +888,6 @@ def modulo_boletim():
                     motivo_falta_manha_edit = st.text_input("Motivo", value=boletim_data.get('faltas_manha', {}).get('motivo', ''), key="edit_falta_manha_motivo")
                     st.divider()
 
-                    # --- EDIÇÃO DINÂMICA - TARDE ---
                     equipes_tarde_edit_data = []
                     st.markdown("**Equipes - Tarde**")
                     saved_teams_tarde = boletim_data.get('equipes_tarde', [])
@@ -822,7 +899,8 @@ def modulo_boletim():
                         default_quarteiroes = saved_teams_tarde[i]['quarteiroes'] if i < len(saved_teams_tarde) else []
                         cols = st.columns([2, 2, 3])
                         with cols[0]:
-                            membros = st.multiselect("Membros ", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], max_selections=2, default=default_membros, key=f"edit_tarde_membros_{i}")
+                             # MUDANÇA: Removido o parâmetro `max_selections`
+                            membros = st.multiselect("Membros ", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], default=default_membros, key=f"edit_tarde_membros_{i}")
                         with cols[1]:
                             atividades = st.multiselect("Atividades  ", options=atividades_gerais_options, default=default_atividades, key=f"edit_tarde_atividades_{i}")
                         with cols[2]:
@@ -842,6 +920,7 @@ def modulo_boletim():
                         st.session_state.boletim_encontrado = boletim_atualizado
 
     with tab3:
+        # ... (código da aba do mapa permanece o mesmo)
         st.subheader("Mapa de Atividades por Dia")
         data_mapa = st.date_input("Selecione a data para visualizar o mapa", date.today(), key="mapa_data")
 
@@ -891,6 +970,7 @@ def modulo_boletim():
                         fig.update_traces(marker={'size': 15})
                         
                         st.plotly_chart(fig, use_container_width=True)
+
 
 # --- SISTEMA DE LOGIN E NAVEGAÇÃO ---
 def login_screen():
