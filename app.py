@@ -61,7 +61,7 @@ def carregar_dados_firebase(node):
 
 @st.cache_data
 def carregar_quarteiroes_csv():
-    url_csv = 'https://raw.githubusercontent.com/fernandamission/sistema-gestao/main/Quarteirao.csv'
+    url_csv = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quarteirao.csv'
     try:
         df_quarteiroes = pd.read_csv(url_csv, header=None, encoding='latin-1')
         quarteiroes_lista = sorted(df_quarteiroes[0].astype(str).unique().tolist())
