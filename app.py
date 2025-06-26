@@ -364,7 +364,7 @@ def modulo_rh():
                 if funcionario_ficha:
                     dados_func = df_funcionarios[df_funcionarios['nome'] == funcionario_ficha].iloc[0]
                     
-                    st.image("https://placehold.co/150x150/FFFFFF/333333?text=FOTO", use_column_width=True) # Correção aqui
+                    st.image("https://placehold.co/150x150/FFFFFF/333333?text=FOTO", use_container_width=True) # Correção aqui
                     
                     st.markdown(f"**Nome:** {dados_func.get('nome', 'N/A')}")
                     st.markdown(f"**Matrícula:** {dados_func.get('matricula', 'N/A')}")
