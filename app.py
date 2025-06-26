@@ -12,7 +12,6 @@ from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from dateutil.relativedelta import relativedelta
 import locale
-from collections import Counter
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
