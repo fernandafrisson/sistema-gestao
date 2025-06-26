@@ -327,7 +327,7 @@ def modulo_rh():
 
     with tab_rh2:
         # Nova estrutura com colunas
-        col_ficha, col_tabela = st.columns([1, 2])
+        col_ficha, col_tabela = st.columns([0.8, 2]) # Ajuste na proporção
 
         with col_tabela:
             st.subheader("Equipe e Status de Férias")
@@ -358,13 +358,13 @@ def modulo_rh():
                 st.info("Nenhum funcionário cadastrado.")
 
         with col_ficha:
-            st.subheader("Consultar Ficha do Funcionário")
+            st.subheader("Consultar Ficha")
             if not df_funcionarios.empty:
                 funcionario_ficha = st.selectbox("Selecione um funcionário", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione...")
                 if funcionario_ficha:
                     dados_func = df_funcionarios[df_funcionarios['nome'] == funcionario_ficha].iloc[0]
                     
-                    st.image("https://placehold.co/200x200/FFFFFF/333333?text=FOTO", use_column_width=True)
+                    st.image("https://placehold.co/150x150/FFFFFF/333333?text=FOTO", use_column_width='auto') # Correção aqui
                     
                     st.markdown(f"**Nome:** {dados_func.get('nome', 'N/A')}")
                     st.markdown(f"**Matrícula:** {dados_func.get('matricula', 'N/A')}")
@@ -378,7 +378,7 @@ def modulo_rh():
                     st.markdown(f"- **Abonadas no ano:** {abonadas_ano}")
                     st.markdown(f"- **Últimas Férias:** {ultimas_ferias}")
             else:
-                st.info("Nenhum funcionário cadastrado.")
+                st.info("Nenhum funcionário.")
 
 
     with tab_rh3:
