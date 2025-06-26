@@ -307,7 +307,7 @@ def modulo_rh():
                 funcionario_ficha = st.selectbox("Selecione um funcionário", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione...")
                 if funcionario_ficha:
                     dados_func = df_funcionarios[df_funcionarios['nome'] == funcionario_ficha].iloc[0]
-                    st.image("https://placehold.co/150x150/FFFFFF/333333?text=FOTO", use_column_width='auto')
+                    st.image("https://placehold.co/150x150/FFFFFF/333333?text=FOTO", use_container_width='auto')
                     st.markdown(f"**Nome:** {dados_func.get('nome', 'N/A')}")
                     st.markdown(f"**Matrícula:** {dados_func.get('matricula', 'N/A')}")
                     st.markdown(f"**Telefone:** {dados_func.get('telefone', 'N/A')}")
