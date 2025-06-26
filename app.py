@@ -62,7 +62,7 @@ def carregar_dados_firebase(node):
 # --- FUNÇÃO ATUALIZADA PARA LER O CSV DO GITHUB ---
 @st.cache_data
 def carregar_quarteiroes_csv():
-    """raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quarteirao.csv"""
+    """Lê o arquivo CSV de quarteirões diretamente de uma URL do GitHub."""
     
     # IMPORTANTE: Substitua a URL abaixo pela URL RAW do seu arquivo no GitHub!
     url_csv = 'https://raw.githubusercontent.com/fernandamission/sistema-gestao/main/Quarteirao.csv'
