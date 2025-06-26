@@ -31,7 +31,6 @@ try:
             cred_dict = dict(st.secrets["firebase_credentials"])
             cred = credentials.Certificate(cred_dict)
         else:
-            # Lembre-se de ter o arquivo de credenciais na mesma pasta do seu app
             cred = credentials.Certificate("denuncias-48660-firebase-adminsdk-fbsvc-9f27fef1c8.json")
 
         firebase_admin.initialize_app(cred, {
@@ -60,20 +59,22 @@ def carregar_dados_firebase(node):
         st.error(f"Erro ao carregar dados do nó '{node}': {e}")
         return pd.DataFrame()
 
-# --- NOVA FUNÇÃO PARA CARREGAR QUARTEIRÕES DO CSV ---
+# --- FUNÇÃO ATUALIZADA PARA LER O CSV DO GITHUB ---
 @st.cache_data
 def carregar_quarteiroes_csv():
-    """Lê o arquivo CSV de quarteirões e retorna uma lista."""
+    """raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quarteirao.csv"""
+    
+    # IMPORTANTE: Substitua a URL abaixo pela URL RAW do seu arquivo no GitHub!
+    url_csv = 'https://raw.githubusercontent.com/fernandamission/sistema-gestao/main/Quarteirao.csv'
+    
     try:
-        df_quarteiroes = pd.read_csv('Quarteirao.csv', header=None)
+        # Tenta ler o CSV diretamente da URL
+        df_quarteiroes = pd.read_csv(url_csv, header=None)
         # Converte todos os valores para string e remove duplicados
         quarteiroes_lista = sorted(df_quarteiroes[0].astype(str).unique().tolist())
         return quarteiroes_lista
-    except FileNotFoundError:
-        st.error("Arquivo 'Quarteirao.csv' não encontrado. Por favor, coloque-o na mesma pasta do app.")
-        return []
     except Exception as e:
-        st.error(f"Erro ao ler o arquivo de quarteirões: {e}")
+        st.error(f"Não foi possível carregar o arquivo de quarteirões da URL. Verifique o link no código. Erro: {e}")
         return []
 
 # ==============================================================================
@@ -614,18 +615,17 @@ def create_boletim_word_report(data):
             for i, equipe in enumerate(equipes):
                 membros = equipe.get('membros', [])
                 atividades = equipe.get('atividades', [])
-                quarteiroes = equipe.get('quarteiroes', []) # <-- NOVO: Pega os quarteirões
+                quarteiroes = equipe.get('quarteiroes', []) 
                 
                 p_equipe = doc.add_paragraph()
                 p_equipe.add_run(f'Equipe {i+1}: ').bold = True
                 p_equipe.add_run(', '.join(membros if membros else ['N/A']))
                 
-                # Adiciona as atividades e quarteirões
                 p_detalhes = doc.add_paragraph(f"    Atividades: {', '.join(atividades) if atividades else 'N/A'}")
                 p_detalhes.paragraph_format.space_before = Pt(0)
                 p_detalhes.paragraph_format.space_after = Pt(0)
                 
-                p_quarteiroes = doc.add_paragraph(f"    Quarteirões: {', '.join(quarteiroes) if quarteiroes else 'N/A'}") # <-- NOVO: Adiciona ao doc
+                p_quarteiroes = doc.add_paragraph(f"    Quarteirões: {', '.join(map(str, quarteiroes)) if quarteiroes else 'N/A'}")
                 p_quarteiroes.paragraph_format.space_before = Pt(0)
                 p_quarteiroes.paragraph_format.space_after = Pt(6)
 
@@ -653,10 +653,9 @@ def create_boletim_word_report(data):
 def modulo_boletim():
     st.title("Boletim de Programação Diária")
 
-    # Carrega todos os dados necessários no início
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_folgas = carregar_dados_firebase('folgas_ferias')
-    lista_quarteiroes = carregar_quarteiroes_csv() # <-- NOVO: Carrega os quarteirões
+    lista_quarteiroes = carregar_quarteiroes_csv() 
 
     tab_boletim1, tab_boletim2 = st.tabs(["🗓️ Criar Boletim", "🔍 Visualizar/Editar Boletim"])
 
@@ -671,10 +670,10 @@ def modulo_boletim():
                 (pd.to_datetime(df_folgas['data_inicio']).dt.date <= data_boletim) &
                 (pd.to_datetime(df_folgas['data_fim']).dt.date >= data_boletim)
             ]['id_funcionario'].tolist()
-            if not ausentes_ids:
+            if ausentes_ids:
                  funcionarios_disponiveis_full = df_funcionarios[~df_funcionarios['id'].isin(ausentes_ids)]
         
-        lista_nomes_disponiveis_full = sorted(funcionarios_disponiveis_full['nome'].tolist())
+        lista_nomes_disponiveis_full = sorted(funcionarios_disponiveis_full['nome'].tolist()) if not funcionarios_disponiveis_full.empty else []
         atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização"]
 
         bairros = st.text_area("Bairros a serem trabalhados")
@@ -688,7 +687,7 @@ def modulo_boletim():
         equipes_manha = []
         for i in range(1, 6):
             st.markdown(f"--- *Equipe {i}* ---")
-            cols = st.columns([2, 2, 3]) # Coluna extra para quarteirões
+            cols = st.columns([2, 2, 3]) 
             with cols[0]:
                 membros = st.multiselect(f"Membros da Equipe {i}", options=funcionarios_manha_disponiveis, max_selections=2, key=f"manha_membros_{i}")
             with cols[1]:
@@ -697,7 +696,6 @@ def modulo_boletim():
                 quarteiroes = st.multiselect("Quarteirões", options=lista_quarteiroes, key=f"manha_quarteiroes_{i}")
             
             if membros:
-                # Adiciona a equipe com os quarteirões
                 equipes_manha.append({"membros": membros, "atividades": atividades, "quarteiroes": quarteiroes})
                 for membro in membros:
                     if membro in funcionarios_manha_disponiveis:
@@ -714,7 +712,7 @@ def modulo_boletim():
         equipes_tarde = []
         for i in range(1, 6):
             st.markdown(f"--- *Equipe {i}* ---")
-            cols = st.columns([2, 2, 3]) # Coluna extra para quarteirões
+            cols = st.columns([2, 2, 3]) 
             with cols[0]:
                 membros = st.multiselect(f"Membros da Equipe {i}", options=funcionarios_tarde_disponiveis, max_selections=2, key=f"tarde_membros_{i}")
             with cols[1]:
@@ -723,7 +721,6 @@ def modulo_boletim():
                 quarteiroes = st.multiselect("Quarteirões ", options=lista_quarteiroes, key=f"tarde_quarteiroes_{i}")
             
             if membros:
-                # Adiciona a equipe com os quarteirões
                 equipes_tarde.append({"membros": membros, "atividades": atividades, "quarteiroes": quarteiroes})
                 for membro in membros:
                     if membro in funcionarios_tarde_disponiveis:
