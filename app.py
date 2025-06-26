@@ -182,38 +182,24 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
         return "Erro de Cálculo", f"Erro: {e}"
 
 def get_abonadas_ano(employee_id, all_folgas_df):
-    """Conta o número de abonadas de um funcionário no ano corrente."""
     try:
         current_year = date.today().year
         if all_folgas_df.empty or 'id_funcionario' not in all_folgas_df.columns:
             return 0
-        
-        abonadas_funcionario = all_folgas_df[
-            (all_folgas_df['id_funcionario'] == str(employee_id)) &
-            (all_folgas_df['tipo'] == 'Abonada') &
-            (pd.to_datetime(all_folgas_df['data_inicio']).dt.year == current_year)
-        ]
+        abonadas_funcionario = all_folgas_df[(all_folgas_df['id_funcionario'] == str(employee_id)) & (all_folgas_df['tipo'] == 'Abonada') & (pd.to_datetime(all_folgas_df['data_inicio']).dt.year == current_year)]
         return len(abonadas_funcionario)
     except Exception:
         return 0
 
 def get_ultimas_ferias(employee_id, all_folgas_df):
-    """Retorna a data das últimas férias gozadas."""
     try:
         if all_folgas_df.empty or 'id_funcionario' not in all_folgas_df.columns:
             return "Nenhum registro"
-
-        ferias_do_funcionario = all_folgas_df[
-            (all_folgas_df['id_funcionario'] == str(employee_id)) &
-            (all_folgas_df['tipo'] == 'Férias')
-        ].copy()
-
+        ferias_do_funcionario = all_folgas_df[(all_folgas_df['id_funcionario'] == str(employee_id)) & (all_folgas_df['tipo'] == 'Férias')].copy()
         if ferias_do_funcionario.empty:
             return "Nenhuma férias registrada"
-
         ferias_do_funcionario['data_inicio'] = pd.to_datetime(ferias_do_funcionario['data_inicio'])
         ultima_ferias = ferias_do_funcionario.sort_values(by='data_inicio', ascending=False).iloc[0]
-        
         return ultima_ferias['data_inicio'].strftime('%d/%m/%Y')
     except Exception:
         return "Erro"
@@ -224,7 +210,6 @@ def modulo_rh():
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_folgas = carregar_dados_firebase('folgas_ferias')
 
-    # Nova ordem das abas
     tab_rh1, tab_rh2, tab_rh3 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "👨‍💼 Gerenciar Funcionários"])
 
     with tab_rh1:
@@ -326,8 +311,7 @@ def modulo_rh():
             st.write("Nenhum registro de ausência encontrado.")
 
     with tab_rh2:
-        # Nova estrutura com colunas
-        col_ficha, col_tabela = st.columns([0.7, 2.3]) # Proporção ajustada
+        col_ficha, col_tabela = st.columns([0.7, 2.3]) 
 
         with col_tabela:
             st.subheader("Equipe e Status de Férias")
@@ -341,10 +325,8 @@ def modulo_rh():
                 df_display['Abonadas no Ano'] = abonadas_info
                 
                 def style_status(val):
-                    if "PENDENTE" in val:
-                        return 'background-color: #ffc44b;' # Amarelo
-                    if "Parcialmente" in val:
-                        return 'background-color: #a9d1f7;' # Azul claro
+                    if "PENDENTE" in val: return 'background-color: #ffc44b;'
+                    if "Parcialmente" in val: return 'background-color: #a9d1f7;'
                     return ''
 
                 st.dataframe(
@@ -363,18 +345,14 @@ def modulo_rh():
                 funcionario_ficha = st.selectbox("Selecione um funcionário", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione...")
                 if funcionario_ficha:
                     dados_func = df_funcionarios[df_funcionarios['nome'] == funcionario_ficha].iloc[0]
-                    
-                    st.image("https://placehold.co/150x150/FFFFFF/333333?text=FOTO", use_container_width=True) # Correção aqui
-                    
+                    st.image("https://placehold.co/150x150/FFFFFF/333333?text=FOTO", use_column_width='auto')
                     st.markdown(f"**Nome:** {dados_func.get('nome', 'N/A')}")
                     st.markdown(f"**Matrícula:** {dados_func.get('matricula', 'N/A')}")
                     st.markdown(f"**Telefone:** {dados_func.get('telefone', 'N/A')}")
-                    
                     st.divider()
                     st.markdown("**Informações Adicionais:**")
                     abonadas_ano = get_abonadas_ano(dados_func.get('id'), df_folgas)
                     ultimas_ferias = get_ultimas_ferias(dados_func.get('id'), df_folgas)
-                    
                     st.markdown(f"- **Abonadas no ano:** {abonadas_ano}")
                     st.markdown(f"- **Últimas Férias:** {ultimas_ferias}")
             else:
@@ -385,8 +363,8 @@ def modulo_rh():
         st.subheader("Cadastrar Novo Funcionário")
         with st.form("novo_funcionario_form_2", clear_on_submit=True):
             nome = st.text_input("Nome Completo")
-            matricula = st.text_input("Número da Matrícula") # Novo campo
-            telefone = st.text_input("Telefone") # Novo campo
+            matricula = st.text_input("Número da Matrícula")
+            telefone = st.text_input("Telefone")
             funcao = st.text_input("Função")
             unidade_trabalho = st.text_input("Unidade de Trabalho")
             data_admissao = st.date_input("Data de Admissão", datetime.now())
@@ -396,15 +374,7 @@ def modulo_rh():
                 try:
                     novo_id = str(int(time.time() * 1000))
                     ref = db.reference(f'funcionarios/{novo_id}')
-                    ref.set({
-                        'id': novo_id,
-                        'nome': nome, 
-                        'matricula': matricula,
-                        'telefone': telefone,
-                        'funcao': funcao, 
-                        'unidade_trabalho': unidade_trabalho, 
-                        'data_admissao': data_admissao.strftime("%Y-%m-%d")
-                    })
+                    ref.set({'id': novo_id, 'nome': nome, 'matricula': matricula, 'telefone': telefone, 'funcao': funcao, 'unidade_trabalho': unidade_trabalho, 'data_admissao': data_admissao.strftime("%Y-%m-%d")})
                     st.success(f"Funcionário {nome} cadastrado com sucesso!")
                     st.cache_data.clear(); st.rerun()
                 except Exception as e:
@@ -426,11 +396,7 @@ def modulo_rh():
                     data_admissao_edit = st.date_input("Data de Admissão", value=pd.to_datetime(dados_func_originais.get('data_admissao')))
 
                     if st.form_submit_button("Salvar Alterações"):
-                        dados_atualizados = {
-                            'nome': nome_edit, 'matricula': matricula_edit, 'telefone': telefone_edit,
-                            'funcao': funcao_edit, 'unidade_trabalho': unidade_edit,
-                            'data_admissao': data_admissao_edit.strftime('%Y-%m-%d')
-                        }
+                        dados_atualizados = {'nome': nome_edit, 'matricula': matricula_edit, 'telefone': telefone_edit, 'funcao': funcao_edit, 'unidade_trabalho': unidade_edit, 'data_admissao': data_admissao_edit.strftime('%Y-%m-%d')}
                         ref = db.reference(f"funcionarios/{dados_func_originais['id']}")
                         ref.update(dados_atualizados)
                         st.success("Dados do funcionário atualizados com sucesso!")
@@ -445,9 +411,7 @@ def modulo_rh():
                 if st.button("Confirmar Deleção", type="primary"):
                     try:
                         id_func_deletar = df_funcionarios[df_funcionarios['nome'] == func_para_deletar]['id'].iloc[0]
-                        # Deletar do nó de funcionários
                         db.reference(f'funcionarios/{id_func_deletar}').delete()
-                        # Deletar registros de folgas/férias associados
                         folgas_ref = db.reference('folgas_ferias')
                         folgas_para_deletar = folgas_ref.order_by_child('id_funcionario').equal_to(id_func_deletar).get()
                         for key in folgas_para_deletar:
@@ -715,7 +679,7 @@ def main_app():
         st.header(f"Bem-vindo(a), {st.session_state['username']}!")
         st.write("Selecione o módulo que deseja acessar:")
 
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("🚨 Denúncias", use_container_width=True):
                 st.session_state['module_choice'] = "Denúncias"
@@ -723,6 +687,10 @@ def main_app():
         with col2:
             if st.button("👥 Recursos Humanos", use_container_width=True):
                 st.session_state['module_choice'] = "Recursos Humanos"
+                st.rerun()
+        with col3:
+            if st.button("🗓️ Boletim Diário", use_container_width=True):
+                st.session_state['module_choice'] = "Boletim"
                 st.rerun()
         
         st.divider()
@@ -750,6 +718,210 @@ def main_app():
             modulo_denuncias()
         elif st.session_state['module_choice'] == "Recursos Humanos":
             modulo_rh()
+        elif st.session_state['module_choice'] == "Boletim":
+            modulo_boletim()
+
+# --- NOVO MÓDULO DE BOLETIM DE PROGRAMAÇÃO ---
+def modulo_boletim():
+    st.title("Boletim de Programação Diária")
+
+    df_funcionarios = carregar_dados_firebase('funcionarios')
+    df_folgas = carregar_dados_firebase('folgas_ferias')
+
+    tab_boletim1, tab_boletim2 = st.tabs(["🗓️ Criar Boletim", "🔍 Visualizar/Editar Boletim"])
+
+    with tab_boletim1:
+        st.subheader("Novo Boletim de Programação")
+        
+        with st.form("boletim_form"):
+            data_boletim = st.date_input("Data do Trabalho", date.today())
+            bairros = st.text_area("Bairros a serem trabalhados")
+            atividades = st.multiselect(
+                "Atividades",
+                ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização"]
+            )
+            
+            # Filtra funcionários disponíveis
+            funcionarios_disponiveis = df_funcionarios.copy()
+            if not df_folgas.empty:
+                ausentes = df_folgas[
+                    (pd.to_datetime(df_folgas['data_inicio']).dt.date <= data_boletim) &
+                    (pd.to_datetime(df_folgas['data_fim']).dt.date >= data_boletim)
+                ]['id_funcionario'].tolist()
+                funcionarios_disponiveis = df_funcionarios[~df_funcionarios['id'].isin(ausentes)]
+
+            lista_nomes_disponiveis = sorted(funcionarios_disponiveis['nome'].tolist())
+
+            motoristas = st.multiselect("Motorista(s)", options=lista_nomes_disponiveis)
+            
+            st.divider()
+            
+            col_manha, col_tarde = st.columns(2)
+            
+            equipes_manha = {}
+            with col_manha:
+                st.markdown("**Equipes - Manhã**")
+                for i in range(1, 6): # Para até 5 equipas
+                    equipes_manha[f"equipe_{i}"] = st.multiselect(f"Equipe {i}", options=lista_nomes_disponiveis, max_selections=2, key=f"manha_{i}")
+                st.markdown("**Faltas - Manhã**")
+                faltas_manha_nomes = st.multiselect("Funcionários Ausentes (Manhã)", options=sorted(df_funcionarios['nome'].tolist()), key="falta_manha_nomes")
+                motivo_falta_manha = st.text_input("Motivo(s) da(s) Falta(s) - Manhã", key="falta_manha_motivo")
+            
+            equipes_tarde = {}
+            with col_tarde:
+                st.markdown("**Equipes - Tarde**")
+                for i in range(1, 6): # Para até 5 equipas
+                    equipes_tarde[f"equipe_{i}"] = st.multiselect(f"Equipe {i}", options=lista_nomes_disponiveis, max_selections=2, key=f"tarde_{i}")
+                st.markdown("**Faltas - Tarde**")
+                faltas_tarde_nomes = st.multiselect("Funcionários Ausentes (Tarde)", options=sorted(df_funcionarios['nome'].tolist()), key="falta_tarde_nomes")
+                motivo_falta_tarde = st.text_input("Motivo(s) da(s) Falta(s) - Tarde", key="falta_tarde_motivo")
+
+            submit_boletim = st.form_submit_button("Salvar Boletim")
+
+            if submit_boletim:
+                boletim_id = data_boletim.strftime("%Y-%m-%d")
+                boletim_data = {
+                    "data": boletim_id,
+                    "bairros": bairros,
+                    "atividades": atividades,
+                    "motoristas": motoristas,
+                    "equipes_manha": {k: v for k, v in equipes_manha.items() if v}, # Guarda só equipas com membros
+                    "equipes_tarde": {k: v for k, v in equipes_tarde.items() if v},
+                    "faltas_manha": {"nomes": faltas_manha_nomes, "motivo": motivo_falta_manha},
+                    "faltas_tarde": {"nomes": faltas_tarde_nomes, "motivo": motivo_falta_tarde}
+                }
+                try:
+                    ref = db.reference(f'boletins/{boletim_id}')
+                    ref.set(boletim_data)
+                    st.success(f"Boletim para o dia {data_boletim.strftime('%d/%m/%Y')} salvo com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao salvar o boletim: {e}")
+
+    with tab_boletim2:
+        st.subheader("Visualizar e Editar Boletim Diário")
+        data_para_ver = st.date_input("Selecione a data do boletim que deseja ver", date.today())
+        
+        if st.button("Buscar Boletim"):
+            boletim_id = data_para_ver.strftime("%Y-%m-%d")
+            ref = db.reference(f'boletins/{boletim_id}')
+            boletim_data = ref.get()
+
+            if boletim_data:
+                st.success(f"Boletim de {data_para_ver.strftime('%d/%m/%Y')} encontrado.")
+                
+                with st.expander("Ver/Editar Boletim", expanded=True):
+                    with st.form("edit_boletim_form"):
+                        bairros_edit = st.text_area("Bairros", value=boletim_data.get('bairros', ''))
+                        atividades_edit = st.multiselect("Atividades", ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização"], default=boletim_data.get('atividades', []))
+                        
+                        # A lógica de funcionários disponíveis aqui é mais complexa na edição,
+                        # por simplicidade vamos usar a lista completa
+                        motoristas_edit = st.multiselect("Motoristas", options=sorted(df_funcionarios['nome'].tolist()), default=boletim_data.get('motoristas', []))
+                        
+                        st.divider()
+                        col_manha_edit, col_tarde_edit = st.columns(2)
+                        
+                        equipes_manha_edit = {}
+                        with col_manha_edit:
+                            st.markdown("**Equipes - Manhã**")
+                            for i in range(1, 6):
+                                equipes_manha_edit[f"equipe_{i}"] = st.multiselect(f"Equipe {i}", options=sorted(df_funcionarios['nome'].tolist()), max_selections=2, default=boletim_data.get('equipes_manha', {}).get(f"equipe_{i}", []), key=f"edit_manha_{i}")
+                            st.markdown("**Faltas - Manhã**")
+                            faltas_manha_nomes_edit = st.multiselect("Ausentes", options=sorted(df_funcionarios['nome'].tolist()), default=boletim_data.get('faltas_manha', {}).get('nomes', []), key="edit_falta_manha_nomes")
+                            motivo_falta_manha_edit = st.text_input("Motivo", value=boletim_data.get('faltas_manha', {}).get('motivo', ''), key="edit_falta_manha_motivo")
+
+                        equipes_tarde_edit = {}
+                        with col_tarde_edit:
+                            st.markdown("**Equipes - Tarde**")
+                            for i in range(1, 6):
+                                equipes_tarde_edit[f"equipe_{i}"] = st.multiselect(f"Equipe {i}", options=sorted(df_funcionarios['nome'].tolist()), max_selections=2, default=boletim_data.get('equipes_tarde', {}).get(f"equipe_{i}", []), key=f"edit_tarde_{i}")
+                            st.markdown("**Faltas - Tarde**")
+                            faltas_tarde_nomes_edit = st.multiselect("Ausentes", options=sorted(df_funcionarios['nome'].tolist()), default=boletim_data.get('faltas_tarde', {}).get('nomes', []), key="edit_falta_tarde_nomes")
+                            motivo_falta_tarde_edit = st.text_input("Motivo", value=boletim_data.get('faltas_tarde', {}).get('motivo', ''), key="edit_falta_tarde_motivo")
+
+                        if st.form_submit_button("Salvar Alterações no Boletim"):
+                            boletim_atualizado = {
+                                "data": boletim_id, "bairros": bairros_edit, "atividades": atividades_edit,
+                                "motoristas": motoristas_edit,
+                                "equipes_manha": {k: v for k, v in equipes_manha_edit.items() if v},
+                                "equipes_tarde": {k: v for k, v in equipes_tarde_edit.items() if v},
+                                "faltas_manha": {"nomes": faltas_manha_nomes_edit, "motivo": motivo_falta_manha_edit},
+                                "faltas_tarde": {"nomes": faltas_tarde_nomes_edit, "motivo": motivo_falta_tarde_edit}
+                            }
+                            ref.set(boletim_atualizado)
+                            st.success("Boletim atualizado com sucesso!")
+
+            else:
+                st.warning(f"Nenhum boletim encontrado para a data {data_para_ver.strftime('%d/%m/%Y')}.")
+
+# --- SISTEMA DE LOGIN E NAVEGAÇÃO ---
+def login_screen():
+    st.title("Sistema Integrado de Gestão")
+    with st.form("login_form"):
+        st.header("Login do Sistema")
+        username = st.text_input("Usuário", key="login_username")
+        password = st.text_input("Senha", type="password", key="login_password")
+        submit_button = st.form_submit_button("Entrar")
+
+        if submit_button:
+            if username in USERS and USERS[username] == password:
+                st.session_state['logged_in'] = True
+                st.session_state['username'] = username
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos.")
+
+def main_app():
+    if 'module_choice' not in st.session_state:
+        st.session_state['module_choice'] = None
+
+    if st.session_state['module_choice'] is None:
+        # TELA DE HUB/MENU PRINCIPAL
+        st.title("Painel de Controle")
+        st.header(f"Bem-vindo(a), {st.session_state['username']}!")
+        st.write("Selecione o módulo que deseja acessar:")
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🚨 Denúncias", use_container_width=True):
+                st.session_state['module_choice'] = "Denúncias"
+                st.rerun()
+        with col2:
+            if st.button("👥 Recursos Humanos", use_container_width=True):
+                st.session_state['module_choice'] = "Recursos Humanos"
+                st.rerun()
+        with col3:
+            if st.button("🗓️ Boletim Diário", use_container_width=True):
+                st.session_state['module_choice'] = "Boletim"
+                st.rerun()
+        
+        st.divider()
+        if st.button("Logout"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
+            
+    else:
+        # VISUALIZAÇÃO DO MÓDULO ESCOLHIDO
+        with st.sidebar:
+            st.title("Navegação")
+            st.write(f"Usuário: **{st.session_state['username']}**")
+            st.divider()
+            if st.button("⬅️ Voltar ao Menu Principal"):
+                st.session_state['module_choice'] = None
+                st.rerun()
+            st.divider()
+            if st.button("Logout"):
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                st.rerun()
+
+        if st.session_state['module_choice'] == "Denúncias":
+            modulo_denuncias()
+        elif st.session_state['module_choice'] == "Recursos Humanos":
+            modulo_rh()
+        elif st.session_state['module_choice'] == "Boletim":
+            modulo_boletim()
 
 if __name__ == "__main__":
     if 'logged_in' not in st.session_state:
