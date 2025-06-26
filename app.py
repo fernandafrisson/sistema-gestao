@@ -53,7 +53,7 @@ def carregar_dados_firebase(node):
                     df['id'] = df.index
                 return df
             elif isinstance(data, list) and all(isinstance(item, dict) for item in data if item):
-                 return pd.DataFrame([item for item in data if item])
+                return pd.DataFrame([item for item in data if item])
             return pd.DataFrame()
         return pd.DataFrame()
     except Exception as e:
@@ -62,7 +62,7 @@ def carregar_dados_firebase(node):
 
 @st.cache_data
 def carregar_quarteiroes_csv():
-    url_csv = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quarteirao.csv' 
+    url_csv = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quarteirao.csv'
     try:
         df_quarteiroes = pd.read_csv(url_csv, header=None, encoding='latin-1')
         quarteiroes_lista = sorted(df_quarteiroes[0].astype(str).unique().tolist())
@@ -75,6 +75,7 @@ def carregar_quarteiroes_csv():
 def carregar_geo_kml():
     url_kml = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quadras%20de%20Guar%C3%A1.kml'
     try:
+        gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'r'
         gdf = gpd.read_file(url_kml)
         pontos = []
         for index, row in gdf.iterrows():
@@ -82,7 +83,7 @@ def carregar_geo_kml():
             if row['geometry'] is not None and hasattr(row['geometry'], 'geom_type'):
                 if row['geometry'].geom_type == 'Point':
                     lon, lat = row['geometry'].x, row['geometry'].y
-                else: 
+                else:
                     centroid = row['geometry'].centroid
                     lon, lat = centroid.x, centroid.y
                 pontos.append({'quadra': str(quadra_nome), 'lat': lat, 'lon': lon})
@@ -134,17 +135,17 @@ def create_abonada_word_report(data):
     p_lab2 = document.add_paragraph('Assinatura da Chefia Imediata'); p_lab2.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_lab2.paragraph_format.space_after = Pt(18)
     p_info = document.add_paragraph(); add_black_run(p_info, 'Informação da Seção de Pessoal:', bold=True)
-    add_black_run(document.add_paragraph(), "Refere-se à:      1ª (   )      2ª (   )    3ª (  ) do Primeiro Semestre de: ____________")
-    add_black_run(document.add_paragraph(), "                 \t\t 1ª (   )      2ª (   )    3ª (  ) do Segundo Semestre de: ____________")
+    add_black_run(document.add_paragraph(), "Refere-se à:      1ª (  )      2ª (  )    3ª (  ) do Primeiro Semestre de: ____________")
+    add_black_run(document.add_paragraph(), "                 1ª (  )      2ª (  )    3ª (  ) do Segundo Semestre de: ____________")
     p_visto = document.add_paragraph("     ___________________________________________");
-    p_visto_label = document.add_paragraph("                                      (visto do funcionário da seção de pessoal)")
-    p_abone = document.add_paragraph("                         Abone-se: _____/_____/______")
+    p_visto_label = document.add_paragraph("                              (visto do funcionário da seção de pessoal)")
+    p_abone = document.add_paragraph("                          Abone-se: _____/_____/______")
     p_abone.paragraph_format.space_after = Pt(18)
     p_secretario_sig = document.add_paragraph("_________________________________"); p_secretario_sig.alignment = 1
     p_secretario_label = document.add_paragraph("Secretário Municipal da Saúde"); p_secretario_label.alignment = 1
     for p in document.paragraphs:
         if not p.runs:
-              p.paragraph_format.space_after = Pt(0)
+            p.paragraph_format.space_after = Pt(0)
         for run in p.runs:
             if run.font.color.rgb is None:
                 run.font.color.rgb = black_color
@@ -228,7 +229,7 @@ def modulo_rh():
                         data_inicio = st.date_input("Data de Início")
                     with col2:
                         data_fim = st.date_input("Data de Fim")
-                else: 
+                else:
                     st.write("Data da Abonada:")
                     data_inicio = st.date_input("Data")
                     data_fim = data_inicio
@@ -284,7 +285,7 @@ def modulo_rh():
         else:
             st.write("Nenhum registro de ausência encontrado.")
     with tab_rh2:
-        col_ficha, col_tabela = st.columns([0.7, 2.3]) 
+        col_ficha, col_tabela = st.columns([0.7, 2.3])
         with col_tabela:
             st.subheader("Equipe e Status de Férias")
             if not df_funcionarios.empty and 'id' in df_funcionarios.columns:
@@ -599,7 +600,7 @@ def create_boletim_word_report(data):
             for i, equipe in enumerate(equipes):
                 membros = equipe.get('membros', [])
                 atividades = equipe.get('atividades', [])
-                quarteiroes = equipe.get('quarteiroes', []) 
+                quarteiroes = equipe.get('quarteiroes', [])
                 p_equipe = doc.add_paragraph()
                 p_equipe.add_run(f'Equipe {i+1}: ').bold = True
                 p_equipe.add_run(', '.join(membros if membros else ['N/A']))
@@ -630,8 +631,15 @@ def modulo_boletim():
 
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_folgas = carregar_dados_firebase('folgas_ferias')
-    lista_quarteiroes = carregar_quarteiroes_csv() 
-    df_geo_quarteiroes = carregar_geo_kml() 
+    lista_quarteiroes = carregar_quarteiroes_csv()
+    df_geo_quarteiroes = carregar_geo_kml()
+
+    # --- INICIALIZAÇÃO DO SESSION STATE PARA O NÚMERO DE EQUIPES ---
+    if 'num_equipes_manha' not in st.session_state:
+        st.session_state.num_equipes_manha = 5
+    if 'num_equipes_tarde' not in st.session_state:
+        st.session_state.num_equipes_tarde = 5
+
 
     tab1, tab2, tab3 = st.tabs(["🗓️ Criar Boletim", "🔍 Visualizar/Editar Boletim", "🗺️ Mapa de Atividades"])
 
@@ -641,11 +649,18 @@ def modulo_boletim():
         
         if isinstance(df_funcionarios, pd.DataFrame) and not df_funcionarios.empty:
             funcionarios_disponiveis_full = df_funcionarios.copy()
-            if not df_folgas.empty:
-                ausentes_ids = df_folgas[(pd.to_datetime(df_folgas['data_inicio']).dt.date <= data_boletim) & (pd.to_datetime(df_folgas['data_fim']).dt.date >= data_boletim)]['id_funcionario'].tolist()
-                if ausentes_ids:
-                     funcionarios_disponiveis_full = df_funcionarios[~df_funcionarios['id'].isin(ausentes_ids)]
-            
+            if not df_folgas.empty and 'data_inicio' in df_folgas.columns and 'data_fim' in df_folgas.columns:
+                try:
+                    datas_validas_folgas = df_folgas.dropna(subset=['data_inicio', 'data_fim'])
+                    ausentes_ids = datas_validas_folgas[
+                        (pd.to_datetime(datas_validas_folgas['data_inicio']).dt.date <= data_boletim) & 
+                        (pd.to_datetime(datas_validas_folgas['data_fim']).dt.date >= data_boletim)
+                    ]['id_funcionario'].tolist()
+                    if ausentes_ids:
+                        funcionarios_disponiveis_full = df_funcionarios[~df_funcionarios['id'].isin(ausentes_ids)]
+                except Exception as e:
+                    st.warning(f"Não foi possível filtrar funcionários ausentes: {e}")
+
             lista_nomes_disponiveis_full = sorted(funcionarios_disponiveis_full['nome'].tolist())
         else:
             lista_nomes_disponiveis_full = []
@@ -657,14 +672,16 @@ def modulo_boletim():
         motoristas = st.multiselect("Motorista(s)", options=lista_nomes_disponiveis_full)
         st.divider()
         
+        # --- SEÇÃO DINÂMICA PARA TURNO DA MANHÃ ---
         st.markdown("**Turno da Manhã**")
-        funcionarios_manha_disponiveis = lista_nomes_disponiveis_full.copy()
+        funcionarios_manha_disponiveis = lista_nomes_disponiveis_full[:]
         equipes_manha = []
-        for i in range(1, 16):
-            st.markdown(f"--- *Equipe {i}* ---")
-            cols = st.columns([2, 2, 3]) 
+        
+        for i in range(st.session_state.num_equipes_manha):
+            st.markdown(f"--- *Equipe {i+1}* ---")
+            cols = st.columns([2, 2, 3])
             with cols[0]:
-                membros = st.multiselect(f"Membros da Equipe {i}", options=funcionarios_manha_disponiveis, max_selections=2, key=f"manha_membros_{i}")
+                membros = st.multiselect(f"Membros da Equipe {i+1}", options=funcionarios_manha_disponiveis, max_selections=2, key=f"manha_membros_{i}")
             with cols[1]:
                 atividades = st.multiselect("Atividades", options=atividades_gerais_options, key=f"manha_atividades_{i}")
             with cols[2]:
@@ -673,21 +690,27 @@ def modulo_boletim():
                 equipes_manha.append({"membros": membros, "atividades": atividades, "quarteiroes": quarteiroes})
                 for membro in membros:
                     if membro in funcionarios_manha_disponiveis:
-                       funcionarios_manha_disponiveis.remove(membro)
-        
+                        funcionarios_manha_disponiveis.remove(membro)
+
+        if st.button("➕ Adicionar Equipe (Manhã)"):
+            st.session_state.num_equipes_manha += 1
+            st.rerun()
+
         st.markdown("**Faltas - Manhã**")
         faltas_manha_nomes = st.multiselect("Funcionários Ausentes", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], key="falta_manha_nomes")
         motivo_falta_manha = st.text_input("Motivo(s)", key="falta_manha_motivo")
         st.divider()
 
+        # --- SEÇÃO DINÂMICA PARA TURNO DA TARDE ---
         st.markdown("**Turno da Tarde**")
-        funcionarios_tarde_disponiveis = lista_nomes_disponiveis_full.copy()
+        funcionarios_tarde_disponiveis = lista_nomes_disponiveis_full[:]
         equipes_tarde = []
-        for i in range(1, 16):
-            st.markdown(f"--- *Equipe {i}* ---")
-            cols = st.columns([2, 2, 3]) 
+
+        for i in range(st.session_state.num_equipes_tarde):
+            st.markdown(f"--- *Equipe {i+1}* ---")
+            cols = st.columns([2, 2, 3])
             with cols[0]:
-                membros = st.multiselect(f"Membros da Equipe {i}", options=funcionarios_tarde_disponiveis, max_selections=2, key=f"tarde_membros_{i}")
+                membros = st.multiselect(f"Membros da Equipe {i+1}", options=funcionarios_tarde_disponiveis, max_selections=2, key=f"tarde_membros_{i}")
             with cols[1]:
                 atividades = st.multiselect("Atividades ", options=atividades_gerais_options, key=f"tarde_atividades_{i}")
             with cols[2]:
@@ -697,22 +720,41 @@ def modulo_boletim():
                 for membro in membros:
                     if membro in funcionarios_tarde_disponiveis:
                         funcionarios_tarde_disponiveis.remove(membro)
+
+        if st.button("➕ Adicionar Equipe (Tarde)"):
+            st.session_state.num_equipes_tarde += 1
+            st.rerun()
+
         st.markdown("**Faltas - Tarde**")
         faltas_tarde_nomes = st.multiselect("Funcionários Ausentes ", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], key="falta_tarde_nomes")
         motivo_falta_tarde = st.text_input("Motivo(s) ", key="falta_tarde_motivo")
         
         if st.button("Salvar Boletim", use_container_width=True, type="primary"):
             boletim_id = data_boletim.strftime("%Y-%m-%d")
-            boletim_data = {"data": boletim_id, "bairros": bairros, "atividades_gerais": atividades_gerais, "motoristas": motoristas, "equipes_manha": equipes_manha, "equipes_tarde": equipes_tarde, "faltas_manha": {"nomes": faltas_manha_nomes, "motivo": motivo_falta_manha}, "faltas_tarde": {"nomes": faltas_tarde_nomes, "motivo": motivo_falta_tarde}}
+            boletim_data = {
+                "data": boletim_id, 
+                "bairros": bairros, 
+                "atividades_gerais": atividades_gerais, 
+                "motoristas": motoristas, 
+                "equipes_manha": equipes_manha, 
+                "equipes_tarde": equipes_tarde, 
+                "faltas_manha": {"nomes": faltas_manha_nomes, "motivo": motivo_falta_manha}, 
+                "faltas_tarde": {"nomes": faltas_tarde_nomes, "motivo": motivo_falta_tarde}
+            }
             try:
-                ref = db.reference(f'boletins/{boletim_id}'); ref.set(boletim_data)
+                ref = db.reference(f'boletins/{boletim_id}')
+                ref.set(boletim_data)
                 st.success(f"Boletim para o dia {data_boletim.strftime('%d/%m/%Y')} salvo com sucesso!")
+                # Resetar o número de equipes para o padrão após salvar
+                st.session_state.num_equipes_manha = 5
+                st.session_state.num_equipes_tarde = 5
             except Exception as e:
                 st.error(f"Erro ao salvar o boletim: {e}")
 
     with tab2:
         st.subheader("Visualizar e Editar Boletim Diário")
         data_para_ver = st.date_input("Selecione a data do boletim que deseja ver", date.today(), key="edit_date")
+        
         if st.button("Buscar Boletim", key="search_edit"):
             boletim_id = data_para_ver.strftime("%Y-%m-%d")
             ref = db.reference(f'boletins/{boletim_id}')
@@ -720,13 +762,20 @@ def modulo_boletim():
             st.session_state.boletim_encontrado = boletim_data
             if not boletim_data:
                 st.warning(f"Nenhum boletim encontrado para a data {data_para_ver.strftime('%d/%m/%Y')}.")
+
         if 'boletim_encontrado' not in st.session_state:
             st.session_state.boletim_encontrado = None
+
         if st.session_state.boletim_encontrado:
             boletim_data = st.session_state.boletim_encontrado
             st.success(f"Boletim de {pd.to_datetime(boletim_data['data']).strftime('%d/%m/%Y')} carregado.")
             boletim_doc_bytes = create_boletim_word_report(boletim_data)
-            st.download_button(label="📥 Exportar Boletim em .docx",data=boletim_doc_bytes,file_name=f"Boletim_Diario_{boletim_data['data']}.docx",mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            st.download_button(
+                label="📥 Exportar Boletim em .docx",
+                data=boletim_doc_bytes,
+                file_name=f"Boletim_Diario_{boletim_data['data']}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
             
             with st.expander("Ver/Editar Boletim", expanded=True):
                 with st.form("edit_boletim_form"):
@@ -735,10 +784,13 @@ def modulo_boletim():
                     atividades_gerais_edit = st.multiselect("Atividades Gerais", atividades_gerais_options, default=boletim_data.get('atividades_gerais', []))
                     motoristas_edit = st.multiselect("Motoristas", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], default=boletim_data.get('motoristas', []))
                     st.divider()
+
+                    # --- EDIÇÃO DINÂMICA - MANHÃ ---
                     equipes_manha_edit_data = []
                     st.markdown("**Equipes - Manhã**")
                     saved_teams_manha = boletim_data.get('equipes_manha', [])
-                    for i in range(5):
+                    num_equipes_manha_edit = len(saved_teams_manha) if saved_teams_manha else 1
+                    for i in range(num_equipes_manha_edit):
                         st.markdown(f"--- *Equipe {i+1}* ---")
                         default_membros = saved_teams_manha[i]['membros'] if i < len(saved_teams_manha) else []
                         default_atividades = saved_teams_manha[i]['atividades'] if i < len(saved_teams_manha) else []
@@ -752,14 +804,18 @@ def modulo_boletim():
                             quarteiroes = st.multiselect("Quarteirões", options=lista_quarteiroes, default=default_quarteiroes, key=f"edit_manha_quarteiroes_{i}")
                         if membros:
                             equipes_manha_edit_data.append({"membros": membros, "atividades": atividades, "quarteiroes": quarteiroes})
+                    
                     st.markdown("**Faltas - Manhã**")
                     faltas_manha_nomes_edit = st.multiselect("Ausentes", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], default=boletim_data.get('faltas_manha', {}).get('nomes', []), key="edit_falta_manha_nomes")
                     motivo_falta_manha_edit = st.text_input("Motivo", value=boletim_data.get('faltas_manha', {}).get('motivo', ''), key="edit_falta_manha_motivo")
                     st.divider()
+
+                    # --- EDIÇÃO DINÂMICA - TARDE ---
                     equipes_tarde_edit_data = []
                     st.markdown("**Equipes - Tarde**")
                     saved_teams_tarde = boletim_data.get('equipes_tarde', [])
-                    for i in range(5):
+                    num_equipes_tarde_edit = len(saved_teams_tarde) if saved_teams_tarde else 1
+                    for i in range(num_equipes_tarde_edit):
                         st.markdown(f"--- *Equipe {i+1}* ---")
                         default_membros = saved_teams_tarde[i]['membros'] if i < len(saved_teams_tarde) else []
                         default_atividades = saved_teams_tarde[i]['atividades'] if i < len(saved_teams_tarde) else []
@@ -770,12 +826,14 @@ def modulo_boletim():
                         with cols[1]:
                             atividades = st.multiselect("Atividades  ", options=atividades_gerais_options, default=default_atividades, key=f"edit_tarde_atividades_{i}")
                         with cols[2]:
-                             quarteiroes = st.multiselect("Quarteirões ", options=lista_quarteiroes, default=default_quarteiroes, key=f"edit_tarde_quarteiroes_{i}")
+                            quarteiroes = st.multiselect("Quarteirões ", options=lista_quarteiroes, default=default_quarteiroes, key=f"edit_tarde_quarteiroes_{i}")
                         if membros:
                             equipes_tarde_edit_data.append({"membros": membros, "atividades": atividades, "quarteiroes": quarteiroes})
+
                     st.markdown("**Faltas - Tarde**")
                     faltas_tarde_nomes_edit = st.multiselect("Ausentes ", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], default=boletim_data.get('faltas_tarde', {}).get('nomes', []), key="edit_falta_tarde_nomes")
                     motivo_falta_tarde_edit = st.text_input("Motivo ", value=boletim_data.get('faltas_tarde', {}).get('motivo', ''), key="edit_falta_tarde_motivo")
+                    
                     if st.form_submit_button("Salvar Alterações no Boletim"):
                         boletim_atualizado = {"data": boletim_id, "bairros": bairros_edit, "atividades_gerais": atividades_gerais_edit, "motoristas": motoristas_edit, "equipes_manha": equipes_manha_edit_data, "equipes_tarde": equipes_tarde_edit_data, "faltas_manha": {"nomes": faltas_manha_nomes_edit, "motivo": motivo_falta_manha_edit}, "faltas_tarde": {"nomes": faltas_tarde_nomes_edit, "motivo": motivo_falta_tarde_edit}}
                         ref = db.reference(f'boletins/{boletim_id}')
