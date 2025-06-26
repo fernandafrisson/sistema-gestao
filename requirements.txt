@@ -6,3 +6,4 @@ geopy
 python-docx
 python-dateutil
 fpdf2
+GeoPandas
