@@ -155,12 +155,6 @@ def create_abonada_word_report(data):
     return buffer.getvalue()
 
 def calcular_status_ferias_saldo(employee_row, all_folgas_df):
-    """
-    Calcula o status de férias, agora retornando também um código para facilitar a coloração.
-    Identifica se o funcionário está de férias ou se há risco de vencimento duplo.
-    Retorna: (str: Período de Referência, str: Status Descritivo, str: Código do Status)
-    Códigos: ON_VACATION, RISK_EXPIRING, PENDING, SCHEDULED, ACQUIRING, ERROR
-    """
     try:
         today = date.today()
         if 'data_admissao' not in employee_row or pd.isna(employee_row['data_admissao']):
@@ -174,7 +168,6 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
                 ferias_do_funcionario['data_inicio'] = pd.to_datetime(ferias_do_funcionario['data_inicio']).dt.date
                 ferias_do_funcionario['data_fim'] = pd.to_datetime(ferias_do_funcionario['data_fim']).dt.date
                 
-                # 1. Checar se o funcionário está de férias HOJE
                 for _, ferias in ferias_do_funcionario.iterrows():
                     if ferias['data_inicio'] <= today <= ferias['data_fim']:
                         return f"Em gozo desde {ferias['data_inicio'].strftime('%d/%m/%Y')}", "EM FÉRIAS", "ON_VACATION"
@@ -182,12 +175,10 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
         periodo_aquisitivo_inicio = data_admissao
         periodos_vencendo = 0
         
-        # 2. Loop para verificar períodos pendentes e risco de vencimento
         while periodo_aquisitivo_inicio < today:
             periodo_aquisitivo_fim = periodo_aquisitivo_inicio + relativedelta(years=1) - relativedelta(days=1)
             periodo_concessivo_fim = periodo_aquisitivo_fim + relativedelta(years=1)
 
-            # Ignora o período aquisitivo atual
             if today <= periodo_aquisitivo_fim:
                 break
                 
@@ -198,24 +189,20 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
                     dias_gozados = sum((fim - inicio).days + 1 for inicio, fim in zip(ferias_neste_periodo['data_inicio'], ferias_neste_periodo['data_fim']))
             
             if dias_gozados < 30:
-                # Checar se o período concessivo está para vencer
                 if today <= periodo_concessivo_fim and (periodo_concessivo_fim - today).days <= 90:
                     periodos_vencendo += 1
             
             periodo_aquisitivo_inicio += relativedelta(years=1)
-            if periodo_aquisitivo_inicio.year > today.year + 10: break # Limite de segurança
+            if periodo_aquisitivo_inicio.year > today.year + 10: break
 
-        # 3. Verificar se há risco de vencimento duplo
         if periodos_vencendo >= 2:
             return "Múltiplos Períodos", f"RISCO: {periodos_vencendo} FÉRIAS VENCENDO!", "RISK_EXPIRING"
 
-        # 4. Se não há risco, calcular o status do período mais antigo pendente
         periodo_aquisitivo_inicio = data_admissao
         while True:
             periodo_aquisitivo_fim = periodo_aquisitivo_inicio + relativedelta(years=1) - relativedelta(days=1)
             periodo_concessivo_fim = periodo_aquisitivo_fim + relativedelta(years=1)
 
-            # Status do período atual
             if today <= periodo_aquisitivo_fim:
                 return f"{periodo_aquisitivo_inicio.strftime('%d/%m/%Y')} a {periodo_aquisitivo_fim.strftime('%d/%m/%Y')}", "Em Aquisição", "ACQUIRING"
 
@@ -250,7 +237,6 @@ def get_abonadas_ano(employee_id, all_folgas_df):
         return 0
 
 def get_datas_abonadas_ano(employee_id, all_folgas_df):
-    """Retorna uma lista com as datas das faltas abonadas do funcionário no ano corrente."""
     try:
         current_year = date.today().year
         if all_folgas_df.empty or 'id_funcionario' not in all_folgas_df.columns:
@@ -308,7 +294,7 @@ def modulo_rh():
                         data_inicio = st.date_input("Data de Início")
                     with col2:
                         data_fim = st.date_input("Data de Fim")
-                else:  # Abonada
+                else:
                     st.write("Data da Abonada:")
                     data_inicio = st.date_input("Data")
                     data_fim = data_inicio
