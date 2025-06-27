@@ -1034,7 +1034,7 @@ def modulo_boletim():
                         df_mapa = pd.DataFrame(pontos_para_mapa)
                         st.success(f"Exibindo a localização de {len(df_mapa)} quarteirões designados.")
                         
-                        fig = px.scatter_mapbox(df_mapa,lat="lat",lon="lon",hover_name="equipe",hover_data={"membros": True,"quarteirao": True,"lat": False,"lon": False},color="equipe",zoom=12,mapbox_style="open-street-map",title="Localização das Equipes")
+                        fig = px.scatter_mapbox(df_mapa,lat="lat",lon="lon",hover_name="equipe",hover_data={"membros": True,"quarteirao": True,"lat": False,"lon": False},color="equipe",zoom=12,mapbox_style="carto-positron",title="Localização das Equipes")
                         fig.update_layout(mapbox_center={"lat": df_mapa['lat'].mean(), "lon": df_mapa['lon'].mean()})
                         fig.update_layout(margin={"r":0,"t":40,"l":0,"b":0})
                         
