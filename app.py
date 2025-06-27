@@ -33,6 +33,7 @@ try:
             cred_dict = dict(st.secrets["firebase_credentials"])
             cred = credentials.Certificate(cred_dict)
         else:
+            # O ideal é usar st.secrets, mas mantemos o fallback para desenvolvimento local
             cred = credentials.Certificate("denuncias-48660-firebase-adminsdk-fbsvc-9f27fef1c8.json")
 
         firebase_admin.initialize_app(cred, {
@@ -292,7 +293,7 @@ def modulo_rh():
     tab_rh1, tab_rh2, tab_rh3 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "👨‍💼 Gerenciar Funcionários"])
     
     with tab_rh1:
-        # ... (código da aba 1 permanece o mesmo, sem alterações) ...
+        # --- CÓDIGO DA ABA 1 (SEM ALTERAÇÕES) ---
         st.subheader("Registro de Férias e Abonadas")
         if not df_funcionarios.empty and 'nome' in df_funcionarios.columns:
             lista_funcionarios = sorted(df_funcionarios['nome'].tolist())
@@ -425,48 +426,7 @@ def modulo_rh():
     with tab_rh2:
         st.header("Visão Geral da Equipe")
         
-        # --- IMPLEMENTAÇÃO DO CALENDÁRIO ---
-        st.subheader("Calendário de Ausências")
-        
-        calendar_events = []
-        if not df_folgas.empty:
-            for _, row in df_folgas.iterrows():
-                # Para o calendário, a data final precisa ser +1 dia para eventos de dia inteiro
-                end_date = pd.to_datetime(row['data_fim']) + timedelta(days=1)
-                
-                event = {
-                    "title": f"{row['nome_funcionario']} ({row['tipo']})",
-                    "start": row['data_inicio'],
-                    "end": end_date.strftime("%Y-%m-%d"),
-                    "color": "#FF4B4B" if row['tipo'] == "Férias" else "#1E90FF", # Vermelho para Férias, Azul para Abonada
-                }
-                calendar_events.append(event)
-
-        calendar_options = {
-            "headerToolbar": {
-                "left": "prev,next today",
-                "center": "title",
-                "right": "dayGridMonth,timeGridWeek,timeGridDay",
-            },
-            "initialView": "dayGridMonth",
-            "locale": "pt-br", # Traduzir o calendário para o português
-        }
-        
-        # --- ALTERAÇÃO PRINCIPAL AQUI ---
-        # Adicionamos um CSS customizado para garantir uma altura mínima para o calendário.
-        # Isso faz com que ele fique sempre visível, mesmo que não hajam eventos.
-        custom_css = """
-            .fc-view-harness {
-                min-height: 600px; /* Define uma altura mínima de 600 pixels */
-            }
-        """
-
-        # Adicionamos o parâmetro 'custom_css' na chamada da função
-        calendar(events=calendar_events, options=calendar_options, custom_css=custom_css)
-        
-        st.divider()
-        # --- FIM DA IMPLEMENTAÇÃO DO CALENDÁRIO ---
-
+        # --- BLOCO DE INFORMAÇÕES PRINCIPAIS (TABELA E FICHA) ---
         col_ficha, col_tabela = st.columns([0.7, 2.3])
         with col_tabela:
             st.subheader("Equipe e Status de Férias")
@@ -531,8 +491,45 @@ def modulo_rh():
             else:
                 st.info("Nenhum funcionário.")
 
+        # --- IMPLEMENTAÇÃO DO CALENDÁRIO (AGORA NO FINAL DA PÁGINA) ---
+        st.divider()
+        st.subheader("Calendário de Ausências")
+        
+        calendar_events = []
+        if not df_folgas.empty:
+            for _, row in df_folgas.iterrows():
+                end_date = pd.to_datetime(row['data_fim']) + timedelta(days=1)
+                event = {
+                    "title": f"{row['nome_funcionario']} ({row['tipo']})",
+                    "start": row['data_inicio'],
+                    "end": end_date.strftime("%Y-%m-%d"),
+                    "color": "#FF4B4B" if row['tipo'] == "Férias" else "#1E90FF",
+                }
+                calendar_events.append(event)
+
+        calendar_options = {
+            "headerToolbar": {
+                "left": "prev,next today",
+                "center": "title",
+                "right": "dayGridMonth,timeGridWeek,timeGridDay",
+            },
+            "initialView": "dayGridMonth",
+            "locale": "pt-br",
+        }
+        
+        # --- MUDANÇA NO TAMANHO ---
+        # Alteramos a altura mínima para um valor menor (400px)
+        custom_css = """
+            .fc-view-harness {
+                min-height: 400px; /* Define uma altura mínima de 400 pixels */
+            }
+        """
+        
+        calendar(events=calendar_events, options=calendar_options, custom_css=custom_css)
+        # --- FIM DA IMPLEMENTAÇÃO DO CALENDÁRIO ---
+
     with tab_rh3:
-        # ... (código da aba 3 permanece o mesmo, sem alterações) ...
+        # --- CÓDIGO DA ABA 3 (SEM ALTERAÇÕES) ---
         st.subheader("Cadastrar Novo Funcionário")
         with st.form("novo_funcionario_form_2", clear_on_submit=True):
             nome = st.text_input("Nome Completo")
