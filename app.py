@@ -154,6 +154,7 @@ def create_abonada_word_report(data):
     buffer.seek(0)
     return buffer.getvalue()
 
+# --- FUNÇÃO DE CÁLCULO DE FÉRIAS CORRIGIDA ---
 def calcular_status_ferias_saldo(employee_row, all_folgas_df):
     try:
         today = date.today()
@@ -161,6 +162,8 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
             return "Admissão Inválida", "Erro", "ERROR"
 
         data_admissao = pd.to_datetime(employee_row['data_admissao']).date()
+        
+        # 1. Carregar férias do funcionário
         ferias_do_funcionario = pd.DataFrame()
         if not all_folgas_df.empty and 'id_funcionario' in all_folgas_df.columns:
             ferias_do_funcionario = all_folgas_df[(all_folgas_df['id_funcionario'] == str(employee_row['id'])) & (all_folgas_df['tipo'] == 'Férias')].copy()
@@ -168,62 +171,80 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
                 ferias_do_funcionario['data_inicio'] = pd.to_datetime(ferias_do_funcionario['data_inicio']).dt.date
                 ferias_do_funcionario['data_fim'] = pd.to_datetime(ferias_do_funcionario['data_fim']).dt.date
                 
+                # Checar se está de férias HOJE (prioridade máxima)
                 for _, ferias in ferias_do_funcionario.iterrows():
                     if ferias['data_inicio'] <= today <= ferias['data_fim']:
                         return f"Em gozo desde {ferias['data_inicio'].strftime('%d/%m/%Y')}", "EM FÉRIAS", "ON_VACATION"
 
+        # 2. Coletar todos os períodos aquisitivos completos que não foram 100% gozados
+        periodos_pendentes = []
         periodo_aquisitivo_inicio = data_admissao
-        periodos_vencendo = 0
         
-        while periodo_aquisitivo_inicio < today:
-            periodo_aquisitivo_fim = periodo_aquisitivo_inicio + relativedelta(years=1) - relativedelta(days=1)
-            periodo_concessivo_fim = periodo_aquisitivo_fim + relativedelta(years=1)
-
-            if today <= periodo_aquisitivo_fim:
-                break
-                
-            dias_gozados = 0
-            if not ferias_do_funcionario.empty:
-                ferias_neste_periodo = ferias_do_funcionario[(ferias_do_funcionario['data_inicio'] > periodo_aquisitivo_fim) & (ferias_do_funcionario['data_inicio'] <= periodo_concessivo_fim)]
-                if not ferias_neste_periodo.empty:
-                    dias_gozados = sum((fim - inicio).days + 1 for inicio, fim in zip(ferias_neste_periodo['data_inicio'], ferias_neste_periodo['data_fim']))
-            
-            if dias_gozados < 30:
-                if today <= periodo_concessivo_fim and (periodo_concessivo_fim - today).days <= 90:
-                    periodos_vencendo += 1
-            
-            periodo_aquisitivo_inicio += relativedelta(years=1)
-            if periodo_aquisitivo_inicio.year > today.year + 10: break
-
-        if periodos_vencendo >= 2:
-            return "Múltiplos Períodos", f"RISCO: {periodos_vencendo} FÉRIAS VENCENDO!", "RISK_EXPIRING"
-
-        periodo_aquisitivo_inicio = data_admissao
+        # Variável para guardar o início do período de aquisição atual
+        proximo_periodo_aquisitivo = data_admissao 
+        
         while True:
             periodo_aquisitivo_fim = periodo_aquisitivo_inicio + relativedelta(years=1) - relativedelta(days=1)
+            
+            # Se o período aquisitivo ainda não terminou, paramos o loop
+            if today < periodo_aquisitivo_fim:
+                proximo_periodo_aquisitivo = periodo_aquisitivo_inicio
+                break
+
             periodo_concessivo_fim = periodo_aquisitivo_fim + relativedelta(years=1)
-
-            if today <= periodo_aquisitivo_fim:
-                return f"{periodo_aquisitivo_inicio.strftime('%d/%m/%Y')} a {periodo_aquisitivo_fim.strftime('%d/%m/%Y')}", "Em Aquisição", "ACQUIRING"
-
+            
             dias_gozados = 0
             if not ferias_do_funcionario.empty:
-                ferias_neste_periodo = ferias_do_funcionario[(ferias_do_funcionario['data_inicio'] > periodo_aquisitivo_fim) & (ferias_do_funcionario['data_inicio'] <= periodo_concessivo_fim)]
+                ferias_neste_periodo = ferias_do_funcionario[
+                    (ferias_do_funcionario['data_inicio'] > periodo_aquisitivo_fim) & 
+                    (ferias_do_funcionario['data_inicio'] <= periodo_concessivo_fim)
+                ]
                 if not ferias_neste_periodo.empty:
                     dias_gozados = sum((fim - inicio).days + 1 for inicio, fim in zip(ferias_neste_periodo['data_inicio'], ferias_neste_periodo['data_fim']))
-
-            if dias_gozados < 30:
-                if dias_gozados > 0:
-                    return f"{periodo_aquisitivo_inicio.strftime('%d/%m/%Y')} a {periodo_aquisitivo_fim.strftime('%d/%m/%Y')}", f"Parcialmente Agendada ({dias_gozados}/30)", "SCHEDULED"
-                else:
-                    return f"{periodo_aquisitivo_inicio.strftime('%d/%m/%Y')} a {periodo_aquisitivo_fim.strftime('%d/%m/%Y')}", "PENDENTE DE AGENDAMENTO", "PENDING"
-
-            periodo_aquisitivo_inicio += relativedelta(years=1)
-            if periodo_aquisitivo_inicio.year > today.year + 10: break
             
+            if dias_gozados < 30:
+                periodos_pendentes.append({
+                    "inicio_aq": periodo_aquisitivo_inicio,
+                    "fim_aq": periodo_aquisitivo_fim,
+                    "fim_con": periodo_concessivo_fim,
+                    "dias_gozados": dias_gozados
+                })
+            
+            periodo_aquisitivo_inicio += relativedelta(years=1)
+            # Trava de segurança para evitar loops infinitos
+            if periodo_aquisitivo_inicio.year > today.year + 2:
+                proximo_periodo_aquisitivo = periodo_aquisitivo_inicio
+                break
+
+        # 3. Analisar a lista de pendências para definir o status
+        if len(periodos_pendentes) >= 2:
+            periodo_mais_antigo = periodos_pendentes[0]
+            fim_concessivo_antigo = periodo_mais_antigo["fim_con"]
+            
+            if today >= fim_concessivo_antigo:
+                 return f"Venceu em: {fim_concessivo_antigo.strftime('%d/%m/%Y')}", "RISCO: 2ª FÉRIAS VENCIDA!", "RISK_EXPIRING"
+            if (fim_concessivo_antigo - today).days <= 90:
+                return f"Vencimento em: {fim_concessivo_antigo.strftime('%d/%m/%Y')}", "RISCO: VENCIMENTO DE 2ª FÉRIAS!", "RISK_EXPIRING"
+
+        if periodos_pendentes:
+            periodo_a_reportar = periodos_pendentes[0]
+            ref_periodo_str = f"{periodo_a_reportar['inicio_aq'].strftime('%d/%m/%Y')} a {periodo_a_reportar['fim_aq'].strftime('%d/%m/%Y')}"
+            
+            if periodo_a_reportar['dias_gozados'] > 0:
+                return ref_periodo_str, f"Parcialmente Agendada ({periodo_a_reportar['dias_gozados']}/30)", "SCHEDULED"
+            else:
+                return ref_periodo_str, "PENDENTE DE AGENDAMENTO", "PENDING"
+        
+        # Se não há pendências, significa que está em dia ou em aquisição
+        aq_inicio = proximo_periodo_aquisitivo
+        aq_fim = aq_inicio + relativedelta(years=1) - relativedelta(days=1)
+        if today <= aq_fim:
+             return f"{aq_inicio.strftime('%d/%m/%Y')} a {aq_fim.strftime('%d/%m/%Y')}", "Em Aquisição", "ACQUIRING"
+
+        return "N/A", "Em dia", "OK"
+
     except Exception as e:
         return "Erro de Cálculo", f"Erro: {e}", "ERROR"
-    return "N/A", "Concluído", "OK"
 
 
 def get_abonadas_ano(employee_id, all_folgas_df):
