@@ -14,7 +14,7 @@ from dateutil.relativedelta import relativedelta
 import locale
 from collections import Counter
 import geopandas as gpd
-from streamlit_calendar import calendar
+from streamlit_calendar import calendar # Importação da nova biblioteca
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
@@ -283,6 +283,7 @@ def get_ultimas_ferias(employee_id, all_folgas_df):
     except Exception:
         return "Erro"
 
+# --- MÓDULO RH ATUALIZADO COM O CALENDÁRIO ---
 def modulo_rh():
     st.title("Recursos Humanos")
     df_funcionarios = carregar_dados_firebase('funcionarios')
@@ -291,6 +292,7 @@ def modulo_rh():
     tab_rh1, tab_rh2, tab_rh3 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "👨‍💼 Gerenciar Funcionários"])
     
     with tab_rh1:
+        # ... (código da aba 1 permanece o mesmo) ...
         st.subheader("Registro de Férias e Abonadas")
         if not df_funcionarios.empty and 'nome' in df_funcionarios.columns:
             lista_funcionarios = sorted(df_funcionarios['nome'].tolist())
@@ -423,8 +425,38 @@ def modulo_rh():
     with tab_rh2:
         st.header("Visão Geral da Equipe")
         
-        col_ficha, col_tabela = st.columns([0.7, 2.3])
+        # --- IMPLEMENTAÇÃO DO CALENDÁRIO ---
+        st.subheader("Calendário de Ausências")
         
+        calendar_events = []
+        if not df_folgas.empty:
+            for _, row in df_folgas.iterrows():
+                # Para o calendário, a data final precisa ser +1 dia para eventos de dia inteiro
+                end_date = pd.to_datetime(row['data_fim']) + timedelta(days=1)
+                
+                event = {
+                    "title": f"{row['nome_funcionario']} ({row['tipo']})",
+                    "start": row['data_inicio'],
+                    "end": end_date.strftime("%Y-%m-%d"),
+                    "color": "#FF6347" if row['tipo'] == "Férias" else "#4682B4", # Laranja para Férias, Azul para Abonada
+                }
+                calendar_events.append(event)
+
+        calendar_options = {
+            "headerToolbar": {
+                "left": "prev,next today",
+                "center": "title",
+                "right": "dayGridMonth,timeGridWeek,timeGridDay",
+            },
+            "initialView": "dayGridMonth",
+            "locale": "pt-br", # Traduzir o calendário para o português
+        }
+
+        calendar(events=calendar_events, options=calendar_options)
+        st.divider()
+        # --- FIM DA IMPLEMENTAÇÃO DO CALENDÁRIO ---
+
+        col_ficha, col_tabela = st.columns([0.7, 2.3])
         with col_tabela:
             st.subheader("Equipe e Status de Férias")
             if not df_funcionarios.empty and 'id' in df_funcionarios.columns:
@@ -487,49 +519,9 @@ def modulo_rh():
                     st.markdown(f"- **Últimas Férias:** {ultimas_ferias}")
             else:
                 st.info("Nenhum funcionário.")
-        
-        st.divider()
-
-        st.subheader("Calendário de Ausências")
-        
-        col_cal_1, col_cal_2, col_cal_3 = st.columns([0.5, 2, 0.5])
-
-        with col_cal_2:
-            calendar_events = []
-            # Iterar sobre o DataFrame de folgas. Se estiver vazio, o loop não executa.
-            # Isso garante que a lista `calendar_events` permaneça vazia, mas o calendário ainda seja renderizado.
-            for _, row in df_folgas.iterrows():
-                try:
-                    # Adicionar uma verificação para garantir que as colunas de data existam e não sejam nulas
-                    if pd.notna(row.get('data_inicio')) and pd.notna(row.get('data_fim')):
-                        end_date = pd.to_datetime(row['data_fim']) + timedelta(days=1)
-                        event = {
-                            "title": f"{row.get('nome_funcionario', 'N/A')} ({row.get('tipo', 'N/A')})",
-                            "start": row['data_inicio'],
-                            "end": end_date.strftime("%Y-%m-%d"),
-                            "color": "#FF6347" if row.get('tipo') == "Férias" else "#4682B4",
-                        }
-                        calendar_events.append(event)
-                except Exception:
-                    # Ignorar silenciosamente qualquer linha que possa causar um erro de data
-                    pass
-
-            calendar_options = {
-                "headerToolbar": {
-                    "left": "prev,next today",
-                    "center": "title",
-                    "right": "dayGridMonth,timeGridWeek,timeGridDay",
-                },
-                "initialView": "dayGridMonth",
-                "locale": "pt-br",
-                "height": "600px" 
-            }
-            
-            # A chamada do calendário agora acontece incondicionalmente,
-            # exibindo um calendário vazio se não houver eventos.
-            calendar(events=calendar_events, options=calendar_options)
 
     with tab_rh3:
+        # ... (código da aba 3 permanece o mesmo) ...
         st.subheader("Cadastrar Novo Funcionário")
         with st.form("novo_funcionario_form_2", clear_on_submit=True):
             nome = st.text_input("Nome Completo")
@@ -587,7 +579,9 @@ def modulo_rh():
                     except Exception as e:
                         st.error(f"Ocorreu um erro ao deletar: {e}")
 
+# ... (o restante do código, modulo_denuncias, modulo_boletim, etc., continua o mesmo)
 def modulo_denuncias():
+    # ... (código do módulo de denúncias permanece o mesmo)
     st.title("Denúncias")
     @st.cache_data
     def geocode_addresses(df):
@@ -602,7 +596,7 @@ def modulo_denuncias():
                 location = geolocator.geocode(address, timeout=10)
                 if location: latitudes.append(location.latitude); longitudes.append(location.longitude)
                 else: latitudes.append(None); longitudes.append(None)
-            except Exception:
+            except Exception as e:
                 latitudes.append(None); longitudes.append(None)
             time.sleep(1)
         df_copy['lat'], df_copy['lon'] = latitudes, longitudes
