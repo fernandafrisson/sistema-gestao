@@ -290,7 +290,7 @@ def modulo_rh():
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_folgas = carregar_dados_firebase('folgas_ferias')
     
-    # MUDANÇA: Adicionamos a nova aba "Calendário"
+    # Mantemos a nova aba "Calendário"
     tab_rh1, tab_rh2, tab_rh3, tab_rh4 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "📅 Calendário", "👨‍💼 Gerenciar Funcionários"])
     
     with tab_rh1:
@@ -427,8 +427,6 @@ def modulo_rh():
     with tab_rh2:
         st.header("Visão Geral da Equipe")
         
-        # MUDANÇA: O calendário foi removido daqui
-        
         col_ficha, col_tabela = st.columns([0.7, 2.3])
         with col_tabela:
             st.subheader("Equipe e Status de Férias")
@@ -493,10 +491,15 @@ def modulo_rh():
             else:
                 st.info("Nenhum funcionário.")
 
-    # MUDANÇA: Nova aba 'tab_rh3' para o Calendário
     with tab_rh3:
         st.header("Calendário de Ausências")
         
+        # --- MUDANÇA: LÓGICA DE RENDERIZAÇÃO CONDICIONAL ---
+
+        # 1. Criamos um placeholder que irá conter ou o calendário ou a mensagem
+        calendar_placeholder = st.empty()
+
+        # 2. Preparamos os dados como antes
         calendar_events = []
         if not df_folgas.empty:
             for _, row in df_folgas.iterrows():
@@ -508,33 +511,39 @@ def modulo_rh():
                     "color": "#FF4B4B" if row['tipo'] == "Férias" else "#1E90FF",
                 }
                 calendar_events.append(event)
-
-        calendar_options = {
-            "headerToolbar": {
-                "left": "prev,next today",
-                "center": "title",
-                "right": "dayGridMonth,timeGridWeek,timeGridDay",
-            },
-            "initialView": "dayGridMonth",
-            "locale": "pt-br",
-            # Aumentando a altura novamente para preencher melhor a aba dedicada
-            "height": "auto" 
-        }
         
-        custom_css = """
-            .fc-view-harness-active > .fc-view {
-                min-height: 600px;
+        # 3. Verificamos se HÁ eventos para mostrar
+        if calendar_events:
+            calendar_options = {
+                "headerToolbar": {
+                    "left": "prev,next today",
+                    "center": "title",
+                    "right": "dayGridMonth,timeGridWeek,timeGridDay",
+                },
+                "initialView": "dayGridMonth",
+                "locale": "pt-br",
+                "height": "auto"
             }
-        """
-        
-        calendar(
-            events=calendar_events, 
-            options=calendar_options, 
-            custom_css=custom_css,
-            key="calendario_rh_isolado" # Nova chave para garantir o estado
-        )
-    
-    # MUDANÇA: Aba de Gerenciamento agora é 'tab_rh4'
+            
+            custom_css = """
+                .fc-view-harness-active > .fc-view {
+                    min-height: 600px; /* Altura grande para preencher a aba */
+                }
+            """
+            
+            # Usamos o placeholder para desenhar o calendário
+            with calendar_placeholder.container():
+                calendar(
+                    events=calendar_events, 
+                    options=calendar_options, 
+                    custom_css=custom_css,
+                    key="calendario_rh_com_eventos"
+                )
+        else:
+            # 4. Se NÃO HÁ eventos, mostramos uma mensagem no mesmo placeholder
+            with calendar_placeholder.container():
+                st.info("ℹ️ Nenhum evento de férias ou abonada para exibir no calendário.", icon="ℹ️")
+
     with tab_rh4:
         st.subheader("Cadastrar Novo Funcionário")
         with st.form("novo_funcionario_form_2", clear_on_submit=True):
