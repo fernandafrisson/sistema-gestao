@@ -290,7 +290,8 @@ def modulo_rh():
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_folgas = carregar_dados_firebase('folgas_ferias')
     
-    tab_rh1, tab_rh2, tab_rh3 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "👨‍💼 Gerenciar Funcionários"])
+    # MUDANÇA: Adicionamos a nova aba "Calendário"
+    tab_rh1, tab_rh2, tab_rh3, tab_rh4 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "📅 Calendário", "👨‍💼 Gerenciar Funcionários"])
     
     with tab_rh1:
         # --- CÓDIGO DA ABA 1 (SEM ALTERAÇÕES) ---
@@ -426,7 +427,8 @@ def modulo_rh():
     with tab_rh2:
         st.header("Visão Geral da Equipe")
         
-        # --- BLOCO DE INFORMAÇÕES PRINCIPAIS (TABELA E FICHA) ---
+        # MUDANÇA: O calendário foi removido daqui
+        
         col_ficha, col_tabela = st.columns([0.7, 2.3])
         with col_tabela:
             st.subheader("Equipe e Status de Férias")
@@ -491,9 +493,9 @@ def modulo_rh():
             else:
                 st.info("Nenhum funcionário.")
 
-        # --- MUDANÇA: IMPLEMENTAÇÃO DO CALENDÁRIO SEM COLUNAS E COM KEY ---
-        st.divider()
-        st.subheader("Calendário de Ausências")
+    # MUDANÇA: Nova aba 'tab_rh3' para o Calendário
+    with tab_rh3:
+        st.header("Calendário de Ausências")
         
         calendar_events = []
         if not df_folgas.empty:
@@ -515,24 +517,25 @@ def modulo_rh():
             },
             "initialView": "dayGridMonth",
             "locale": "pt-br",
+            # Aumentando a altura novamente para preencher melhor a aba dedicada
+            "height": "auto" 
         }
         
         custom_css = """
-            .fc-view-harness {
-                min-height: 350px;
+            .fc-view-harness-active > .fc-view {
+                min-height: 600px;
             }
         """
         
-        # MUDANÇA: Adicionamos o parâmetro 'key' para dar um ID único ao componente
         calendar(
             events=calendar_events, 
             options=calendar_options, 
             custom_css=custom_css,
-            key="calendario_rh" # <-- CHAVE PARA MAIOR ESTABILIDADE
+            key="calendario_rh_isolado" # Nova chave para garantir o estado
         )
-
-    with tab_rh3:
-        # --- CÓDIGO DA ABA 3 (SEM ALTERAÇÕES) ---
+    
+    # MUDANÇA: Aba de Gerenciamento agora é 'tab_rh4'
+    with tab_rh4:
         st.subheader("Cadastrar Novo Funcionário")
         with st.form("novo_funcionario_form_2", clear_on_submit=True):
             nome = st.text_input("Nome Completo")
