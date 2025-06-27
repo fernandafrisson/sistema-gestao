@@ -14,7 +14,6 @@ from dateutil.relativedelta import relativedelta
 import locale
 from collections import Counter
 import geopandas as gpd
-from streamlit_calendar import calendar # Importação da nova biblioteca
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
@@ -284,17 +283,55 @@ def get_ultimas_ferias(employee_id, all_folgas_df):
     except Exception:
         return "Erro"
 
-# --- MÓDULO RH ATUALIZADO COM O CALENDÁRIO ---
+# Nova função para criar o gráfico de Gantt com Plotly
+def criar_grafico_de_ausencias(df_folgas):
+    """Cria um gráfico de Gantt interativo com as ausências dos funcionários."""
+    
+    # Prepara os dados para o gráfico de Gantt
+    df_gantt = df_folgas.copy()
+    # Adicionamos 1 dia ao fim para que eventos de um dia apareçam como um bloco
+    df_gantt['data_fim'] = pd.to_datetime(df_gantt['data_fim']) + timedelta(days=1)
+    
+    # Define as cores para cada tipo de ausência
+    color_map = {'Férias': '#FF4B4B', 'Abonada': '#1E90FF'}
+
+    fig = px.timeline(
+        df_gantt,
+        x_start="data_inicio",
+        x_end="data_fim",
+        y="nome_funcionario",
+        color="tipo",
+        color_discrete_map=color_map,
+        title="Linha do Tempo de Ausências da Equipe",
+        labels={"nome_funcionario": "Funcionário", "tipo": "Tipo de Ausência"},
+        hover_data=['data_inicio', 'data_fim']
+    )
+
+    # Melhorias visuais no gráfico
+    fig.update_yaxes(categoryorder="total ascending") # Ordena os funcionários
+    fig.update_layout(
+        title_x=0.5,
+        xaxis_title="Período",
+        yaxis_title="Funcionário",
+        legend_title_text='Tipo de Ausência',
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=14,
+        )
+    )
+    return fig
+
+
+# --- MÓDULO RH ATUALIZADO ---
 def modulo_rh():
     st.title("Recursos Humanos")
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_folgas = carregar_dados_firebase('folgas_ferias')
     
-    # Mantemos a nova aba "Calendário"
+    # Abas atualizadas
     tab_rh1, tab_rh2, tab_rh3, tab_rh4 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "📅 Calendário", "👨‍💼 Gerenciar Funcionários"])
     
     with tab_rh1:
-        # --- CÓDIGO DA ABA 1 (SEM ALTERAÇÕES) ---
         st.subheader("Registro de Férias e Abonadas")
         if not df_funcionarios.empty and 'nome' in df_funcionarios.columns:
             lista_funcionarios = sorted(df_funcionarios['nome'].tolist())
@@ -492,59 +529,38 @@ def modulo_rh():
                 st.info("Nenhum funcionário.")
 
     with tab_rh3:
-        st.header("Calendário de Ausências")
-        
-        # --- MUDANÇA: LÓGICA DE RENDERIZAÇÃO CONDICIONAL ---
+        # ABA DEDICADA AO NOVO GRÁFICO DE GANTT
+        st.header("Linha do Tempo de Ausências")
 
-        # 1. Criamos um placeholder que irá conter ou o calendário ou a mensagem
-        calendar_placeholder = st.empty()
-
-        # 2. Preparamos os dados como antes
-        calendar_events = []
-        if not df_folgas.empty:
-            for _, row in df_folgas.iterrows():
-                end_date = pd.to_datetime(row['data_fim']) + timedelta(days=1)
-                event = {
-                    "title": f"{row['nome_funcionario']} ({row['tipo']})",
-                    "start": row['data_inicio'],
-                    "end": end_date.strftime("%Y-%m-%d"),
-                    "color": "#FF4B4B" if row['tipo'] == "Férias" else "#1E90FF",
-                }
-                calendar_events.append(event)
-        
-        # 3. Verificamos se HÁ eventos para mostrar
-        if calendar_events:
-            calendar_options = {
-                "headerToolbar": {
-                    "left": "prev,next today",
-                    "center": "title",
-                    "right": "dayGridMonth,timeGridWeek,timeGridDay",
-                },
-                "initialView": "dayGridMonth",
-                "locale": "pt-br",
-                "height": "auto"
-            }
-            
-            custom_css = """
-                .fc-view-harness-active > .fc-view {
-                    min-height: 600px; /* Altura grande para preencher a aba */
-                }
-            """
-            
-            # Usamos o placeholder para desenhar o calendário
-            with calendar_placeholder.container():
-                calendar(
-                    events=calendar_events, 
-                    options=calendar_options, 
-                    custom_css=custom_css,
-                    key="calendario_rh_com_eventos"
-                )
+        if df_folgas.empty:
+            st.info("Não há registros de férias ou abonadas para exibir.")
         else:
-            # 4. Se NÃO HÁ eventos, mostramos uma mensagem no mesmo placeholder
-            with calendar_placeholder.container():
-                st.info("ℹ️ Nenhum evento de férias ou abonada para exibir no calendário.", icon="ℹ️")
+            # Filtros para o gráfico
+            min_date = pd.to_datetime(df_folgas['data_inicio']).min().date()
+            max_date = pd.to_datetime(df_folgas['data_fim']).max().date()
+
+            col1, col2 = st.columns(2)
+            with col1:
+                start_date = st.date_input("Data de Início", min_date, min_value=min_date, max_value=max_date, key="gantt_start")
+            with col2:
+                end_date = st.date_input("Data de Fim", max_date, min_value=start_date, max_value=max_date, key="gantt_end")
+
+            # Filtra o dataframe com base no intervalo de datas selecionado
+            df_filtrado = df_folgas[
+                (pd.to_datetime(df_folgas['data_inicio']).dt.date >= start_date) &
+                (pd.to_datetime(df_folgas['data_fim']).dt.date <= end_date)
+            ]
+
+            if df_filtrado.empty:
+                st.warning("Nenhum evento encontrado no período selecionado.")
+            else:
+                # Cria e exibe o gráfico
+                fig = criar_grafico_de_ausencias(df_filtrado)
+                st.plotly_chart(fig, use_container_width=True)
+
 
     with tab_rh4:
+        # Conteúdo da aba "Gerenciar Funcionários"
         st.subheader("Cadastrar Novo Funcionário")
         with st.form("novo_funcionario_form_2", clear_on_submit=True):
             nome = st.text_input("Nome Completo")
