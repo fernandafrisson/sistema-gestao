@@ -491,42 +491,44 @@ def modulo_rh():
             else:
                 st.info("Nenhum funcionário.")
 
-        # --- IMPLEMENTAÇÃO DO CALENDÁRIO (AGORA NO FINAL DA PÁGINA) ---
+        # --- IMPLEMENTAÇÃO DO CALENDÁRIO EM COLUNAS ---
         st.divider()
-        st.subheader("Calendário de Ausências")
-        
-        calendar_events = []
-        if not df_folgas.empty:
-            for _, row in df_folgas.iterrows():
-                end_date = pd.to_datetime(row['data_fim']) + timedelta(days=1)
-                event = {
-                    "title": f"{row['nome_funcionario']} ({row['tipo']})",
-                    "start": row['data_inicio'],
-                    "end": end_date.strftime("%Y-%m-%d"),
-                    "color": "#FF4B4B" if row['tipo'] == "Férias" else "#1E90FF",
-                }
-                calendar_events.append(event)
 
-        calendar_options = {
-            "headerToolbar": {
-                "left": "prev,next today",
-                "center": "title",
-                "right": "dayGridMonth,timeGridWeek,timeGridDay",
-            },
-            "initialView": "dayGridMonth",
-            "locale": "pt-br",
-        }
-        
-        # --- MUDANÇA NO TAMANHO ---
-        # Alteramos a altura mínima para um valor menor (400px)
-        custom_css = """
-            .fc-view-harness {
-                max-height: 300px; /* Define uma altura mínima de 400 pixels */
+        # Criamos 3 colunas, as laterais vazias para centralizar o calendário na do meio
+        col_cal1, col_cal2, col_cal3 = st.columns([0.15, 0.7, 0.15])
+
+        with col_cal2: # O calendário será renderizado na coluna central
+            st.subheader("Calendário de Ausências")
+            
+            calendar_events = []
+            if not df_folgas.empty:
+                for _, row in df_folgas.iterrows():
+                    end_date = pd.to_datetime(row['data_fim']) + timedelta(days=1)
+                    event = {
+                        "title": f"{row['nome_funcionario']} ({row['tipo']})",
+                        "start": row['data_inicio'],
+                        "end": end_date.strftime("%Y-%m-%d"),
+                        "color": "#FF4B4B" if row['tipo'] == "Férias" else "#1E90FF",
+                    }
+                    calendar_events.append(event)
+
+            calendar_options = {
+                "headerToolbar": {
+                    "left": "prev,next today",
+                    "center": "title",
+                    "right": "dayGridMonth,timeGridWeek,timeGridDay",
+                },
+                "initialView": "dayGridMonth",
+                "locale": "pt-br",
             }
-        """
-        
-        calendar(events=calendar_events, options=calendar_options, custom_css=custom_css)
-        # --- FIM DA IMPLEMENTAÇÃO DO CALENDÁRIO ---
+            
+            custom_css = """
+                .fc-view-harness {
+                    min-height: 350px; /* Altura mínima de 350 pixels */
+                }
+            """
+            
+            calendar(events=calendar_events, options=calendar_options, custom_css=custom_css)
 
     with tab_rh3:
         # --- CÓDIGO DA ABA 3 (SEM ALTERAÇÕES) ---
