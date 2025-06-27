@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, db
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import plotly.express as px
 from geopy.geocoders import Nominatim
 import time
@@ -14,6 +14,7 @@ from dateutil.relativedelta import relativedelta
 import locale
 from collections import Counter
 import geopandas as gpd
+from streamlit_calendar import calendar # Importação da nova biblioteca
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
@@ -75,7 +76,8 @@ def carregar_quarteiroes_csv():
 def carregar_geo_kml():
     url_kml = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quadras%20de%20Guar%C3%A1.kml'
     try:
-        gdf = gpd.read_file(url_kml)
+        gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'r'
+        gdf = gpd.read_file(url_kml, driver='KML')
         pontos = []
         for index, row in gdf.iterrows():
             quadra_nome = row['Name']
@@ -154,7 +156,6 @@ def create_abonada_word_report(data):
     buffer.seek(0)
     return buffer.getvalue()
 
-# --- FUNÇÃO DE CÁLCULO DE FÉRIAS CORRIGIDA ---
 def calcular_status_ferias_saldo(employee_row, all_folgas_df):
     try:
         today = date.today()
@@ -163,7 +164,6 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
 
         data_admissao = pd.to_datetime(employee_row['data_admissao']).date()
         
-        # 1. Carregar férias do funcionário
         ferias_do_funcionario = pd.DataFrame()
         if not all_folgas_df.empty and 'id_funcionario' in all_folgas_df.columns:
             ferias_do_funcionario = all_folgas_df[(all_folgas_df['id_funcionario'] == str(employee_row['id'])) & (all_folgas_df['tipo'] == 'Férias')].copy()
@@ -171,22 +171,18 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
                 ferias_do_funcionario['data_inicio'] = pd.to_datetime(ferias_do_funcionario['data_inicio']).dt.date
                 ferias_do_funcionario['data_fim'] = pd.to_datetime(ferias_do_funcionario['data_fim']).dt.date
                 
-                # Checar se está de férias HOJE (prioridade máxima)
                 for _, ferias in ferias_do_funcionario.iterrows():
                     if ferias['data_inicio'] <= today <= ferias['data_fim']:
                         return f"Em gozo desde {ferias['data_inicio'].strftime('%d/%m/%Y')}", "EM FÉRIAS", "ON_VACATION"
 
-        # 2. Coletar todos os períodos aquisitivos completos que não foram 100% gozados
         periodos_pendentes = []
         periodo_aquisitivo_inicio = data_admissao
         
-        # Variável para guardar o início do período de aquisição atual
         proximo_periodo_aquisitivo = data_admissao 
         
         while True:
             periodo_aquisitivo_fim = periodo_aquisitivo_inicio + relativedelta(years=1) - relativedelta(days=1)
             
-            # Se o período aquisitivo ainda não terminou, paramos o loop
             if today < periodo_aquisitivo_fim:
                 proximo_periodo_aquisitivo = periodo_aquisitivo_inicio
                 break
@@ -211,12 +207,10 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
                 })
             
             periodo_aquisitivo_inicio += relativedelta(years=1)
-            # Trava de segurança para evitar loops infinitos
             if periodo_aquisitivo_inicio.year > today.year + 2:
                 proximo_periodo_aquisitivo = periodo_aquisitivo_inicio
                 break
 
-        # 3. Analisar a lista de pendências para definir o status
         if len(periodos_pendentes) >= 2:
             periodo_mais_antigo = periodos_pendentes[0]
             fim_concessivo_antigo = periodo_mais_antigo["fim_con"]
@@ -235,7 +229,6 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
             else:
                 return ref_periodo_str, "PENDENTE DE AGENDAMENTO", "PENDING"
         
-        # Se não há pendências, significa que está em dia ou em aquisição
         aq_inicio = proximo_periodo_aquisitivo
         aq_fim = aq_inicio + relativedelta(years=1) - relativedelta(days=1)
         if today <= aq_fim:
@@ -290,6 +283,7 @@ def get_ultimas_ferias(employee_id, all_folgas_df):
     except Exception:
         return "Erro"
 
+# --- MÓDULO RH ATUALIZADO COM O CALENDÁRIO ---
 def modulo_rh():
     st.title("Recursos Humanos")
     df_funcionarios = carregar_dados_firebase('funcionarios')
@@ -298,6 +292,7 @@ def modulo_rh():
     tab_rh1, tab_rh2, tab_rh3 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "👨‍💼 Gerenciar Funcionários"])
     
     with tab_rh1:
+        # ... (código da aba 1 permanece o mesmo) ...
         st.subheader("Registro de Férias e Abonadas")
         if not df_funcionarios.empty and 'nome' in df_funcionarios.columns:
             lista_funcionarios = sorted(df_funcionarios['nome'].tolist())
@@ -426,8 +421,41 @@ def modulo_rh():
             st.dataframe(df_folgas_filtrado[cols_to_display].rename(columns={'nome_funcionario': 'Funcionário', 'tipo': 'Tipo', 'data_inicio': 'Início', 'data_fim': 'Fim'}), use_container_width=True,hide_index=True)
         else:
             st.write("Nenhum registro de ausência encontrado.")
-            
+
     with tab_rh2:
+        st.header("Visão Geral da Equipe")
+        
+        # --- IMPLEMENTAÇÃO DO CALENDÁRIO ---
+        st.subheader("Calendário de Ausências")
+        
+        calendar_events = []
+        if not df_folgas.empty:
+            for _, row in df_folgas.iterrows():
+                # Para o calendário, a data final precisa ser +1 dia para eventos de dia inteiro
+                end_date = pd.to_datetime(row['data_fim']) + timedelta(days=1)
+                
+                event = {
+                    "title": f"{row['nome_funcionario']} ({row['tipo']})",
+                    "start": row['data_inicio'],
+                    "end": end_date.strftime("%Y-%m-%d"),
+                    "color": "#FF6347" if row['tipo'] == "Férias" else "#4682B4", # Laranja para Férias, Azul para Abonada
+                }
+                calendar_events.append(event)
+
+        calendar_options = {
+            "headerToolbar": {
+                "left": "prev,next today",
+                "center": "title",
+                "right": "dayGridMonth,timeGridWeek,timeGridDay",
+            },
+            "initialView": "dayGridMonth",
+            "locale": "pt-br", # Traduzir o calendário para o português
+        }
+
+        calendar(events=calendar_events, options=calendar_options)
+        st.divider()
+        # --- FIM DA IMPLEMENTAÇÃO DO CALENDÁRIO ---
+
         col_ficha, col_tabela = st.columns([0.7, 2.3])
         with col_tabela:
             st.subheader("Equipe e Status de Férias")
@@ -493,6 +521,7 @@ def modulo_rh():
                 st.info("Nenhum funcionário.")
 
     with tab_rh3:
+        # ... (código da aba 3 permanece o mesmo) ...
         st.subheader("Cadastrar Novo Funcionário")
         with st.form("novo_funcionario_form_2", clear_on_submit=True):
             nome = st.text_input("Nome Completo")
@@ -550,7 +579,9 @@ def modulo_rh():
                     except Exception as e:
                         st.error(f"Ocorreu um erro ao deletar: {e}")
 
+# ... (o restante do código, modulo_denuncias, modulo_boletim, etc., continua o mesmo)
 def modulo_denuncias():
+    # ... (código do módulo de denúncias permanece o mesmo)
     st.title("Denúncias")
     @st.cache_data
     def geocode_addresses(df):
