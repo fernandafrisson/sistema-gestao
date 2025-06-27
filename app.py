@@ -154,11 +154,19 @@ def create_abonada_word_report(data):
     buffer.seek(0)
     return buffer.getvalue()
 
+# --- FUNÇÃO ATUALIZADA ---
 def calcular_status_ferias_saldo(employee_row, all_folgas_df):
+    """
+    Calcula o status de férias, agora retornando também um código para facilitar a coloração.
+    Identifica se o funcionário está de férias ou se há risco de vencimento duplo.
+    Retorna: (str: Período de Referência, str: Status Descritivo, str: Código do Status)
+    Códigos: ON_VACATION, RISK_EXPIRING, PENDING, SCHEDULED, ACQUIRING, ERROR
+    """
     try:
         today = date.today()
         if 'data_admissao' not in employee_row or pd.isna(employee_row['data_admissao']):
-            return "Admissão Inválida", "Erro"
+            return "Admissão Inválida", "Erro", "ERROR"
+
         data_admissao = pd.to_datetime(employee_row['data_admissao']).date()
         ferias_do_funcionario = pd.DataFrame()
         if not all_folgas_df.empty and 'id_funcionario' in all_folgas_df.columns:
@@ -166,24 +174,71 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
             if not ferias_do_funcionario.empty:
                 ferias_do_funcionario['data_inicio'] = pd.to_datetime(ferias_do_funcionario['data_inicio']).dt.date
                 ferias_do_funcionario['data_fim'] = pd.to_datetime(ferias_do_funcionario['data_fim']).dt.date
+                
+                # 1. Checar se o funcionário está de férias HOJE
+                for _, ferias in ferias_do_funcionario.iterrows():
+                    if ferias['data_inicio'] <= today <= ferias['data_fim']:
+                        return f"Em gozo desde {ferias['data_inicio'].strftime('%d/%m/%Y')}", "EM FÉRIAS", "ON_VACATION"
+
         periodo_aquisitivo_inicio = data_admissao
-        while True:
+        periodos_vencendo = 0
+        
+        # 2. Loop para verificar períodos pendentes e risco de vencimento
+        while periodo_aquisitivo_inicio < today:
             periodo_aquisitivo_fim = periodo_aquisitivo_inicio + relativedelta(years=1) - relativedelta(days=1)
             periodo_concessivo_fim = periodo_aquisitivo_fim + relativedelta(years=1)
+
+            # Ignora o período aquisitivo atual
             if today <= periodo_aquisitivo_fim:
-                return f"{periodo_aquisitivo_inicio.strftime('%d/%m/%Y')} a {periodo_aquisitivo_fim.strftime('%d/%m/%Y')}", "Em Aquisição"
+                break
+                
             dias_gozados = 0
             if not ferias_do_funcionario.empty:
                 ferias_neste_periodo = ferias_do_funcionario[(ferias_do_funcionario['data_inicio'] > periodo_aquisitivo_fim) & (ferias_do_funcionario['data_inicio'] <= periodo_concessivo_fim)]
                 if not ferias_neste_periodo.empty:
                     dias_gozados = sum((fim - inicio).days + 1 for inicio, fim in zip(ferias_neste_periodo['data_inicio'], ferias_neste_periodo['data_fim']))
+            
             if dias_gozados < 30:
-                status = f"Parcialmente Agendada ({dias_gozados}/30 dias)" if dias_gozados > 0 else "PENDENTE DE AGENDAMENTO"
-                return f"{periodo_aquisitivo_inicio.strftime('%d/%m/%Y')} a {periodo_aquisitivo_fim.strftime('%d/%m/%Y')}", status
+                # Checar se o período concessivo está para vencer
+                if today <= periodo_concessivo_fim and (periodo_concessivo_fim - today).days <= 90:
+                    periodos_vencendo += 1
+            
             periodo_aquisitivo_inicio += relativedelta(years=1)
-            if periodo_aquisitivo_inicio.year > today.year + 5: return "N/A", "Limite de cálculo atingido"
+            if periodo_aquisitivo_inicio.year > today.year + 10: break # Limite de segurança
+
+        # 3. Verificar se há risco de vencimento duplo
+        if periodos_vencendo >= 2:
+            return "Múltiplos Períodos", f"RISCO: {periodos_vencendo} FÉRIAS VENCENDO!", "RISK_EXPIRING"
+
+        # 4. Se não há risco, calcular o status do período mais antigo pendente
+        periodo_aquisitivo_inicio = data_admissao
+        while True:
+            periodo_aquisitivo_fim = periodo_aquisitivo_inicio + relativedelta(years=1) - relativedelta(days=1)
+            periodo_concessivo_fim = periodo_aquisitivo_fim + relativedelta(years=1)
+
+            # Status do período atual
+            if today <= periodo_aquisitivo_fim:
+                return f"{periodo_aquisitivo_inicio.strftime('%d/%m/%Y')} a {periodo_aquisitivo_fim.strftime('%d/%m/%Y')}", "Em Aquisição", "ACQUIRING"
+
+            dias_gozados = 0
+            if not ferias_do_funcionario.empty:
+                ferias_neste_periodo = ferias_do_funcionario[(ferias_do_funcionario['data_inicio'] > periodo_aquisitivo_fim) & (ferias_do_funcionario['data_inicio'] <= periodo_concessivo_fim)]
+                if not ferias_neste_periodo.empty:
+                    dias_gozados = sum((fim - inicio).days + 1 for inicio, fim in zip(ferias_neste_periodo['data_inicio'], ferias_neste_periodo['data_fim']))
+
+            if dias_gozados < 30:
+                if dias_gozados > 0:
+                    return f"{periodo_aquisitivo_inicio.strftime('%d/%m/%Y')} a {periodo_aquisitivo_fim.strftime('%d/%m/%Y')}", f"Parcialmente Agendada ({dias_gozados}/30)", "SCHEDULED"
+                else:
+                    return f"{periodo_aquisitivo_inicio.strftime('%d/%m/%Y')} a {periodo_aquisitivo_fim.strftime('%d/%m/%Y')}", "PENDENTE DE AGENDAMENTO", "PENDING"
+
+            periodo_aquisitivo_inicio += relativedelta(years=1)
+            if periodo_aquisitivo_inicio.year > today.year + 10: break
+            
     except Exception as e:
-        return "Erro de Cálculo", f"Erro: {e}"
+        return "Erro de Cálculo", f"Erro: {e}", "ERROR"
+    return "N/A", "Concluído", "OK"
+
 
 def get_abonadas_ano(employee_id, all_folgas_df):
     try:
@@ -194,6 +249,29 @@ def get_abonadas_ano(employee_id, all_folgas_df):
         return len(abonadas_funcionario)
     except Exception:
         return 0
+
+# --- NOVA FUNÇÃO ---
+def get_datas_abonadas_ano(employee_id, all_folgas_df):
+    """Retorna uma lista com as datas das faltas abonadas do funcionário no ano corrente."""
+    try:
+        current_year = date.today().year
+        if all_folgas_df.empty or 'id_funcionario' not in all_folgas_df.columns:
+            return []
+        
+        abonadas_df = all_folgas_df[
+            (all_folgas_df['id_funcionario'] == str(employee_id)) & 
+            (all_folgas_df['tipo'] == 'Abonada') & 
+            (pd.to_datetime(all_folgas_df['data_inicio']).dt.year == current_year)
+        ]
+        
+        if abonadas_df.empty:
+            return []
+            
+        # Formata as datas para o padrão brasileiro (dd/mm/yyyy)
+        return [pd.to_datetime(d).strftime('%d/%m/%Y') for d in abonadas_df['data_inicio']]
+    except Exception:
+        return []
+
 
 def get_ultimas_ferias(employee_id, all_folgas_df):
     try:
@@ -249,68 +327,42 @@ def modulo_rh():
                             id_funcionario = df_funcionarios[df_funcionarios['nome'] == funcionario_selecionado]['id'].iloc[0]
                             evento_id = str(int(time.time() * 1000))
                             ref = db.reference(f'folgas_ferias/{evento_id}')
-                            ref.set({
-                                'id_funcionario': id_funcionario,
-                                'nome_funcionario': funcionario_selecionado,
-                                'tipo': tipo_evento,
-                                'data_inicio': data_inicio.strftime("%Y-%m-%d"),
-                                'data_fim': data_fim.strftime("%Y-%m-%d")
-                            })
+                            ref.set({'id_funcionario': id_funcionario,'nome_funcionario': funcionario_selecionado,'tipo': tipo_evento,'data_inicio': data_inicio.strftime("%Y-%m-%d"),'data_fim': data_fim.strftime("%Y-%m-%d")})
                             st.success(f"{tipo_evento} para {funcionario_selecionado} registrado com sucesso!")
                             
                             if tipo_evento == "Abonada":
                                 dados_func = df_funcionarios[df_funcionarios['id'] == id_funcionario].iloc[0]
-                                doc_data = {
-                                    'nome': dados_func.get('nome', ''),
-                                    'funcao': dados_func.get('funcao', ''),
-                                    'unidade': dados_func.get('unidade_trabalho', ''),
-                                    'data_abonada': data_inicio.strftime('%d-%m-%Y'),
-                                }
+                                doc_data = {'nome': dados_func.get('nome', ''),'funcao': dados_func.get('funcao', ''),'unidade': dados_func.get('unidade_trabalho', ''),'data_abonada': data_inicio.strftime('%d-%m-%Y'),}
                                 st.session_state.doc_data = doc_data
                             else:
                                 st.session_state.doc_data = None
                             
                             st.cache_data.clear()
-                            st.rerun() # Adicionado para recarregar a página e atualizar as listas
+                            st.rerun() 
                         except Exception as e:
                             st.error(f"Erro ao registrar evento: {e}")
 
             if st.session_state.doc_data:
                 word_bytes = create_abonada_word_report(st.session_state.doc_data)
-                st.download_button(
-                    label="📥 Baixar Requerimento de Abonada (.docx)",
-                    data=word_bytes,
-                    file_name=f"Abonada_{st.session_state.doc_data['nome']}_{st.session_state.doc_data['data_abonada']}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
+                st.download_button(label="📥 Baixar Requerimento de Abonada (.docx)",data=word_bytes,file_name=f"Abonada_{st.session_state.doc_data['nome']}_{st.session_state.doc_data['data_abonada']}.docx",mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         else:
             st.info("Nenhum funcionário cadastrado.")
         st.divider()
 
-        # --- NOVA SEÇÃO PARA EDITAR FÉRIAS E ABONADAS ---
         st.subheader("Editar Registro de Férias ou Abonada")
         if not df_folgas.empty:
-            # Criar uma representação legível para cada evento no selectbox
-            df_folgas['label'] = df_folgas.apply(
-                lambda row: f"{row['tipo']} - {row['nome_funcionario']} ({pd.to_datetime(row['data_inicio']).strftime('%d/%m/%Y')})",
-                axis=1
-            )
-            
-            # Adicionar a opção de placeholder
+            df_folgas['label'] = df_folgas.apply(lambda row: f"{row['tipo']} - {row['nome_funcionario']} ({pd.to_datetime(row['data_inicio']).strftime('%d/%m/%Y')})", axis=1)
             lista_eventos = ["Selecione um registro para editar..."] + df_folgas.sort_values(by='data_inicio', ascending=False)['label'].tolist()
-            
             evento_label_selecionado = st.selectbox("Selecione o Registro", options=lista_eventos)
 
             if evento_label_selecionado != "Selecione um registro para editar...":
-                # Encontrar o ID do evento selecionado
                 evento_selecionado_df = df_folgas[df_folgas['label'] == evento_label_selecionado]
                 if not evento_selecionado_df.empty:
                     dados_evento = evento_selecionado_df.iloc[0]
-                    evento_id = dados_evento.name # O ID do firebase é o índice do dataframe
+                    evento_id = dados_evento.name
 
                     with st.form(f"edit_folga_{evento_id}"):
                         st.write(f"Editando: **{dados_evento['label']}**")
-                        
                         tipo_evento_edit = dados_evento['tipo']
                         
                         if tipo_evento_edit == "Férias":
@@ -333,10 +385,7 @@ def modulo_rh():
                             else:
                                 try:
                                     ref = db.reference(f'folgas_ferias/{evento_id}')
-                                    ref.update({
-                                        'data_inicio': data_inicio_edit.strftime("%Y-%m-%d"),
-                                        'data_fim': data_fim_edit.strftime("%Y-%m-%d")
-                                    })
+                                    ref.update({'data_inicio': data_inicio_edit.strftime("%Y-%m-%d"),'data_fim': data_fim_edit.strftime("%Y-%m-%d")})
                                     st.success("Registro atualizado com sucesso!")
                                     st.cache_data.clear()
                                     st.rerun()
@@ -346,13 +395,11 @@ def modulo_rh():
                     st.warning("Registro não encontrado. Por favor, atualize a página.")
         else:
             st.info("Nenhum registro de férias ou abonada para editar.")
-
-
         st.divider()
+
         st.subheader("Histórico de Férias e Abonadas")
         df_folgas_filtrado = df_folgas.copy()
         if not df_folgas_filtrado.empty:
-            # ... (código do filtro de histórico permanece o mesmo)
             st.markdown("##### Filtrar Histórico")
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -382,19 +429,35 @@ def modulo_rh():
         with col_tabela:
             st.subheader("Equipe e Status de Férias")
             if not df_funcionarios.empty and 'id' in df_funcionarios.columns:
-                ferias_info = [calcular_status_ferias_saldo(func, df_folgas) for _, func in df_funcionarios.iterrows()]
-                abonadas_info = [get_abonadas_ano(func_id, df_folgas) for func_id in df_funcionarios['id']]
+                
+                # Gerar os dados de status e código para cada funcionário
+                ferias_info_completa = [calcular_status_ferias_saldo(func, df_folgas) for _, func in df_funcionarios.iterrows()]
+                
                 df_display = df_funcionarios.copy()
-                df_display['Período Aquisitivo de Referência'] = [info[0] for info in ferias_info]
-                df_display['Status Agendamento'] = [info[1] for info in ferias_info]
-                df_display['Abonadas no Ano'] = abonadas_info
-                def style_status(val):
-                    if "PENDENTE" in val: return 'background-color: #ffc44b;'
-                    if "Parcialmente" in val: return 'background-color: #a9d1f7;'
-                    return ''
-                st.dataframe(df_display[['nome', 'funcao', 'data_admissao', 'Período Aquisitivo de Referência', 'Status Agendamento', 'Abonadas no Ano']].rename(columns={'nome': 'Nome', 'funcao': 'Função', 'data_admissao': 'Data de Admissão'}).style.apply(lambda row: [style_status(row['Status Agendamento'])]*len(row), axis=1),use_container_width=True,hide_index=True)
+                df_display['Período Aquisitivo de Referência'] = [info[0] for info in ferias_info_completa]
+                df_display['Status Agendamento'] = [info[1] for info in ferias_info_completa]
+                df_display['status_code'] = [info[2] for info in ferias_info_completa] # Nova coluna com o código
+                df_display['Abonadas no Ano'] = [get_abonadas_ano(func_id, df_folgas) for func_id in df_funcionarios['id']]
+
+                def style_status_code(code):
+                    color = ''
+                    if code == "PENDING": color = '#fff2cc'  # Amarelo claro
+                    elif code == "SCHEDULED": color = '#d4e6f1'  # Azul claro
+                    elif code == "ON_VACATION": color = '#d5f5e3'  # Verde claro
+                    elif code == "RISK_EXPIRING": color = '#f5b7b1'  # Vermelho claro
+                    return f'background-color: {color}'
+
+                # MUDANÇA: Ocultada a coluna 'data_admissao' e aplicado o novo estilo
+                st.dataframe(
+                    df_display[['nome', 'funcao', 'Período Aquisitivo de Referência', 'Status Agendamento', 'Abonadas no Ano']]
+                    .rename(columns={'nome': 'Nome', 'funcao': 'Função'})
+                    .style.apply(lambda row: [style_status_code(row['status_code'])]*len(row), axis=1, subset=pd.IndexSlice[:, ['Nome', 'funcao', 'Período Aquisitivo de Referência', 'Status Agendamento', 'Abonadas no Ano']]),
+                    use_container_width=True,
+                    hide_index=True
+                )
             else:
                 st.info("Nenhum funcionário cadastrado.")
+
         with col_ficha:
             st.subheader("Consultar Ficha")
             if not df_funcionarios.empty:
@@ -405,15 +468,27 @@ def modulo_rh():
                     st.markdown(f"**Nome:** {dados_func.get('nome', 'N/A')}")
                     st.markdown(f"**Matrícula:** {dados_func.get('matricula', 'N/A')}")
                     st.markdown(f"**Telefone:** {dados_func.get('telefone', 'N/A')}")
+                    
+                    # MUDANÇA: Adicionada a Data de Admissão
+                    data_adm_str = dados_func.get('data_admissao', 'N/A')
+                    if data_adm_str != 'N/A':
+                        data_adm_str = pd.to_datetime(data_adm_str).strftime('%d/%m/%Y')
+                    st.markdown(f"**Data de Admissão:** {data_adm_str}")
+
                     st.divider()
-                    st.markdown("**Informações Adicionais:**")
-                    abonadas_ano = get_abonadas_ano(dados_func.get('id'), df_folgas)
+                    st.markdown("**Histórico Recente:**")
+
+                    # MUDANÇA: Exibição das datas das abonadas
+                    datas_abonadas = get_datas_abonadas_ano(dados_func.get('id'), df_folgas)
+                    st.markdown(f"- **Abonadas no ano ({len(datas_abonadas)}):** {', '.join(datas_abonadas) if datas_abonadas else 'Nenhuma'}")
+                    
                     ultimas_ferias = get_ultimas_ferias(dados_func.get('id'), df_folgas)
-                    st.markdown(f"- **Abonadas no ano:** {abonadas_ano}")
                     st.markdown(f"- **Últimas Férias:** {ultimas_ferias}")
             else:
                 st.info("Nenhum funcionário.")
+
     with tab_rh3:
+        # ... código da tab_rh3 permanece o mesmo
         st.subheader("Cadastrar Novo Funcionário")
         with st.form("novo_funcionario_form_2", clear_on_submit=True):
             nome = st.text_input("Nome Completo")
@@ -471,6 +546,7 @@ def modulo_rh():
                     except Exception as e:
                         st.error(f"Ocorreu um erro ao deletar: {e}")
 
+# ... O restante do código (modulo_denuncias, modulo_boletim, etc.) permanece o mesmo ...
 def modulo_denuncias():
     # ... (código do módulo de denúncias permanece o mesmo)
     st.title("Denúncias")
@@ -721,8 +797,8 @@ def create_boletim_word_report(data):
     buffer.seek(0)
     return buffer.getvalue()
 
-# --- MÓDULO BOLETIM ATUALIZADO ---
 def modulo_boletim():
+    # ... código do módulo do boletim permanece o mesmo
     st.title("Boletim de Programação Diária")
 
     df_funcionarios = carregar_dados_firebase('funcionarios')
@@ -760,7 +836,7 @@ def modulo_boletim():
             lista_nomes_disponiveis_full = []
             st.warning("Não há funcionários cadastrados para criar um boletim.")
 
-        atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização" , "P.E" , "I.E" , "Curso"]
+        atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização"]
         bairros = st.text_area("Bairros a serem trabalhados")
         atividades_gerais = st.multiselect("Atividades Gerais do Dia", atividades_gerais_options)
         motoristas = st.multiselect("Motorista(s)", options=lista_nomes_disponiveis_full)
@@ -774,7 +850,6 @@ def modulo_boletim():
             st.markdown(f"--- *Equipe {i+1}* ---")
             cols = st.columns([2, 2, 3])
             with cols[0]:
-                # MUDANÇA: Removido o parâmetro `max_selections`
                 membros = st.multiselect(f"Membros da Equipe {i+1}", options=funcionarios_manha_disponiveis, key=f"manha_membros_{i}")
             with cols[1]:
                 atividades = st.multiselect("Atividades", options=atividades_gerais_options, key=f"manha_atividades_{i}")
@@ -803,7 +878,6 @@ def modulo_boletim():
             st.markdown(f"--- *Equipe {i+1}* ---")
             cols = st.columns([2, 2, 3])
             with cols[0]:
-                 # MUDANÇA: Removido o parâmetro `max_selections`
                 membros = st.multiselect(f"Membros da Equipe {i+1}", options=funcionarios_tarde_disponiveis, key=f"tarde_membros_{i}")
             with cols[1]:
                 atividades = st.multiselect("Atividades ", options=atividades_gerais_options, key=f"tarde_atividades_{i}")
@@ -874,7 +948,6 @@ def modulo_boletim():
                         default_quarteiroes = saved_teams_manha[i]['quarteiroes'] if i < len(saved_teams_manha) else []
                         cols = st.columns([2, 2, 3])
                         with cols[0]:
-                             # MUDANÇA: Removido o parâmetro `max_selections`
                             membros = st.multiselect("Membros", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], default=default_membros, key=f"edit_manha_membros_{i}")
                         with cols[1]:
                             atividades = st.multiselect("Atividades ", options=atividades_gerais_options, default=default_atividades, key=f"edit_manha_atividades_{i}")
@@ -899,7 +972,6 @@ def modulo_boletim():
                         default_quarteiroes = saved_teams_tarde[i]['quarteiroes'] if i < len(saved_teams_tarde) else []
                         cols = st.columns([2, 2, 3])
                         with cols[0]:
-                             # MUDANÇA: Removido o parâmetro `max_selections`
                             membros = st.multiselect("Membros ", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], default=default_membros, key=f"edit_tarde_membros_{i}")
                         with cols[1]:
                             atividades = st.multiselect("Atividades  ", options=atividades_gerais_options, default=default_atividades, key=f"edit_tarde_atividades_{i}")
@@ -920,7 +992,6 @@ def modulo_boletim():
                         st.session_state.boletim_encontrado = boletim_atualizado
 
     with tab3:
-        # ... (código da aba do mapa permanece o mesmo)
         st.subheader("Mapa de Atividades por Dia")
         data_mapa = st.date_input("Selecione a data para visualizar o mapa", date.today(), key="mapa_data")
 
@@ -971,8 +1042,6 @@ def modulo_boletim():
                         
                         st.plotly_chart(fig, use_container_width=True)
 
-
-# --- SISTEMA DE LOGIN E NAVEGAÇÃO ---
 def login_screen():
     st.title("Sistema Integrado de Gestão")
     with st.form("login_form"):
