@@ -14,7 +14,7 @@ from dateutil.relativedelta import relativedelta
 import locale
 from collections import Counter
 import geopandas as gpd
-from streamlit_calendar import calendar 
+from streamlit_calendar import calendar
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
@@ -76,7 +76,6 @@ def carregar_quarteiroes_csv():
 def carregar_geo_kml():
     url_kml = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quadras%20de%20Guar%C3%A1.kml'
     try:
-        # Habilitar o driver KML é importante para o GeoPandas
         gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'r'
         gdf = gpd.read_file(url_kml, driver='KML')
         pontos = []
@@ -497,16 +496,23 @@ def modulo_rh():
 
         with col_cal_2:
             calendar_events = []
-            if not df_folgas.empty:
-                for _, row in df_folgas.iterrows():
-                    end_date = pd.to_datetime(row['data_fim']) + timedelta(days=1)
-                    event = {
-                        "title": f"{row['nome_funcionario']} ({row['tipo']})",
-                        "start": row['data_inicio'],
-                        "end": end_date.strftime("%Y-%m-%d"),
-                        "color": "#FF6347" if row['tipo'] == "Férias" else "#4682B4",
-                    }
-                    calendar_events.append(event)
+            # Iterar sobre o DataFrame de folgas. Se estiver vazio, o loop não executa.
+            # Isso garante que a lista `calendar_events` permaneça vazia, mas o calendário ainda seja renderizado.
+            for _, row in df_folgas.iterrows():
+                try:
+                    # Adicionar uma verificação para garantir que as colunas de data existam e não sejam nulas
+                    if pd.notna(row.get('data_inicio')) and pd.notna(row.get('data_fim')):
+                        end_date = pd.to_datetime(row['data_fim']) + timedelta(days=1)
+                        event = {
+                            "title": f"{row.get('nome_funcionario', 'N/A')} ({row.get('tipo', 'N/A')})",
+                            "start": row['data_inicio'],
+                            "end": end_date.strftime("%Y-%m-%d"),
+                            "color": "#FF6347" if row.get('tipo') == "Férias" else "#4682B4",
+                        }
+                        calendar_events.append(event)
+                except Exception:
+                    # Ignorar silenciosamente qualquer linha que possa causar um erro de data
+                    pass
 
             calendar_options = {
                 "headerToolbar": {
@@ -519,6 +525,8 @@ def modulo_rh():
                 "height": "600px" 
             }
             
+            # A chamada do calendário agora acontece incondicionalmente,
+            # exibindo um calendário vazio se não houver eventos.
             calendar(events=calendar_events, options=calendar_options)
 
     with tab_rh3:
@@ -594,7 +602,7 @@ def modulo_denuncias():
                 location = geolocator.geocode(address, timeout=10)
                 if location: latitudes.append(location.latitude); longitudes.append(location.longitude)
                 else: latitudes.append(None); longitudes.append(None)
-            except Exception as e:
+            except Exception:
                 latitudes.append(None); longitudes.append(None)
             time.sleep(1)
         df_copy['lat'], df_copy['lon'] = latitudes, longitudes
