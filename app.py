@@ -760,7 +760,7 @@ def modulo_boletim():
             lista_nomes_disponiveis_full = []
             st.warning("Não há funcionários cadastrados para criar um boletim.")
 
-        atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização" , "P.E" , "I.E"]
+        atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização" , "P.E" , "I.E" , "Curso"]
         bairros = st.text_area("Bairros a serem trabalhados")
         atividades_gerais = st.multiselect("Atividades Gerais do Dia", atividades_gerais_options)
         motoristas = st.multiselect("Motorista(s)", options=lista_nomes_disponiveis_full)
