@@ -521,7 +521,7 @@ def modulo_rh():
         # Alteramos a altura mínima para um valor menor (400px)
         custom_css = """
             .fc-view-harness {
-                min-height: 400px; /* Define uma altura mínima de 400 pixels */
+                min-height: 300px; /* Define uma altura mínima de 400 pixels */
             }
         """
         
