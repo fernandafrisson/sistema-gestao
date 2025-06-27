@@ -154,7 +154,6 @@ def create_abonada_word_report(data):
     buffer.seek(0)
     return buffer.getvalue()
 
-# --- FUNÇÃO ATUALIZADA ---
 def calcular_status_ferias_saldo(employee_row, all_folgas_df):
     """
     Calcula o status de férias, agora retornando também um código para facilitar a coloração.
@@ -250,7 +249,6 @@ def get_abonadas_ano(employee_id, all_folgas_df):
     except Exception:
         return 0
 
-# --- NOVA FUNÇÃO ---
 def get_datas_abonadas_ano(employee_id, all_folgas_df):
     """Retorna uma lista com as datas das faltas abonadas do funcionário no ano corrente."""
     try:
@@ -267,7 +265,6 @@ def get_datas_abonadas_ano(employee_id, all_folgas_df):
         if abonadas_df.empty:
             return []
             
-        # Formata as datas para o padrão brasileiro (dd/mm/yyyy)
         return [pd.to_datetime(d).strftime('%d/%m/%Y') for d in abonadas_df['data_inicio']]
     except Exception:
         return []
@@ -286,7 +283,6 @@ def get_ultimas_ferias(employee_id, all_folgas_df):
     except Exception:
         return "Erro"
 
-# --- MÓDULO RH ATUALIZADO ---
 def modulo_rh():
     st.title("Recursos Humanos")
     df_funcionarios = carregar_dados_firebase('funcionarios')
@@ -430,28 +426,32 @@ def modulo_rh():
             st.subheader("Equipe e Status de Férias")
             if not df_funcionarios.empty and 'id' in df_funcionarios.columns:
                 
-                # Gerar os dados de status e código para cada funcionário
                 ferias_info_completa = [calcular_status_ferias_saldo(func, df_folgas) for _, func in df_funcionarios.iterrows()]
                 
                 df_display = df_funcionarios.copy()
                 df_display['Período Aquisitivo de Referência'] = [info[0] for info in ferias_info_completa]
                 df_display['Status Agendamento'] = [info[1] for info in ferias_info_completa]
-                df_display['status_code'] = [info[2] for info in ferias_info_completa] # Nova coluna com o código
+                df_display['status_code'] = [info[2] for info in ferias_info_completa] 
                 df_display['Abonadas no Ano'] = [get_abonadas_ano(func_id, df_folgas) for func_id in df_funcionarios['id']]
 
                 def style_status_code(code):
                     color = ''
-                    if code == "PENDING": color = '#fff2cc'  # Amarelo claro
-                    elif code == "SCHEDULED": color = '#d4e6f1'  # Azul claro
-                    elif code == "ON_VACATION": color = '#d5f5e3'  # Verde claro
-                    elif code == "RISK_EXPIRING": color = '#f5b7b1'  # Vermelho claro
+                    if code == "PENDING": color = '#fff2cc'
+                    elif code == "SCHEDULED": color = '#d4e6f1'
+                    elif code == "ON_VACATION": color = '#d5f5e3'
+                    elif code == "RISK_EXPIRING": color = '#f5b7b1'
                     return f'background-color: {color}'
 
-                # MUDANÇA: Ocultada a coluna 'data_admissao' e aplicado o novo estilo
+                df_para_exibir = df_display[['nome', 'funcao', 'Período Aquisitivo de Referência', 'Status Agendamento', 'Abonadas no Ano']]
+                df_renomeado = df_para_exibir.rename(columns={'nome': 'Nome', 'funcao': 'Função'})
+                
+                styler = df_renomeado.style.apply(
+                    lambda row: [style_status_code(df_display.loc[row.name, 'status_code'])] * len(row),
+                    axis=1
+                )
+                
                 st.dataframe(
-                    df_display[['nome', 'funcao', 'Período Aquisitivo de Referência', 'Status Agendamento', 'Abonadas no Ano']]
-                    .rename(columns={'nome': 'Nome', 'funcao': 'Função'})
-                    .style.apply(lambda row: [style_status_code(row['status_code'])]*len(row), axis=1, subset=pd.IndexSlice[:, ['Nome', 'funcao', 'Período Aquisitivo de Referência', 'Status Agendamento', 'Abonadas no Ano']]),
+                    styler,
                     use_container_width=True,
                     hide_index=True
                 )
@@ -469,7 +469,6 @@ def modulo_rh():
                     st.markdown(f"**Matrícula:** {dados_func.get('matricula', 'N/A')}")
                     st.markdown(f"**Telefone:** {dados_func.get('telefone', 'N/A')}")
                     
-                    # MUDANÇA: Adicionada a Data de Admissão
                     data_adm_str = dados_func.get('data_admissao', 'N/A')
                     if data_adm_str != 'N/A':
                         data_adm_str = pd.to_datetime(data_adm_str).strftime('%d/%m/%Y')
@@ -478,7 +477,6 @@ def modulo_rh():
                     st.divider()
                     st.markdown("**Histórico Recente:**")
 
-                    # MUDANÇA: Exibição das datas das abonadas
                     datas_abonadas = get_datas_abonadas_ano(dados_func.get('id'), df_folgas)
                     st.markdown(f"- **Abonadas no ano ({len(datas_abonadas)}):** {', '.join(datas_abonadas) if datas_abonadas else 'Nenhuma'}")
                     
@@ -488,7 +486,6 @@ def modulo_rh():
                 st.info("Nenhum funcionário.")
 
     with tab_rh3:
-        # ... código da tab_rh3 permanece o mesmo
         st.subheader("Cadastrar Novo Funcionário")
         with st.form("novo_funcionario_form_2", clear_on_submit=True):
             nome = st.text_input("Nome Completo")
@@ -546,9 +543,7 @@ def modulo_rh():
                     except Exception as e:
                         st.error(f"Ocorreu um erro ao deletar: {e}")
 
-# ... O restante do código (modulo_denuncias, modulo_boletim, etc.) permanece o mesmo ...
 def modulo_denuncias():
-    # ... (código do módulo de denúncias permanece o mesmo)
     st.title("Denúncias")
     @st.cache_data
     def geocode_addresses(df):
@@ -735,7 +730,6 @@ def modulo_denuncias():
         else: st.info("Nenhuma denúncia registrada.")
 
 def create_boletim_word_report(data):
-    # ... (código da geração do Word do boletim permanece o mesmo)
     document = Document()
     style = document.styles['Normal']
     font = style.font
@@ -798,7 +792,6 @@ def create_boletim_word_report(data):
     return buffer.getvalue()
 
 def modulo_boletim():
-    # ... código do módulo do boletim permanece o mesmo
     st.title("Boletim de Programação Diária")
 
     df_funcionarios = carregar_dados_firebase('funcionarios')
