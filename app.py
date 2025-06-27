@@ -14,6 +14,8 @@ from dateutil.relativedelta import relativedelta
 import locale
 from collections import Counter
 import geopandas as gpd
+# MUDANÇA: Reintroduzindo a biblioteca do calendário
+from streamlit_calendar import calendar
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
@@ -32,7 +34,6 @@ try:
             cred_dict = dict(st.secrets["firebase_credentials"])
             cred = credentials.Certificate(cred_dict)
         else:
-            # O ideal é usar st.secrets, mas mantemos o fallback para desenvolvimento local
             cred = credentials.Certificate("denuncias-48660-firebase-adminsdk-fbsvc-9f27fef1c8.json")
 
         firebase_admin.initialize_app(cred, {
@@ -283,44 +284,6 @@ def get_ultimas_ferias(employee_id, all_folgas_df):
     except Exception:
         return "Erro"
 
-# Nova função para criar o gráfico de Gantt com Plotly
-def criar_grafico_de_ausencias(df_folgas):
-    """Cria um gráfico de Gantt interativo com as ausências dos funcionários."""
-    
-    # Prepara os dados para o gráfico de Gantt
-    df_gantt = df_folgas.copy()
-    # Adicionamos 1 dia ao fim para que eventos de um dia apareçam como um bloco
-    df_gantt['data_fim'] = pd.to_datetime(df_gantt['data_fim']) + timedelta(days=1)
-    
-    # Define as cores para cada tipo de ausência
-    color_map = {'Férias': '#FF4B4B', 'Abonada': '#1E90FF'}
-
-    fig = px.timeline(
-        df_gantt,
-        x_start="data_inicio",
-        x_end="data_fim",
-        y="nome_funcionario",
-        color="tipo",
-        color_discrete_map=color_map,
-        title="Linha do Tempo de Ausências da Equipe",
-        labels={"nome_funcionario": "Funcionário", "tipo": "Tipo de Ausência"},
-        hover_data=['data_inicio', 'data_fim']
-    )
-
-    # Melhorias visuais no gráfico
-    fig.update_yaxes(categoryorder="total ascending") # Ordena os funcionários
-    fig.update_layout(
-        title_x=0.5,
-        xaxis_title="Período",
-        yaxis_title="Funcionário",
-        legend_title_text='Tipo de Ausência',
-        hoverlabel=dict(
-            bgcolor="white",
-            font_size=14,
-        )
-    )
-    return fig
-
 
 # --- MÓDULO RH ATUALIZADO ---
 def modulo_rh():
@@ -328,8 +291,8 @@ def modulo_rh():
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_folgas = carregar_dados_firebase('folgas_ferias')
     
-    # Abas atualizadas
-    tab_rh1, tab_rh2, tab_rh3, tab_rh4 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "📅 Calendário", "👨‍💼 Gerenciar Funcionários"])
+    # MUDANÇA: Voltamos para 3 abas, removendo a aba de calendário daqui.
+    tab_rh1, tab_rh2, tab_rh3 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "👨‍💼 Gerenciar Funcionários"])
     
     with tab_rh1:
         st.subheader("Registro de Férias e Abonadas")
@@ -529,37 +492,6 @@ def modulo_rh():
                 st.info("Nenhum funcionário.")
 
     with tab_rh3:
-        # ABA DEDICADA AO NOVO GRÁFICO DE GANTT
-        st.header("Linha do Tempo de Ausências")
-
-        if df_folgas.empty:
-            st.info("Não há registros de férias ou abonadas para exibir.")
-        else:
-            # Filtros para o gráfico
-            min_date = pd.to_datetime(df_folgas['data_inicio']).min().date()
-            max_date = pd.to_datetime(df_folgas['data_fim']).max().date()
-
-            col1, col2 = st.columns(2)
-            with col1:
-                start_date = st.date_input("Data de Início", min_date, min_value=min_date, max_value=max_date, key="gantt_start")
-            with col2:
-                end_date = st.date_input("Data de Fim", max_date, min_value=start_date, max_value=max_date, key="gantt_end")
-
-            # Filtra o dataframe com base no intervalo de datas selecionado
-            df_filtrado = df_folgas[
-                (pd.to_datetime(df_folgas['data_inicio']).dt.date >= start_date) &
-                (pd.to_datetime(df_folgas['data_fim']).dt.date <= end_date)
-            ]
-
-            if df_filtrado.empty:
-                st.warning("Nenhum evento encontrado no período selecionado.")
-            else:
-                # Cria e exibe o gráfico
-                fig = criar_grafico_de_ausencias(df_filtrado)
-                st.plotly_chart(fig, use_container_width=True)
-
-
-    with tab_rh4:
         # Conteúdo da aba "Gerenciar Funcionários"
         st.subheader("Cadastrar Novo Funcionário")
         with st.form("novo_funcionario_form_2", clear_on_submit=True):
@@ -618,9 +550,8 @@ def modulo_rh():
                     except Exception as e:
                         st.error(f"Ocorreu um erro ao deletar: {e}")
 
-# ... (o restante do código, modulo_denuncias, modulo_boletim, etc., continua o mesmo)
+
 def modulo_denuncias():
-    # ... (código do módulo de denúncias permanece o mesmo)
     st.title("Denúncias")
     @st.cache_data
     def geocode_addresses(df):
@@ -1130,9 +1061,50 @@ def login_screen():
 def main_app():
     if 'module_choice' not in st.session_state:
         st.session_state['module_choice'] = None
+    
+    # MUDANÇA: A lógica do calendário agora está aqui, no painel principal.
     if st.session_state['module_choice'] is None:
         st.title("Painel de Controle")
         st.header(f"Bem-vindo(a), {st.session_state['username']}!")
+        
+        st.subheader("📅 Calendário de Ausências Recentes")
+        
+        df_folgas = carregar_dados_firebase('folgas_ferias')
+        
+        calendar_events = []
+        if not df_folgas.empty:
+            # Filtra para mostrar apenas eventos dos próximos 30 dias e dos últimos 30 dias
+            hoje = pd.Timestamp.now().normalize()
+            df_folgas_recentes = df_folgas[
+                (pd.to_datetime(df_folgas['data_fim']) >= hoje - pd.Timedelta(days=30)) &
+                (pd.to_datetime(df_folgas['data_inicio']) <= hoje + pd.Timedelta(days=30))
+            ]
+
+            for _, row in df_folgas_recentes.iterrows():
+                end_date = pd.to_datetime(row['data_fim']) + timedelta(days=1)
+                calendar_events.append({
+                    "title": f"{row['nome_funcionario']} ({row['tipo']})",
+                    "start": row['data_inicio'],
+                    "end": end_date.strftime("%Y-%m-%d"),
+                    "color": "#FF4B4B" if row['tipo'] == "Férias" else "#1E90FF",
+                })
+
+        if calendar_events:
+            calendar_options = {
+                "initialView": "dayGridMonth",
+                "height": "500px",
+                "locale": "pt-br",
+                "headerToolbar": {
+                    "left": "prev,next today",
+                    "center": "title",
+                    "right": "dayGridMonth,timeGridWeek"
+                }
+            }
+            calendar(events=calendar_events, options=calendar_options, key="calendario_principal")
+        else:
+            st.info("Nenhuma ausência registrada para os últimos ou próximos 30 dias.")
+
+        st.divider()
         st.write("Selecione o módulo que deseja acessar:")
         col1, col2, col3 = st.columns(3)
         with col1:
