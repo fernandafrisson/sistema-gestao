@@ -285,299 +285,310 @@ def get_ultimas_ferias(employee_id, all_folgas_df):
 
 # --- MÓDULO RH ATUALIZADO COM O CALENDÁRIO ---
 def modulo_rh():
-    st.title("Recursos Humanos")
-    df_funcionarios = carregar_dados_firebase('funcionarios')
-    df_folgas = carregar_dados_firebase('folgas_ferias')
-    
-    tab_rh1, tab_rh2, tab_rh3 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "👨‍💼 Gerenciar Funcionários"])
-    
-    with tab_rh1:
-        # ... (código da aba 1 permanece o mesmo) ...
-        st.subheader("Registro de Férias e Abonadas")
-        if not df_funcionarios.empty and 'nome' in df_funcionarios.columns:
-            lista_funcionarios = sorted(df_funcionarios['nome'].tolist())
-            funcionario_selecionado = st.selectbox("Selecione o Funcionário", lista_funcionarios)
-            tipo_evento = st.selectbox("Tipo de Evento", ["Férias", "Abonada"], key="tipo_evento_selector")
-            
-            if 'doc_data' not in st.session_state:
-                st.session_state.doc_data = None
+    st.title("Recursos Humanos")
+    df_funcionarios = carregar_dados_firebase('funcionarios')
+    df_folgas = carregar_dados_firebase('folgas_ferias')
+    
+    tab_rh1, tab_rh2, tab_rh3 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "👨‍💼 Gerenciar Funcionários"])
+    
+    with tab_rh1:
+        # ... (código da aba 1 permanece o mesmo, sem alterações) ...
+        st.subheader("Registro de Férias e Abonadas")
+        if not df_funcionarios.empty and 'nome' in df_funcionarios.columns:
+            lista_funcionarios = sorted(df_funcionarios['nome'].tolist())
+            funcionario_selecionado = st.selectbox("Selecione o Funcionário", lista_funcionarios)
+            tipo_evento = st.selectbox("Tipo de Evento", ["Férias", "Abonada"], key="tipo_evento_selector")
+            
+            if 'doc_data' not in st.session_state:
+                st.session_state.doc_data = None
 
-            with st.form("folgas_ferias_form", clear_on_submit=True):
-                if tipo_evento == "Férias":
-                    st.write("Período de Férias:")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        data_inicio = st.date_input("Data de Início")
-                    with col2:
-                        data_fim = st.date_input("Data de Fim")
-                else:
-                    st.write("Data da Abonada:")
-                    data_inicio = st.date_input("Data")
-                    data_fim = data_inicio
-                
-                submit_evento = st.form_submit_button("Registrar Evento")
-                
-                if submit_evento:
-                    if tipo_evento == "Férias" and data_inicio > data_fim:
-                        st.error("A data de início não pode ser posterior à data de fim.")
-                    else:
-                        try:
-                            id_funcionario = df_funcionarios[df_funcionarios['nome'] == funcionario_selecionado]['id'].iloc[0]
-                            evento_id = str(int(time.time() * 1000))
-                            ref = db.reference(f'folgas_ferias/{evento_id}')
-                            ref.set({'id_funcionario': id_funcionario,'nome_funcionario': funcionario_selecionado,'tipo': tipo_evento,'data_inicio': data_inicio.strftime("%Y-%m-%d"),'data_fim': data_fim.strftime("%Y-%m-%d")})
-                            st.success(f"{tipo_evento} para {funcionario_selecionado} registrado com sucesso!")
-                            
-                            if tipo_evento == "Abonada":
-                                dados_func = df_funcionarios[df_funcionarios['id'] == id_funcionario].iloc[0]
-                                doc_data = {'nome': dados_func.get('nome', ''),'funcao': dados_func.get('funcao', ''),'unidade': dados_func.get('unidade_trabalho', ''),'data_abonada': data_inicio.strftime('%d-%m-%Y'),}
-                                st.session_state.doc_data = doc_data
-                            else:
-                                st.session_state.doc_data = None
-                            
-                            st.cache_data.clear()
-                            st.rerun() 
-                        except Exception as e:
-                            st.error(f"Erro ao registrar evento: {e}")
+            with st.form("folgas_ferias_form", clear_on_submit=True):
+                if tipo_evento == "Férias":
+                    st.write("Período de Férias:")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        data_inicio = st.date_input("Data de Início")
+                    with col2:
+                        data_fim = st.date_input("Data de Fim")
+                else:
+                    st.write("Data da Abonada:")
+                    data_inicio = st.date_input("Data")
+                    data_fim = data_inicio
+                
+                submit_evento = st.form_submit_button("Registrar Evento")
+                
+                if submit_evento:
+                    if tipo_evento == "Férias" and data_inicio > data_fim:
+                        st.error("A data de início não pode ser posterior à data de fim.")
+                    else:
+                        try:
+                            id_funcionario = df_funcionarios[df_funcionarios['nome'] == funcionario_selecionado]['id'].iloc[0]
+                            evento_id = str(int(time.time() * 1000))
+                            ref = db.reference(f'folgas_ferias/{evento_id}')
+                            ref.set({'id_funcionario': id_funcionario,'nome_funcionario': funcionario_selecionado,'tipo': tipo_evento,'data_inicio': data_inicio.strftime("%Y-%m-%d"),'data_fim': data_fim.strftime("%Y-%m-%d")})
+                            st.success(f"{tipo_evento} para {funcionario_selecionado} registrado com sucesso!")
+                            
+                            if tipo_evento == "Abonada":
+                                dados_func = df_funcionarios[df_funcionarios['id'] == id_funcionario].iloc[0]
+                                doc_data = {'nome': dados_func.get('nome', ''),'funcao': dados_func.get('funcao', ''),'unidade': dados_func.get('unidade_trabalho', ''),'data_abonada': data_inicio.strftime('%d-%m-%Y'),}
+                                st.session_state.doc_data = doc_data
+                            else:
+                                st.session_state.doc_data = None
+                            
+                            st.cache_data.clear()
+                            st.rerun() 
+                        except Exception as e:
+                            st.error(f"Erro ao registrar evento: {e}")
 
-            if st.session_state.doc_data:
-                word_bytes = create_abonada_word_report(st.session_state.doc_data)
-                st.download_button(label="📥 Baixar Requerimento de Abonada (.docx)",data=word_bytes,file_name=f"Abonada_{st.session_state.doc_data['nome']}_{st.session_state.doc_data['data_abonada']}.docx",mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-        else:
-            st.info("Nenhum funcionário cadastrado.")
-        st.divider()
+            if st.session_state.doc_data:
+                word_bytes = create_abonada_word_report(st.session_state.doc_data)
+                st.download_button(label="📥 Baixar Requerimento de Abonada (.docx)",data=word_bytes,file_name=f"Abonada_{st.session_state.doc_data['nome']}_{st.session_state.doc_data['data_abonada']}.docx",mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        else:
+            st.info("Nenhum funcionário cadastrado.")
+        st.divider()
 
-        st.subheader("Editar Registro de Férias ou Abonada")
-        if not df_folgas.empty:
-            df_folgas['label'] = df_folgas.apply(lambda row: f"{row['tipo']} - {row['nome_funcionario']} ({pd.to_datetime(row['data_inicio']).strftime('%d/%m/%Y')})", axis=1)
-            lista_eventos = ["Selecione um registro para editar..."] + df_folgas.sort_values(by='data_inicio', ascending=False)['label'].tolist()
-            evento_label_selecionado = st.selectbox("Selecione o Registro", options=lista_eventos)
+        st.subheader("Editar Registro de Férias ou Abonada")
+        if not df_folgas.empty:
+            df_folgas['label'] = df_folgas.apply(lambda row: f"{row['tipo']} - {row['nome_funcionario']} ({pd.to_datetime(row['data_inicio']).strftime('%d/%m/%Y')})", axis=1)
+            lista_eventos = ["Selecione um registro para editar..."] + df_folgas.sort_values(by='data_inicio', ascending=False)['label'].tolist()
+            evento_label_selecionado = st.selectbox("Selecione o Registro", options=lista_eventos)
 
-            if evento_label_selecionado != "Selecione um registro para editar...":
-                evento_selecionado_df = df_folgas[df_folgas['label'] == evento_label_selecionado]
-                if not evento_selecionado_df.empty:
-                    dados_evento = evento_selecionado_df.iloc[0]
-                    evento_id = dados_evento.name
+            if evento_label_selecionado != "Selecione um registro para editar...":
+                evento_selecionado_df = df_folgas[df_folgas['label'] == evento_label_selecionado]
+                if not evento_selecionado_df.empty:
+                    dados_evento = evento_selecionado_df.iloc[0]
+                    evento_id = dados_evento.name
 
-                    with st.form(f"edit_folga_{evento_id}"):
-                        st.write(f"Editando: **{dados_evento['label']}**")
-                        tipo_evento_edit = dados_evento['tipo']
-                        
-                        if tipo_evento_edit == "Férias":
-                            st.write("Período de Férias:")
-                            col1_edit, col2_edit = st.columns(2)
-                            with col1_edit:
-                                data_inicio_edit = st.date_input("Nova Data de Início", value=pd.to_datetime(dados_evento['data_inicio']))
-                            with col2_edit:
-                                data_fim_edit = st.date_input("Nova Data de Fim", value=pd.to_datetime(dados_evento['data_fim']))
-                        else: # Abonada
-                            st.write("Data da Abonada:")
-                            data_inicio_edit = st.date_input("Nova Data", value=pd.to_datetime(dados_evento['data_inicio']))
-                            data_fim_edit = data_inicio_edit
+                    with st.form(f"edit_folga_{evento_id}"):
+                        st.write(f"Editando: **{dados_evento['label']}**")
+                        tipo_evento_edit = dados_evento['tipo']
+                        
+                        if tipo_evento_edit == "Férias":
+                            st.write("Período de Férias:")
+                            col1_edit, col2_edit = st.columns(2)
+                            with col1_edit:
+                                data_inicio_edit = st.date_input("Nova Data de Início", value=pd.to_datetime(dados_evento['data_inicio']))
+                            with col2_edit:
+                                data_fim_edit = st.date_input("Nova Data de Fim", value=pd.to_datetime(dados_evento['data_fim']))
+                        else: # Abonada
+                            st.write("Data da Abonada:")
+                            data_inicio_edit = st.date_input("Nova Data", value=pd.to_datetime(dados_evento['data_inicio']))
+                            data_fim_edit = data_inicio_edit
 
-                        submit_edit = st.form_submit_button("Salvar Alterações")
+                        submit_edit = st.form_submit_button("Salvar Alterações")
 
-                        if submit_edit:
-                            if tipo_evento_edit == "Férias" and data_inicio_edit > data_fim_edit:
-                                st.error("A data de início não pode ser posterior à data de fim.")
-                            else:
-                                try:
-                                    ref = db.reference(f'folgas_ferias/{evento_id}')
-                                    ref.update({'data_inicio': data_inicio_edit.strftime("%Y-%m-%d"),'data_fim': data_fim_edit.strftime("%Y-%m-%d")})
-                                    st.success("Registro atualizado com sucesso!")
-                                    st.cache_data.clear()
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Erro ao atualizar o registro: {e}")
-                else:
-                    st.warning("Registro não encontrado. Por favor, atualize a página.")
-        else:
-            st.info("Nenhum registro de férias ou abonada para editar.")
-        st.divider()
+                        if submit_edit:
+                            if tipo_evento_edit == "Férias" and data_inicio_edit > data_fim_edit:
+                                st.error("A data de início não pode ser posterior à data de fim.")
+                            else:
+                                try:
+                                    ref = db.reference(f'folgas_ferias/{evento_id}')
+                                    ref.update({'data_inicio': data_inicio_edit.strftime("%Y-%m-%d"),'data_fim': data_fim_edit.strftime("%Y-%m-%d")})
+                                    st.success("Registro atualizado com sucesso!")
+                                    st.cache_data.clear()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao atualizar o registro: {e}")
+                else:
+                    st.warning("Registro não encontrado. Por favor, atualize a página.")
+        else:
+            st.info("Nenhum registro de férias ou abonada para editar.")
+        st.divider()
 
-        st.subheader("Histórico de Férias e Abonadas")
-        df_folgas_filtrado = df_folgas.copy()
-        if not df_folgas_filtrado.empty:
-            st.markdown("##### Filtrar Histórico")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                funcionarios_disponiveis = sorted(df_folgas_filtrado['nome_funcionario'].unique().tolist())
-                filtro_funcionarios = st.multiselect("Filtrar por Funcionário(s)", options=funcionarios_disponiveis)
-            with col2:
-                filtro_tipo = st.selectbox("Filtrar por Tipo", ["Todos", "Férias", "Abonada"])
-            with col3:
-                if 'data_inicio' in df_folgas_filtrado.columns:
-                    df_folgas_filtrado['ano'] = pd.to_datetime(df_folgas_filtrado['data_inicio']).dt.year
-                    anos_disponiveis = sorted(df_folgas_filtrado['ano'].unique(), reverse=True)
-                    filtro_ano = st.selectbox("Filtrar por Ano", ["Todos"] + anos_disponiveis)
-                    if filtro_funcionarios:
-                        df_folgas_filtrado = df_folgas_filtrado[df_folgas_filtrado['nome_funcionario'].isin(filtro_funcionarios)]
-                    if filtro_tipo != "Todos":
-                        df_folgas_filtrado = df_folgas_filtrado[df_folgas_filtrado['tipo'] == filtro_tipo]
-                    if filtro_ano != "Todos":
-                        df_folgas_filtrado = df_folgas_filtrado[df_folgas_filtrado['ano'] == filtro_ano]
-            
-            cols_to_display = [col for col in ['nome_funcionario', 'tipo', 'data_inicio', 'data_fim'] if col in df_folgas_filtrado.columns]
-            st.dataframe(df_folgas_filtrado[cols_to_display].rename(columns={'nome_funcionario': 'Funcionário', 'tipo': 'Tipo', 'data_inicio': 'Início', 'data_fim': 'Fim'}), use_container_width=True,hide_index=True)
-        else:
-            st.write("Nenhum registro de ausência encontrado.")
+        st.subheader("Histórico de Férias e Abonadas")
+        df_folgas_filtrado = df_folgas.copy()
+        if not df_folgas_filtrado.empty:
+            st.markdown("##### Filtrar Histórico")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                funcionarios_disponiveis = sorted(df_folgas_filtrado['nome_funcionario'].unique().tolist())
+                filtro_funcionarios = st.multiselect("Filtrar por Funcionário(s)", options=funcionarios_disponiveis)
+            with col2:
+                filtro_tipo = st.selectbox("Filtrar por Tipo", ["Todos", "Férias", "Abonada"])
+            with col3:
+                if 'data_inicio' in df_folgas_filtrado.columns:
+                    df_folgas_filtrado['ano'] = pd.to_datetime(df_folgas_filtrado['data_inicio']).dt.year
+                    anos_disponiveis = sorted(df_folgas_filtrado['ano'].unique(), reverse=True)
+                    filtro_ano = st.selectbox("Filtrar por Ano", ["Todos"] + anos_disponiveis)
+                    if filtro_funcionarios:
+                        df_folgas_filtrado = df_folgas_filtrado[df_folgas_filtrado['nome_funcionario'].isin(filtro_funcionarios)]
+                    if filtro_tipo != "Todos":
+                        df_folgas_filtrado = df_folgas_filtrado[df_folgas_filtrado['tipo'] == filtro_tipo]
+                    if filtro_ano != "Todos":
+                        df_folgas_filtrado = df_folgas_filtrado[df_folgas_filtrado['ano'] == filtro_ano]
+            
+            cols_to_display = [col for col in ['nome_funcionario', 'tipo', 'data_inicio', 'data_fim'] if col in df_folgas_filtrado.columns]
+            st.dataframe(df_folgas_filtrado[cols_to_display].rename(columns={'nome_funcionario': 'Funcionário', 'tipo': 'Tipo', 'data_inicio': 'Início', 'data_fim': 'Fim'}), use_container_width=True,hide_index=True)
+        else:
+            st.write("Nenhum registro de ausência encontrado.")
 
-    with tab_rh2:
-        st.header("Visão Geral da Equipe")
+    with tab_rh2:
+        st.header("Visão Geral da Equipe")
+        
+        # --- IMPLEMENTAÇÃO DO CALENDÁRIO ---
+        st.subheader("Calendário de Ausências")
+        
+        calendar_events = []
+        if not df_folgas.empty:
+            for _, row in df_folgas.iterrows():
+                # Para o calendário, a data final precisa ser +1 dia para eventos de dia inteiro
+                end_date = pd.to_datetime(row['data_fim']) + timedelta(days=1)
+                
+                event = {
+                    "title": f"{row['nome_funcionario']} ({row['tipo']})",
+                    "start": row['data_inicio'],
+                    "end": end_date.strftime("%Y-%m-%d"),
+                    "color": "#FF4B4B" if row['tipo'] == "Férias" else "#1E90FF", # Vermelho para Férias, Azul para Abonada
+                }
+                calendar_events.append(event)
+
+        calendar_options = {
+            "headerToolbar": {
+                "left": "prev,next today",
+                "center": "title",
+                "right": "dayGridMonth,timeGridWeek,timeGridDay",
+            },
+            "initialView": "dayGridMonth",
+            "locale": "pt-br", # Traduzir o calendário para o português
+        }
         
-        # --- IMPLEMENTAÇÃO DO CALENDÁRIO ---
-        st.subheader("Calendário de Ausências")
-        
-        calendar_events = []
-        if not df_folgas.empty:
-            for _, row in df_folgas.iterrows():
-                # Para o calendário, a data final precisa ser +1 dia para eventos de dia inteiro
-                end_date = pd.to_datetime(row['data_fim']) + timedelta(days=1)
-                
-                event = {
-                    "title": f"{row['nome_funcionario']} ({row['tipo']})",
-                    "start": row['data_inicio'],
-                    "end": end_date.strftime("%Y-%m-%d"),
-                    "color": "#FF6347" if row['tipo'] == "Férias" else "#4682B4", # Laranja para Férias, Azul para Abonada
-                }
-                calendar_events.append(event)
+        # --- ALTERAÇÃO PRINCIPAL AQUI ---
+        # Adicionamos um CSS customizado para garantir uma altura mínima para o calendário.
+        # Isso faz com que ele fique sempre visível, mesmo que não hajam eventos.
+        custom_css = """
+            .fc-view-harness {
+                min-height: 600px; /* Define uma altura mínima de 600 pixels */
+            }
+        """
 
-        calendar_options = {
-            "headerToolbar": {
-                "left": "prev,next today",
-                "center": "title",
-                "right": "dayGridMonth,timeGridWeek,timeGridDay",
-            },
-            "initialView": "dayGridMonth",
-            "locale": "pt-br", # Traduzir o calendário para o português
-        }
+        # Adicionamos o parâmetro 'custom_css' na chamada da função
+        calendar(events=calendar_events, options=calendar_options, custom_css=custom_css)
+        
+        st.divider()
+        # --- FIM DA IMPLEMENTAÇÃO DO CALENDÁRIO ---
 
-        calendar(events=calendar_events, options=calendar_options)
-        st.divider()
-        # --- FIM DA IMPLEMENTAÇÃO DO CALENDÁRIO ---
+        col_ficha, col_tabela = st.columns([0.7, 2.3])
+        with col_tabela:
+            st.subheader("Equipe e Status de Férias")
+            if not df_funcionarios.empty and 'id' in df_funcionarios.columns:
+                
+                ferias_info_completa = [calcular_status_ferias_saldo(func, df_folgas) for _, func in df_funcionarios.iterrows()]
+                
+                df_display = df_funcionarios.copy()
+                df_display['Período Aquisitivo de Referência'] = [info[0] for info in ferias_info_completa]
+                df_display['Status Agendamento'] = [info[1] for info in ferias_info_completa]
+                df_display['status_code'] = [info[2] for info in ferias_info_completa] 
+                df_display['Abonadas no Ano'] = [get_abonadas_ano(func_id, df_folgas) for func_id in df_funcionarios['id']]
 
-        col_ficha, col_tabela = st.columns([0.7, 2.3])
-        with col_tabela:
-            st.subheader("Equipe e Status de Férias")
-            if not df_funcionarios.empty and 'id' in df_funcionarios.columns:
-                
-                ferias_info_completa = [calcular_status_ferias_saldo(func, df_folgas) for _, func in df_funcionarios.iterrows()]
-                
-                df_display = df_funcionarios.copy()
-                df_display['Período Aquisitivo de Referência'] = [info[0] for info in ferias_info_completa]
-                df_display['Status Agendamento'] = [info[1] for info in ferias_info_completa]
-                df_display['status_code'] = [info[2] for info in ferias_info_completa] 
-                df_display['Abonadas no Ano'] = [get_abonadas_ano(func_id, df_folgas) for func_id in df_funcionarios['id']]
+                def style_status_code(code):
+                    color = ''
+                    if code == "PENDING": color = '#fff2cc'
+                    elif code == "SCHEDULED": color = '#d4e6f1'
+                    elif code == "ON_VACATION": color = '#d5f5e3'
+                    elif code == "RISK_EXPIRING": color = '#f5b7b1'
+                    return f'background-color: {color}'
 
-                def style_status_code(code):
-                    color = ''
-                    if code == "PENDING": color = '#fff2cc'
-                    elif code == "SCHEDULED": color = '#d4e6f1'
-                    elif code == "ON_VACATION": color = '#d5f5e3'
-                    elif code == "RISK_EXPIRING": color = '#f5b7b1'
-                    return f'background-color: {color}'
+                df_para_exibir = df_display[['nome', 'funcao', 'Período Aquisitivo de Referência', 'Status Agendamento', 'Abonadas no Ano']]
+                df_renomeado = df_para_exibir.rename(columns={'nome': 'Nome', 'funcao': 'Função'})
+                
+                styler = df_renomeado.style.apply(
+                    lambda row: [style_status_code(df_display.loc[row.name, 'status_code'])] * len(row),
+                    axis=1
+                )
+                
+                st.dataframe(
+                    styler,
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info("Nenhum funcionário cadastrado.")
 
-                df_para_exibir = df_display[['nome', 'funcao', 'Período Aquisitivo de Referência', 'Status Agendamento', 'Abonadas no Ano']]
-                df_renomeado = df_para_exibir.rename(columns={'nome': 'Nome', 'funcao': 'Função'})
-                
-                styler = df_renomeado.style.apply(
-                    lambda row: [style_status_code(df_display.loc[row.name, 'status_code'])] * len(row),
-                    axis=1
-                )
-                
-                st.dataframe(
-                    styler,
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.info("Nenhum funcionário cadastrado.")
+        with col_ficha:
+            st.subheader("Consultar Ficha")
+            if not df_funcionarios.empty:
+                funcionario_ficha = st.selectbox("Selecione um funcionário", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione...")
+                if funcionario_ficha:
+                    dados_func = df_funcionarios[df_funcionarios['nome'] == funcionario_ficha].iloc[0]
+                    st.image("https://placehold.co/150x150/FFFFFF/333333?text=FOTO", use_column_width='auto')
+                    st.markdown(f"**Nome:** {dados_func.get('nome', 'N/A')}")
+                    st.markdown(f"**Matrícula:** {dados_func.get('matricula', 'N/A')}")
+                    st.markdown(f"**Telefone:** {dados_func.get('telefone', 'N/A')}")
+                    
+                    data_adm_str = dados_func.get('data_admissao', 'N/A')
+                    if data_adm_str != 'N/A':
+                        data_adm_str = pd.to_datetime(data_adm_str).strftime('%d/%m/%Y')
+                    st.markdown(f"**Data de Admissão:** {data_adm_str}")
 
-        with col_ficha:
-            st.subheader("Consultar Ficha")
-            if not df_funcionarios.empty:
-                funcionario_ficha = st.selectbox("Selecione um funcionário", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione...")
-                if funcionario_ficha:
-                    dados_func = df_funcionarios[df_funcionarios['nome'] == funcionario_ficha].iloc[0]
-                    st.image("https://placehold.co/150x150/FFFFFF/333333?text=FOTO", use_column_width='auto')
-                    st.markdown(f"**Nome:** {dados_func.get('nome', 'N/A')}")
-                    st.markdown(f"**Matrícula:** {dados_func.get('matricula', 'N/A')}")
-                    st.markdown(f"**Telefone:** {dados_func.get('telefone', 'N/A')}")
-                    
-                    data_adm_str = dados_func.get('data_admissao', 'N/A')
-                    if data_adm_str != 'N/A':
-                        data_adm_str = pd.to_datetime(data_adm_str).strftime('%d/%m/%Y')
-                    st.markdown(f"**Data de Admissão:** {data_adm_str}")
+                    st.divider()
+                    st.markdown("**Histórico Recente:**")
 
-                    st.divider()
-                    st.markdown("**Histórico Recente:**")
+                    datas_abonadas = get_datas_abonadas_ano(dados_func.get('id'), df_folgas)
+                    st.markdown(f"- **Abonadas no ano ({len(datas_abonadas)}):** {', '.join(datas_abonadas) if datas_abonadas else 'Nenhuma'}")
+                    
+                    ultimas_ferias = get_ultimas_ferias(dados_func.get('id'), df_folgas)
+                    st.markdown(f"- **Últimas Férias:** {ultimas_ferias}")
+            else:
+                st.info("Nenhum funcionário.")
 
-                    datas_abonadas = get_datas_abonadas_ano(dados_func.get('id'), df_folgas)
-                    st.markdown(f"- **Abonadas no ano ({len(datas_abonadas)}):** {', '.join(datas_abonadas) if datas_abonadas else 'Nenhuma'}")
-                    
-                    ultimas_ferias = get_ultimas_ferias(dados_func.get('id'), df_folgas)
-                    st.markdown(f"- **Últimas Férias:** {ultimas_ferias}")
-            else:
-                st.info("Nenhum funcionário.")
-
-    with tab_rh3:
-        # ... (código da aba 3 permanece o mesmo) ...
-        st.subheader("Cadastrar Novo Funcionário")
-        with st.form("novo_funcionario_form_2", clear_on_submit=True):
-            nome = st.text_input("Nome Completo")
-            matricula = st.text_input("Número da Matrícula")
-            telefone = st.text_input("Telefone")
-            funcao = st.text_input("Função")
-            unidade_trabalho = st.text_input("Unidade de Trabalho")
-            data_admissao = st.date_input("Data de Admissão", datetime.now())
-            submit_funcionario = st.form_submit_button("Cadastrar Funcionário")
-            if submit_funcionario and nome and funcao and unidade_trabalho:
-                try:
-                    novo_id = str(int(time.time() * 1000))
-                    ref = db.reference(f'funcionarios/{novo_id}')
-                    ref.set({'id': novo_id, 'nome': nome, 'matricula': matricula, 'telefone': telefone, 'funcao': funcao, 'unidade_trabalho': unidade_trabalho, 'data_admissao': data_admissao.strftime("%Y-%m-%d")})
-                    st.success(f"Funcionário {nome} cadastrado com sucesso!")
-                    st.cache_data.clear(); st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao cadastrar funcionário: {e}")
-        st.divider()
-        st.subheader("Editar Funcionário")
-        if not df_funcionarios.empty:
-            func_para_editar = st.selectbox("Selecione para editar", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione um funcionário...")
-            if func_para_editar:
-                dados_func_originais = df_funcionarios[df_funcionarios['nome'] == func_para_editar].iloc[0]
-                with st.form("edit_funcionario_form"):
-                    st.write(f"Editando dados de **{func_para_editar}**")
-                    nome_edit = st.text_input("Nome Completo", value=dados_func_originais.get('nome'))
-                    matricula_edit = st.text_input("Número da Matrícula", value=dados_func_originais.get('matricula'))
-                    telefone_edit = st.text_input("Telefone", value=dados_func_originais.get('telefone'))
-                    funcao_edit = st.text_input("Função", value=dados_func_originais.get('funcao'))
-                    unidade_edit = st.text_input("Unidade de Trabalho", value=dados_func_originais.get('unidade_trabalho'))
-                    data_admissao_edit = st.date_input("Data de Admissão", value=pd.to_datetime(dados_func_originais.get('data_admissao')))
-                    if st.form_submit_button("Salvar Alterações"):
-                        dados_atualizados = {'nome': nome_edit, 'matricula': matricula_edit, 'telefone': telefone_edit, 'funcao': funcao_edit, 'unidade_trabalho': unidade_edit, 'data_admissao': data_admissao_edit.strftime('%Y-%m-%d')}
-                        ref = db.reference(f"funcionarios/{dados_func_originais['id']}")
-                        ref.update(dados_atualizados)
-                        st.success("Dados do funcionário atualizados com sucesso!")
-                        st.cache_data.clear(); st.rerun()
-        st.divider()
-        st.subheader("🚨 Deletar Funcionário")
-        if not df_funcionarios.empty:
-            func_para_deletar = st.selectbox("Selecione para deletar", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione um funcionário...")
-            if func_para_deletar:
-                st.warning(f"**Atenção:** Você está prestes a deletar **{func_para_deletar}** e todos os seus registos de férias e abonadas. Esta ação é irreversível.")
-                if st.button("Confirmar Deleção", type="primary"):
-                    try:
-                        id_func_deletar = df_funcionarios[df_funcionarios['nome'] == func_para_deletar]['id'].iloc[0]
-                        db.reference(f'funcionarios/{id_func_deletar}').delete()
-                        folgas_ref = db.reference('folgas_ferias')
-                        folgas_para_deletar = folgas_ref.order_by_child('id_funcionario').equal_to(id_func_deletar).get()
-                        for key in folgas_para_deletar:
-                            folgas_ref.child(key).delete()
-                        st.success(f"Funcionário {func_para_deletar} deletado com sucesso.")
-                        st.cache_data.clear(); st.rerun()
-                    except Exception as e:
-                        st.error(f"Ocorreu um erro ao deletar: {e}")
+    with tab_rh3:
+        # ... (código da aba 3 permanece o mesmo, sem alterações) ...
+        st.subheader("Cadastrar Novo Funcionário")
+        with st.form("novo_funcionario_form_2", clear_on_submit=True):
+            nome = st.text_input("Nome Completo")
+            matricula = st.text_input("Número da Matrícula")
+            telefone = st.text_input("Telefone")
+            funcao = st.text_input("Função")
+            unidade_trabalho = st.text_input("Unidade de Trabalho")
+            data_admissao = st.date_input("Data de Admissão", datetime.now())
+            submit_funcionario = st.form_submit_button("Cadastrar Funcionário")
+            if submit_funcionario and nome and funcao and unidade_trabalho:
+                try:
+                    novo_id = str(int(time.time() * 1000))
+                    ref = db.reference(f'funcionarios/{novo_id}')
+                    ref.set({'id': novo_id, 'nome': nome, 'matricula': matricula, 'telefone': telefone, 'funcao': funcao, 'unidade_trabalho': unidade_trabalho, 'data_admissao': data_admissao.strftime("%Y-%m-%d")})
+                    st.success(f"Funcionário {nome} cadastrado com sucesso!")
+                    st.cache_data.clear(); st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao cadastrar funcionário: {e}")
+        st.divider()
+        st.subheader("Editar Funcionário")
+        if not df_funcionarios.empty:
+            func_para_editar = st.selectbox("Selecione para editar", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione um funcionário...")
+            if func_para_editar:
+                dados_func_originais = df_funcionarios[df_funcionarios['nome'] == func_para_editar].iloc[0]
+                with st.form("edit_funcionario_form"):
+                    st.write(f"Editando dados de **{func_para_editar}**")
+                    nome_edit = st.text_input("Nome Completo", value=dados_func_originais.get('nome'))
+                    matricula_edit = st.text_input("Número da Matrícula", value=dados_func_originais.get('matricula'))
+                    telefone_edit = st.text_input("Telefone", value=dados_func_originais.get('telefone'))
+                    funcao_edit = st.text_input("Função", value=dados_func_originais.get('funcao'))
+                    unidade_edit = st.text_input("Unidade de Trabalho", value=dados_func_originais.get('unidade_trabalho'))
+                    data_admissao_edit = st.date_input("Data de Admissão", value=pd.to_datetime(dados_func_originais.get('data_admissao')))
+                    if st.form_submit_button("Salvar Alterações"):
+                        dados_atualizados = {'nome': nome_edit, 'matricula': matricula_edit, 'telefone': telefone_edit, 'funcao': funcao_edit, 'unidade_trabalho': unidade_edit, 'data_admissao': data_admissao_edit.strftime('%Y-%m-%d')}
+                        ref = db.reference(f"funcionarios/{dados_func_originais['id']}")
+                        ref.update(dados_atualizados)
+                        st.success("Dados do funcionário atualizados com sucesso!")
+                        st.cache_data.clear(); st.rerun()
+        st.divider()
+        st.subheader("🚨 Deletar Funcionário")
+        if not df_funcionarios.empty:
+            func_para_deletar = st.selectbox("Selecione para deletar", sorted(df_funcionarios['nome'].tolist()), index=None, placeholder="Selecione um funcionário...")
+            if func_para_deletar:
+                st.warning(f"**Atenção:** Você está prestes a deletar **{func_para_deletar}** e todos os seus registos de férias e abonadas. Esta ação é irreversível.")
+                if st.button("Confirmar Deleção", type="primary"):
+                    try:
+                        id_func_deletar = df_funcionarios[df_funcionarios['nome'] == func_para_deletar]['id'].iloc[0]
+                        db.reference(f'funcionarios/{id_func_deletar}').delete()
+                        folgas_ref = db.reference('folgas_ferias')
+                        folgas_para_deletar = folgas_ref.order_by_child('id_funcionario').equal_to(id_func_deletar).get()
+                        for key in folgas_para_deletar:
+                            folgas_ref.child(key).delete()
+                        st.success(f"Funcionário {func_para_deletar} deletado com sucesso.")
+                        st.cache_data.clear(); st.rerun()
+                    except Exception as e:
+                        st.error(f"Ocorreu um erro ao deletar: {e}")
 
 # ... (o restante do código, modulo_denuncias, modulo_boletim, etc., continua o mesmo)
 def modulo_denuncias():
