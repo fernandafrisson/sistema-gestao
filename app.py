@@ -14,7 +14,7 @@ from dateutil.relativedelta import relativedelta
 import locale
 from collections import Counter
 import geopandas as gpd
-from streamlit_calendar import calendar # Importação da nova biblioteca
+from streamlit_calendar import calendar 
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
@@ -76,6 +76,7 @@ def carregar_quarteiroes_csv():
 def carregar_geo_kml():
     url_kml = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quadras%20de%20Guar%C3%A1.kml'
     try:
+        # Habilitar o driver KML é importante para o GeoPandas
         gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'r'
         gdf = gpd.read_file(url_kml, driver='KML')
         pontos = []
@@ -283,7 +284,6 @@ def get_ultimas_ferias(employee_id, all_folgas_df):
     except Exception:
         return "Erro"
 
-# --- MÓDULO RH ATUALIZADO COM O CALENDÁRIO ---
 def modulo_rh():
     st.title("Recursos Humanos")
     df_funcionarios = carregar_dados_firebase('funcionarios')
@@ -424,7 +424,6 @@ def modulo_rh():
     with tab_rh2:
         st.header("Visão Geral da Equipe")
         
-        # --- ESTRUTURA DA PÁGINA REORGANIZADA ---
         col_ficha, col_tabela = st.columns([0.7, 2.3])
         
         with col_tabela:
@@ -492,7 +491,6 @@ def modulo_rh():
         
         st.divider()
 
-        # --- CALENDÁRIO MOVIDO PARA O FINAL E COM TAMANHO REDUZIDO ---
         st.subheader("Calendário de Ausências")
         
         col_cal_1, col_cal_2, col_cal_3 = st.columns([0.5, 2, 0.5])
@@ -518,13 +516,12 @@ def modulo_rh():
                 },
                 "initialView": "dayGridMonth",
                 "locale": "pt-br",
-                "height": "600px" # Definindo uma altura fixa
+                "height": "600px" 
             }
             
             calendar(events=calendar_events, options=calendar_options)
 
     with tab_rh3:
-        # ... (código da aba 3 permanece o mesmo) ...
         st.subheader("Cadastrar Novo Funcionário")
         with st.form("novo_funcionario_form_2", clear_on_submit=True):
             nome = st.text_input("Nome Completo")
@@ -582,9 +579,7 @@ def modulo_rh():
                     except Exception as e:
                         st.error(f"Ocorreu um erro ao deletar: {e}")
 
-# ... (o restante do código, modulo_denuncias, modulo_boletim, etc., continua o mesmo)
 def modulo_denuncias():
-    # ... (código do módulo de denúncias permanece o mesmo)
     st.title("Denúncias")
     @st.cache_data
     def geocode_addresses(df):
@@ -771,16 +766,370 @@ def modulo_denuncias():
         else: st.info("Nenhuma denúncia registrada.")
 
 def create_boletim_word_report(data):
-    # ... (código da geração do Word do boletim permanece o mesmo) ...
+    document = Document()
+    style = document.styles['Normal']
+    font = style.font
+    font.name = 'Calibri'
+    font.size = Pt(11)
+    titulo = document.add_heading('Boletim de Programação Diária', level=1)
+    titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    try:
+        data_obj = datetime.strptime(data.get('data', ''), '%Y-%m-%d')
+        data_formatada = data_obj.strftime('%d/%m/%Y')
+    except (ValueError, TypeError):
+        data_formatada = "Data não informada"
+    p_data = document.add_paragraph(f"Data: {data_formatada}")
+    p_data.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_data.paragraph_format.space_after = Pt(18)
+    document.add_heading('Informações Gerais', level=2)
+    p = document.add_paragraph()
+    p.add_run('Bairros a serem trabalhados: ').bold = True
+    p.add_run(data.get('bairros', 'N/A'))
+    p = document.add_paragraph()
+    p.add_run('Atividades Gerais do Dia: ').bold = True
+    p.add_run(', '.join(data.get('atividades_gerais', ['N/A'])))
+    p = document.add_paragraph()
+    p.add_run('Motorista(s): ').bold = True
+    p.add_run(', '.join(data.get('motoristas', ['N/A'])))
+    p.paragraph_format.space_after = Pt(18)
+    def add_turno_section(doc, turno_nome, equipes_data, faltas_data):
+        doc.add_heading(f'Turno da {turno_nome}', level=2)
+        equipes = equipes_data or []
+        if not equipes:
+            doc.add_paragraph("Nenhuma equipe programada para este turno.")
+        else:
+            for i, equipe in enumerate(equipes):
+                membros = equipe.get('membros', [])
+                atividades = equipe.get('atividades', [])
+                quarteiroes = equipe.get('quarteiroes', [])
+                p_equipe = doc.add_paragraph()
+                p_equipe.add_run(f'Equipe {i+1}: ').bold = True
+                p_equipe.add_run(', '.join(membros if membros else ['N/A']))
+                p_detalhes = doc.add_paragraph(f"    Atividades: {', '.join(atividades) if atividades else 'N/A'}")
+                p_detalhes.paragraph_format.space_before = Pt(0)
+                p_detalhes.paragraph_format.space_after = Pt(0)
+                p_quarteiroes = doc.add_paragraph(f"    Quarteirões: {', '.join(map(str, quarteiroes)) if quarteiroes else 'N/A'}")
+                p_quarteiroes.paragraph_format.space_before = Pt(0)
+                p_quarteiroes.paragraph_format.space_after = Pt(6)
+        doc.add_paragraph().add_run('Faltas:').bold = True
+        nomes_faltas = faltas_data.get('nomes', [])
+        motivo_falta = faltas_data.get('motivo', '')
+        if not nomes_faltas:
+            doc.add_paragraph("Nenhuma falta registrada.")
+        else:
+            doc.add_paragraph(f"  Nomes: {', '.join(nomes_faltas)}")
+            doc.add_paragraph(f"  Motivo: {motivo_falta if motivo_falta else 'Não especificado'}")
+        doc.add_paragraph().paragraph_format.space_after = Pt(18)
+    add_turno_section(document, "Manhã", data.get('equipes_manha', []), data.get('faltas_manha', {}))
+    add_turno_section(document, "Tarde", data.get('equipes_tarde', []), data.get('faltas_tarde', {}))
+    buffer = io.BytesIO()
+    document.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
 
 def modulo_boletim():
-    # ... (código do módulo do boletim permanece o mesmo) ...
+    st.title("Boletim de Programação Diária")
+
+    df_funcionarios = carregar_dados_firebase('funcionarios')
+    df_folgas = carregar_dados_firebase('folgas_ferias')
+    lista_quarteiroes = carregar_quarteiroes_csv()
+    df_geo_quarteiroes = carregar_geo_kml()
+
+    if 'num_equipes_manha' not in st.session_state:
+        st.session_state.num_equipes_manha = 5
+    if 'num_equipes_tarde' not in st.session_state:
+        st.session_state.num_equipes_tarde = 5
+
+    tab1, tab2, tab3 = st.tabs(["🗓️ Criar Boletim", "🔍 Visualizar/Editar Boletim", "🗺️ Mapa de Atividades"])
+
+    with tab1:
+        st.subheader("Novo Boletim de Programação")
+        data_boletim = st.date_input("Data do Trabalho", date.today())
+        
+        if isinstance(df_funcionarios, pd.DataFrame) and not df_funcionarios.empty:
+            funcionarios_disponiveis_full = df_funcionarios.copy()
+            if not df_folgas.empty and 'data_inicio' in df_folgas.columns and 'data_fim' in df_folgas.columns:
+                try:
+                    datas_validas_folgas = df_folgas.dropna(subset=['data_inicio', 'data_fim'])
+                    ausentes_ids = datas_validas_folgas[
+                        (pd.to_datetime(datas_validas_folgas['data_inicio']).dt.date <= data_boletim) & 
+                        (pd.to_datetime(datas_validas_folgas['data_fim']).dt.date >= data_boletim)
+                    ]['id_funcionario'].tolist()
+                    if ausentes_ids:
+                        funcionarios_disponiveis_full = df_funcionarios[~df_funcionarios['id'].isin(ausentes_ids)]
+                except Exception as e:
+                    st.warning(f"Não foi possível filtrar funcionários ausentes: {e}")
+
+            lista_nomes_disponiveis_full = sorted(funcionarios_disponiveis_full['nome'].tolist())
+        else:
+            lista_nomes_disponiveis_full = []
+            st.warning("Não há funcionários cadastrados para criar um boletim.")
+
+        atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização"]
+        bairros = st.text_area("Bairros a serem trabalhados")
+        atividades_gerais = st.multiselect("Atividades Gerais do Dia", atividades_gerais_options)
+        motoristas = st.multiselect("Motorista(s)", options=lista_nomes_disponiveis_full)
+        st.divider()
+        
+        st.markdown("**Turno da Manhã**")
+        funcionarios_manha_disponiveis = lista_nomes_disponiveis_full[:]
+        equipes_manha = []
+        
+        for i in range(st.session_state.num_equipes_manha):
+            st.markdown(f"--- *Equipe {i+1}* ---")
+            cols = st.columns([2, 2, 3])
+            with cols[0]:
+                membros = st.multiselect(f"Membros da Equipe {i+1}", options=funcionarios_manha_disponiveis, key=f"manha_membros_{i}")
+            with cols[1]:
+                atividades = st.multiselect("Atividades", options=atividades_gerais_options, key=f"manha_atividades_{i}")
+            with cols[2]:
+                quarteiroes = st.multiselect("Quarteirões", options=lista_quarteiroes, key=f"manha_quarteiroes_{i}")
+            if membros:
+                equipes_manha.append({"membros": membros, "atividades": atividades, "quarteiroes": quarteiroes})
+                for membro in membros:
+                    if membro in funcionarios_manha_disponiveis:
+                        funcionarios_manha_disponiveis.remove(membro)
+
+        if st.button("➕ Adicionar Equipe (Manhã)"):
+            st.session_state.num_equipes_manha += 1
+            st.rerun()
+
+        st.markdown("**Faltas - Manhã**")
+        faltas_manha_nomes = st.multiselect("Funcionários Ausentes", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], key="falta_manha_nomes")
+        motivo_falta_manha = st.text_input("Motivo(s)", key="falta_manha_motivo")
+        st.divider()
+
+        st.markdown("**Turno da Tarde**")
+        funcionarios_tarde_disponiveis = lista_nomes_disponiveis_full[:]
+        equipes_tarde = []
+
+        for i in range(st.session_state.num_equipes_tarde):
+            st.markdown(f"--- *Equipe {i+1}* ---")
+            cols = st.columns([2, 2, 3])
+            with cols[0]:
+                membros = st.multiselect(f"Membros da Equipe {i+1}", options=funcionarios_tarde_disponiveis, key=f"tarde_membros_{i}")
+            with cols[1]:
+                atividades = st.multiselect("Atividades ", options=atividades_gerais_options, key=f"tarde_atividades_{i}")
+            with cols[2]:
+                quarteiroes = st.multiselect("Quarteirões ", options=lista_quarteiroes, key=f"tarde_quarteiroes_{i}")
+            if membros:
+                equipes_tarde.append({"membros": membros, "atividades": atividades, "quarteiroes": quarteiroes})
+                for membro in membros:
+                    if membro in funcionarios_tarde_disponiveis:
+                        funcionarios_tarde_disponiveis.remove(membro)
+
+        if st.button("➕ Adicionar Equipe (Tarde)"):
+            st.session_state.num_equipes_tarde += 1
+            st.rerun()
+
+        st.markdown("**Faltas - Tarde**")
+        faltas_tarde_nomes = st.multiselect("Funcionários Ausentes ", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], key="falta_tarde_nomes")
+        motivo_falta_tarde = st.text_input("Motivo(s) ", key="falta_tarde_motivo")
+        
+        if st.button("Salvar Boletim", use_container_width=True, type="primary"):
+            boletim_id = data_boletim.strftime("%Y-%m-%d")
+            boletim_data = {"data": boletim_id, "bairros": bairros, "atividades_gerais": atividades_gerais, "motoristas": motoristas, "equipes_manha": equipes_manha, "equipes_tarde": equipes_tarde, "faltas_manha": {"nomes": faltas_manha_nomes, "motivo": motivo_falta_manha}, "faltas_tarde": {"nomes": faltas_tarde_nomes, "motivo": motivo_falta_tarde}}
+            try:
+                ref = db.reference(f'boletins/{boletim_id}'); ref.set(boletim_data)
+                st.success(f"Boletim para o dia {data_boletim.strftime('%d/%m/%Y')} salvo com sucesso!")
+                st.session_state.num_equipes_manha = 5
+                st.session_state.num_equipes_tarde = 5
+            except Exception as e:
+                st.error(f"Erro ao salvar o boletim: {e}")
+
+    with tab2:
+        st.subheader("Visualizar e Editar Boletim Diário")
+        data_para_ver = st.date_input("Selecione a data do boletim que deseja ver", date.today(), key="edit_date")
+        
+        if st.button("Buscar Boletim", key="search_edit"):
+            boletim_id = data_para_ver.strftime("%Y-%m-%d")
+            ref = db.reference(f'boletins/{boletim_id}')
+            boletim_data = ref.get()
+            st.session_state.boletim_encontrado = boletim_data
+            if not boletim_data:
+                st.warning(f"Nenhum boletim encontrado para a data {data_para_ver.strftime('%d/%m/%Y')}.")
+
+        if 'boletim_encontrado' not in st.session_state:
+            st.session_state.boletim_encontrado = None
+
+        if st.session_state.boletim_encontrado:
+            boletim_data = st.session_state.boletim_encontrado
+            st.success(f"Boletim de {pd.to_datetime(boletim_data['data']).strftime('%d/%m/%Y')} carregado.")
+            boletim_doc_bytes = create_boletim_word_report(boletim_data)
+            st.download_button(label="📥 Exportar Boletim em .docx", data=boletim_doc_bytes, file_name=f"Boletim_Diario_{boletim_data['data']}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            
+            with st.expander("Ver/Editar Boletim", expanded=True):
+                with st.form("edit_boletim_form"):
+                    boletim_id = boletim_data['data']
+                    bairros_edit = st.text_area("Bairros", value=boletim_data.get('bairros', ''))
+                    atividades_gerais_edit = st.multiselect("Atividades Gerais", atividades_gerais_options, default=boletim_data.get('atividades_gerais', []))
+                    motoristas_edit = st.multiselect("Motoristas", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], default=boletim_data.get('motoristas', []))
+                    st.divider()
+                    
+                    equipes_manha_edit_data = []
+                    st.markdown("**Equipes - Manhã**")
+                    saved_teams_manha = boletim_data.get('equipes_manha', [])
+                    num_equipes_manha_edit = len(saved_teams_manha) if saved_teams_manha else 1
+                    for i in range(num_equipes_manha_edit):
+                        st.markdown(f"--- *Equipe {i+1}* ---")
+                        default_membros = saved_teams_manha[i]['membros'] if i < len(saved_teams_manha) else []
+                        default_atividades = saved_teams_manha[i]['atividades'] if i < len(saved_teams_manha) else []
+                        default_quarteiroes = saved_teams_manha[i]['quarteiroes'] if i < len(saved_teams_manha) else []
+                        cols = st.columns([2, 2, 3])
+                        with cols[0]:
+                            membros = st.multiselect("Membros", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], default=default_membros, key=f"edit_manha_membros_{i}")
+                        with cols[1]:
+                            atividades = st.multiselect("Atividades ", options=atividades_gerais_options, default=default_atividades, key=f"edit_manha_atividades_{i}")
+                        with cols[2]:
+                            quarteiroes = st.multiselect("Quarteirões", options=lista_quarteiroes, default=default_quarteiroes, key=f"edit_manha_quarteiroes_{i}")
+                        if membros:
+                            equipes_manha_edit_data.append({"membros": membros, "atividades": atividades, "quarteiroes": quarteiroes})
+                    
+                    st.markdown("**Faltas - Manhã**")
+                    faltas_manha_nomes_edit = st.multiselect("Ausentes", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], default=boletim_data.get('faltas_manha', {}).get('nomes', []), key="edit_falta_manha_nomes")
+                    motivo_falta_manha_edit = st.text_input("Motivo", value=boletim_data.get('faltas_manha', {}).get('motivo', ''), key="edit_falta_manha_motivo")
+                    st.divider()
+
+                    equipes_tarde_edit_data = []
+                    st.markdown("**Equipes - Tarde**")
+                    saved_teams_tarde = boletim_data.get('equipes_tarde', [])
+                    num_equipes_tarde_edit = len(saved_teams_tarde) if saved_teams_tarde else 1
+                    for i in range(num_equipes_tarde_edit):
+                        st.markdown(f"--- *Equipe {i+1}* ---")
+                        default_membros = saved_teams_tarde[i]['membros'] if i < len(saved_teams_tarde) else []
+                        default_atividades = saved_teams_tarde[i]['atividades'] if i < len(saved_teams_tarde) else []
+                        default_quarteiroes = saved_teams_tarde[i]['quarteiroes'] if i < len(saved_teams_tarde) else []
+                        cols = st.columns([2, 2, 3])
+                        with cols[0]:
+                            membros = st.multiselect("Membros ", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], default=default_membros, key=f"edit_tarde_membros_{i}")
+                        with cols[1]:
+                            atividades = st.multiselect("Atividades  ", options=atividades_gerais_options, default=default_atividades, key=f"edit_tarde_atividades_{i}")
+                        with cols[2]:
+                            quarteiroes = st.multiselect("Quarteirões ", options=lista_quarteiroes, default=default_quarteiroes, key=f"edit_tarde_quarteiroes_{i}")
+                        if membros:
+                            equipes_tarde_edit_data.append({"membros": membros, "atividades": atividades, "quarteiroes": quarteiroes})
+
+                    st.markdown("**Faltas - Tarde**")
+                    faltas_tarde_nomes_edit = st.multiselect("Ausentes ", options=sorted(df_funcionarios['nome'].tolist()) if isinstance(df_funcionarios, pd.DataFrame) else [], default=boletim_data.get('faltas_tarde', {}).get('nomes', []), key="edit_falta_tarde_nomes")
+                    motivo_falta_tarde_edit = st.text_input("Motivo ", value=boletim_data.get('faltas_tarde', {}).get('motivo', ''), key="edit_falta_tarde_motivo")
+                    
+                    if st.form_submit_button("Salvar Alterações no Boletim"):
+                        boletim_atualizado = {"data": boletim_id, "bairros": bairros_edit, "atividades_gerais": atividades_gerais_edit, "motoristas": motoristas_edit, "equipes_manha": equipes_manha_edit_data, "equipes_tarde": equipes_tarde_edit_data, "faltas_manha": {"nomes": faltas_manha_nomes_edit, "motivo": motivo_falta_manha_edit}, "faltas_tarde": {"nomes": faltas_tarde_nomes_edit, "motivo": motivo_falta_tarde_edit}}
+                        ref = db.reference(f'boletins/{boletim_id}')
+                        ref.set(boletim_atualizado)
+                        st.success("Boletim atualizado com sucesso!")
+                        st.session_state.boletim_encontrado = boletim_atualizado
+
+    with tab3:
+        st.subheader("Mapa de Atividades por Dia")
+        data_mapa = st.date_input("Selecione a data para visualizar o mapa", date.today(), key="mapa_data")
+
+        if st.button("Visualizar Mapa"):
+            if df_geo_quarteiroes.empty:
+                st.error("Os dados de geolocalização não puderam ser carregados. Verifique o arquivo e o link no código.")
+            else:
+                boletim_id_mapa = data_mapa.strftime("%Y-%m-%d")
+                ref_mapa = db.reference(f'boletins/{boletim_id_mapa}')
+                boletim_mapa_data = ref_mapa.get()
+
+                if not boletim_mapa_data:
+                    st.warning(f"Nenhum boletim encontrado para o dia {data_mapa.strftime('%d/%m/%Y')}.")
+                else:
+                    pontos_para_mapa = []
+                    
+                    equipes_manha = boletim_mapa_data.get('equipes_manha') or []
+                    for i, equipe in enumerate(equipes_manha):
+                        membros_str = ", ".join(equipe.get('membros', ['N/A']))
+                        equipe_label = f"Equipe {i+1} (Manhã)"
+                        for q in equipe.get('quarteiroes', []):
+                            geo_info = df_geo_quarteiroes[df_geo_quarteiroes['quadra'] == str(q)]
+                            if not geo_info.empty:
+                                ponto = geo_info.iloc[0]
+                                pontos_para_mapa.append({'lat': ponto['lat'],'lon': ponto['lon'],'equipe': equipe_label,'membros': membros_str,'quarteirao': str(q)})
+                    
+                    equipes_tarde = boletim_mapa_data.get('equipes_tarde') or []
+                    for i, equipe in enumerate(equipes_tarde):
+                        membros_str = ", ".join(equipe.get('membros', ['N/A']))
+                        equipe_label = f"Equipe {i+1} (Tarde)"
+                        for q in equipe.get('quarteiroes', []):
+                            geo_info = df_geo_quarteiroes[df_geo_quarteiroes['quadra'] == str(q)]
+                            if not geo_info.empty:
+                                ponto = geo_info.iloc[0]
+                                pontos_para_mapa.append({'lat': ponto['lat'],'lon': ponto['lon'],'equipe': equipe_label,'membros': membros_str,'quarteirao': str(q)})
+                    
+                    if not pontos_para_mapa:
+                        st.info("Nenhum quarteirão designado para este dia foi encontrado nos dados geográficos.")
+                    else:
+                        df_mapa = pd.DataFrame(pontos_para_mapa)
+                        st.success(f"Exibindo a localização de {len(df_mapa)} quarteirões designados.")
+                        
+                        fig = px.scatter_mapbox(df_mapa,lat="lat",lon="lon",hover_name="equipe",hover_data={"membros": True,"quarteirao": True,"lat": False,"lon": False},color="equipe",zoom=12,mapbox_style="carto-positron",title="Localização das Equipes")
+                        fig.update_layout(mapbox_center={"lat": df_mapa['lat'].mean(), "lon": df_mapa['lon'].mean()})
+                        fig.update_layout(margin={"r":0,"t":40,"l":0,"b":0})
+                        
+                        fig.update_traces(marker={'size': 15})
+                        
+                        st.plotly_chart(fig, use_container_width=True)
 
 def login_screen():
-    # ... (código do login permanece o mesmo) ...
+    st.title("Sistema Integrado de Gestão")
+    with st.form("login_form"):
+        st.header("Login do Sistema")
+        username = st.text_input("Usuário", key="login_username")
+        password = st.text_input("Senha", type="password", key="login_password")
+        submit_button = st.form_submit_button("Entrar")
+        if submit_button:
+            if username in USERS and USERS[username] == password:
+                st.session_state['logged_in'] = True
+                st.session_state['username'] = username
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos.")
 
 def main_app():
-    # ... (código da navegação principal permanece o mesmo) ...
+    if 'module_choice' not in st.session_state:
+        st.session_state['module_choice'] = None
+    if st.session_state['module_choice'] is None:
+        st.title("Painel de Controle")
+        st.header(f"Bem-vindo(a), {st.session_state['username']}!")
+        st.write("Selecione o módulo que deseja acessar:")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🚨 Denúncias", use_container_width=True):
+                st.session_state['module_choice'] = "Denúncias"
+                st.rerun()
+        with col2:
+            if st.button("👥 Recursos Humanos", use_container_width=True):
+                st.session_state['module_choice'] = "Recursos Humanos"
+                st.rerun()
+        with col3:
+            if st.button("🗓️ Boletim Diário", use_container_width=True):
+                st.session_state['module_choice'] = "Boletim"
+                st.rerun()
+        st.divider()
+        if st.button("Logout"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
+    else:
+        with st.sidebar:
+            st.title("Navegação")
+            st.write(f"Usuário: **{st.session_state['username']}**")
+            st.divider()
+            if st.button("⬅️ Voltar ao Menu Principal"):
+                st.session_state['module_choice'] = None
+                st.rerun()
+            st.divider()
+            if st.button("Logout"):
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                st.rerun()
+        if st.session_state['module_choice'] == "Denúncias":
+            modulo_denuncias()
+        elif st.session_state['module_choice'] == "Recursos Humanos":
+            modulo_rh()
+        elif st.session_state['module_choice'] == "Boletim":
+            modulo_boletim()
 
 if __name__ == "__main__":
     if 'logged_in' not in st.session_state:
