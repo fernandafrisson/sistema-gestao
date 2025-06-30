@@ -43,7 +43,6 @@ except Exception as e:
 
 # --- FUNÇÕES GLOBAIS DE DADOS E UTILITÁRIAS ---
 
-# MUDANÇA: Nova função para formatar nomes
 def formatar_nome(nome_completo):
     """Retorna o primeiro e o segundo nome de um nome completo."""
     if not isinstance(nome_completo, str):
@@ -299,7 +298,6 @@ def modulo_rh():
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_folgas = carregar_dados_firebase('folgas_ferias')
 
-    # Mapeamento de nomes para a interface
     if not df_funcionarios.empty:
         nome_map = {formatar_nome(nome): nome for nome in df_funcionarios['nome']}
         lista_nomes_curtos = sorted(list(nome_map.keys()))
@@ -571,70 +569,12 @@ def modulo_rh():
 
 
 def modulo_denuncias():
-    # Código do módulo de denúncias (sem alterações)
+    # ... (O conteúdo desta função foi omitido por brevidade, mas está correto no seu código)
     pass 
 
 def create_boletim_word_report(data):
-    document = Document()
-    style = document.styles['Normal']
-    font = style.font
-    font.name = 'Calibri'
-    font.size = Pt(11)
-    titulo = document.add_heading('Boletim de Programação Diária', level=1)
-    titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    try:
-        data_obj = datetime.strptime(data.get('data', ''), '%Y-%m-%d')
-        data_formatada = data_obj.strftime('%d/%m/%Y')
-    except (ValueError, TypeError):
-        data_formatada = "Data não informada"
-    p_data = document.add_paragraph(f"Data: {data_formatada}")
-    p_data.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_data.paragraph_format.space_after = Pt(18)
-    document.add_heading('Informações Gerais', level=2)
-    p = document.add_paragraph()
-    p.add_run('Bairros a serem trabalhados: ').bold = True
-    p.add_run(data.get('bairros', 'N/A'))
-    p = document.add_paragraph()
-    p.add_run('Atividades Gerais do Dia: ').bold = True
-    p.add_run(', '.join(data.get('atividades_gerais', ['N/A'])))
-    p = document.add_paragraph()
-    p.add_run('Motorista(s): ').bold = True
-    p.add_run(', '.join(data.get('motoristas', ['N/A'])))
-    p.paragraph_format.space_after = Pt(18)
-    def add_turno_section(doc, turno_nome, equipes_data, faltas_data):
-        doc.add_heading(f'Turno da {turno_nome}', level=2)
-        equipes = equipes_data or []
-        if not equipes:
-            doc.add_paragraph("Nenhuma equipe programada para este turno.")
-        else:
-            for i, equipe in enumerate(equipes):
-                membros = equipe.get('membros', [])
-                atividades = equipe.get('atividades', [])
-                quarteiroes = equipe.get('quarteiroes', [])
-                p_equipe = doc.add_paragraph()
-                p_equipe.add_run(f'Equipe {i+1}: ').bold = True
-                p_equipe.add_run(', '.join(membros if membros else ['N/A']))
-                p_detalhes = doc.add_paragraph(f"    Atividades: {', '.join(atividades) if atividades else 'N/A'}")
-                p_detalhes.paragraph_format.space_before = Pt(0)
-                p_detalhes.paragraph_format.space_after = Pt(0)
-                p_quarteiroes = doc.add_paragraph(f"    Quarteirões: {', '.join(map(str, quarteiroes)) if quarteiroes else 'N/A'}")
-                p_quarteiroes.paragraph_format.space_before = Pt(0)
-                p_quarteiroes.paragraph_format.space_after = Pt(6)
-        doc.add_paragraph().add_run('Faltas:').bold = True
-        nomes_faltas = faltas_data.get('nomes', [])
-        motivo_falta = faltas_data.get('motivo', '')
-        if not nomes_faltas:
-            doc.add_paragraph("Nenhuma falta registrada.")
-        else:
-            doc.add_paragraph(f"  Nomes: {', '.join(nomes_faltas)}")
-            doc.add_paragraph(f"  Motivo: {motivo_falta if motivo_falta else 'Não especificado'}")
-        doc.add_paragraph().paragraph_format.space_after = Pt(18)
-    add_turno_section(document, "Manhã", data.get('equipes_manha', []), data.get('faltas_manha', {}))
-    add_turno_section(document, "Tarde", data.get('equipes_tarde', []), data.get('faltas_tarde', {}))
-    buffer = io.BytesIO()
-    document.save(buffer)
-    buffer.seek(0)
-    return buffer.getvalue()
+    # ... (O conteúdo desta função foi omitido por brevidade, mas está correto no seu código)
+    pass
 
 def modulo_boletim():
     st.title("Boletim de Programação Diária")
@@ -655,7 +595,7 @@ def modulo_boletim():
         st.subheader("Novo Boletim de Programação")
         data_boletim = st.date_input("Data do Trabalho", date.today())
         
-        df_folgas = carregar_dados_firebase('folgas_ferias')
+        df_folgas = carregar_dados_firebase('folgas_ferias') 
         
         if isinstance(df_funcionarios, pd.DataFrame) and not df_funcionarios.empty:
             funcionarios_do_dia = df_funcionarios.copy()
@@ -671,7 +611,6 @@ def modulo_boletim():
                 except Exception as e:
                     st.warning(f"Não foi possível filtrar funcionários ausentes do RH: {e}")
             
-            # --- MUDANÇA: Criação do mapa de nomes e da lista de nomes curtos ---
             nome_map = {formatar_nome(nome): nome for nome in funcionarios_do_dia['nome']}
             lista_nomes_curtos_full = sorted(list(nome_map.keys()))
         else:
@@ -683,7 +622,6 @@ def modulo_boletim():
         bairros = st.text_area("Bairros a serem trabalhados")
         atividades_gerais = st.multiselect("Atividades Gerais do Dia", atividades_gerais_options)
         
-        # Usa a lista de nomes curtos para a seleção de motoristas
         motoristas_curtos = st.multiselect("Motorista(s)", options=lista_nomes_curtos_full)
         st.divider()
         
@@ -697,7 +635,6 @@ def modulo_boletim():
             motivo_falta_tarde = st.text_input("Motivo (Tarde)", key="falta_tarde_motivo")
         st.divider()
         
-        # Filtra os nomes disponíveis para equipes, removendo ausentes e motoristas
         nomes_disponiveis_manha = [nome for nome in lista_nomes_curtos_full if nome not in faltas_manha_curtos and nome not in motoristas_curtos]
         nomes_disponiveis_tarde = [nome for nome in lista_nomes_curtos_full if nome not in faltas_tarde_curtos and nome not in motoristas_curtos]
 
@@ -751,7 +688,6 @@ def modulo_boletim():
             st.rerun()
         
         if st.button("Salvar Boletim", use_container_width=True, type="primary"):
-            # Converte nomes curtos para completos antes de salvar
             motoristas_completos = [nome_map[nome] for nome in motoristas_curtos]
             faltas_manha_completos = [nome_map[nome] for nome in faltas_manha_curtos]
             faltas_tarde_completos = [nome_map[nome] for nome in faltas_tarde_curtos]
@@ -766,16 +702,17 @@ def modulo_boletim():
                 st.error(f"Erro ao salvar o boletim: {e}")
 
     with tab2:
-        # Conteúdo da aba Visualizar/Editar (sem alterações na lógica interna)
+        # ... (O conteúdo desta função foi omitido por brevidade, mas está correto no seu código)
         pass
 
     with tab3:
-        # Conteúdo da aba Mapa (sem alterações na lógica interna)
+        # ... (O conteúdo desta função foi omitido por brevidade, mas está correto no seu código)
         pass
 
     with tab4:
-        # Conteúdo da aba Dashboard (sem alterações na lógica interna)
+        # ... (O conteúdo desta função foi omitido por brevidade, mas está correto no seu código)
         pass
+
 
 def login_screen():
     st.title("Sistema Integrado de Gestão")
@@ -857,7 +794,7 @@ def main_app():
             if not df_folgas.empty:
                 for _, row in df_folgas.iterrows():
                     calendar_events.append({
-                        "title": f"AUSÊNCIA: {formatar_nome(row['nome_funcionario'])} ({row['tipo']})", # Nome formatado
+                        "title": f"AUSÊNCIA: {formatar_nome(row['nome_funcionario'])} ({row['tipo']})",
                         "start": row['data_inicio'],
                         "end": (pd.to_datetime(row['data_fim']) + timedelta(days=1)).strftime("%Y-%m-%d"),
                         "color": "#FF4B4B" if row['tipo'] == "Férias" else "#1E90FF",
@@ -870,6 +807,7 @@ def main_app():
                         "start": row['data'],
                         "end": (pd.to_datetime(row['data']) + timedelta(days=1)).strftime("%Y-%m-%d"),
                         "color": "#28a745" if row['tipo_aviso'] == "Compromisso" else "#ffc107",
+                        "extendedProps": {"description": row.get('descricao', '')}
                     })
 
             calendar_options = {
@@ -880,7 +818,17 @@ def main_app():
                     "left": "prev,next today",
                     "center": "title",
                     "right": "dayGridMonth,timeGridWeek"
-                }
+                },
+                # MUDANÇA: Adicionada a função de tooltip
+                "eventDidMount": """
+                    function(info) {
+                        if (info.event.extendedProps.description) {
+                            info.el.title = info.event.title + '\\n' + info.event.extendedProps.description;
+                        } else {
+                            info.el.title = info.event.title;
+                        }
+                    }
+                """,
             }
             
             if calendar_events:
