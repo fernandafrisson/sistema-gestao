@@ -793,8 +793,7 @@ def login_screen():
                 st.error("Usuário ou senha inválidos.")
 
 def main_app():
-    # Primeiro, verifica se um módulo já foi escolhido para ser exibido.
-    # A condição `st.session_state.get('module_choice')` é uma forma segura de verificar se a chave existe e tem um valor.
+    # Verifica se um módulo já foi escolhido para ser exibido.
     if st.session_state.get('module_choice'):
         # Se um módulo foi escolhido, exibe a barra lateral de navegação.
         with st.sidebar:
@@ -818,11 +817,8 @@ def main_app():
         elif st.session_state['module_choice'] == "Recursos Humanos":
             modulo_rh()
         elif st.session_state['module_choice'] == "Boletim":
-            # A função modulo_boletim() não foi fornecida no código original.
-            # Adicionei um placeholder para evitar erros.
-            st.title("Boletim Diário")
-            st.info("Este módulo ainda está em desenvolvimento.")
-            # modulo_boletim() # Descomente quando a função existir.
+            # Chama a função do módulo de boletim
+            modulo_boletim()
 
     else:
         # Se nenhum módulo foi escolhido, exibe o Painel de Controle (tela inicial).
@@ -918,25 +914,6 @@ def main_app():
                 calendar(events=calendar_events, options=calendar_options, key="calendario_mural_corrigido")
             else:
                 st.info("Nenhum evento no mural ou ausência registrada.")
-    else:
-        with st.sidebar:
-            st.title("Navegação")
-            st.write(f"Usuário: **{st.session_state['username']}**")
-            st.divider()
-            if st.button("⬅️ Voltar ao Painel de Controle"):
-                st.session_state['module_choice'] = None
-                st.rerun()
-            st.divider()
-            if st.button("Logout"):
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-                st.rerun()
-        if st.session_state['module_choice'] == "Denúncias":
-            modulo_denuncias()
-        elif st.session_state['module_choice'] == "Recursos Humanos":
-            modulo_rh()
-        elif st.session_state['module_choice'] == "Boletim":
-            modulo_boletim()
 
 if __name__ == "__main__":
     if 'logged_in' not in st.session_state:
