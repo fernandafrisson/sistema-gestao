@@ -567,7 +567,6 @@ def modulo_rh():
                     except Exception as e:
                         st.error(f"Ocorreu um erro ao deletar: {e}")
 
-
 def modulo_denuncias():
     st.title("Denúncias")
     @st.cache_data
@@ -754,21 +753,6 @@ def modulo_denuncias():
             else: st.warning("Não foi possível geolocalizar nenhum endereço.")
         else: st.info("Nenhuma denúncia registrada.")
 
-
-def login_screen():
-    st.title("Sistema Integrado de Gestão")
-    with st.form("login_form"):
-        st.header("Login do Sistema")
-        username = st.text_input("Usuário", key="login_username")
-        password = st.text_input("Senha", type="password", key="login_password")
-        submit_button = st.form_submit_button("Entrar")
-        if submit_button:
-            if username in USERS and USERS[username] == password:
-                st.session_state['logged_in'] = True
-                st.session_state['username'] = username
-                st.rerun()
-            else:
-                st.error("Usuário ou senha inválidos.")
 
 def main_app():
     if 'module_choice' not in st.session_state:
