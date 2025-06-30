@@ -800,9 +800,27 @@ def main_app():
         st.title("Painel de Controle")
         st.header(f"Bem-vindo(a), {st.session_state['username']}!")
         
+     # Com base na escolha, chama a função do módulo correspondente.
+        if st.session_state['module_choice'] == "Denúncias":
+            modulo_denuncias()
+        elif st.session_state['module_choice'] == "Recursos Humanos":
+            modulo_rh()
+        elif st.session_state['module_choice'] == "Boletim":
+            # A função modulo_boletim() não foi fornecida no código original.
+            # Adicionei um placeholder para evitar erros.
+            st.title("Boletim Diário")
+            st.info("Este módulo ainda está em desenvolvimento.")
+            # modulo_boletim() # Descomente quando a função existir.
+
+    else:
+        # Se nenhum módulo foi escolhido, exibe o Painel de Controle (tela inicial).
+        st.title("Painel de Controle")
+        st.header(f"Bem-vindo(a), {st.session_state['username']}!")
+        
         st.write("Selecione o módulo que deseja acessar:")
         col1, col2, col3 = st.columns(3)
         with col1:
+            # Ao clicar, define a escolha e recarrega a página para exibir o módulo.
             if st.button("🚨 Denúncias", use_container_width=True):
                 st.session_state['module_choice'] = "Denúncias"
                 st.rerun()
@@ -816,6 +834,7 @@ def main_app():
                 st.rerun()
         st.divider()
 
+        # O restante da tela principal (Mural de Avisos e Calendário) continua aqui.
         col_form, col_cal = st.columns([1, 1.5])
 
         with col_form:
