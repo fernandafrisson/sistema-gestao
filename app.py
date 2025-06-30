@@ -757,16 +757,46 @@ def modulo_denuncias():
 
 
 def main_app():
-    if 'module_choice' not in st.session_state:
-        st.session_state['module_choice'] = None
-    
-    if st.session_state['module_choice'] is None:
+    # Primeiro, verifica se um módulo já foi escolhido para ser exibido.
+    # A condição `st.session_state.get('module_choice')` é uma forma segura de verificar se a chave existe e tem um valor.
+    if st.session_state.get('module_choice'):
+        # Se um módulo foi escolhido, exibe a barra lateral de navegação.
+        with st.sidebar:
+            st.title("Navegação")
+            st.write(f"Usuário: **{st.session_state['username']}**")
+            st.divider()
+            # O botão "Voltar" limpa a escolha do módulo, fazendo a tela principal aparecer no próximo rerun.
+            if st.button("⬅️ Voltar ao Painel de Controle"):
+                st.session_state['module_choice'] = None
+                st.rerun()
+            st.divider()
+            # Botão de Logout para encerrar a sessão.
+            if st.button("Logout"):
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                st.rerun()
+
+        # Com base na escolha, chama a função do módulo correspondente.
+        if st.session_state['module_choice'] == "Denúncias":
+            modulo_denuncias()
+        elif st.session_state['module_choice'] == "Recursos Humanos":
+            modulo_rh()
+        elif st.session_state['module_choice'] == "Boletim":
+            # A função modulo_boletim() não foi fornecida no código original.
+            # Adicionei um placeholder para evitar erros.
+            st.title("Boletim Diário")
+            st.info("Este módulo ainda está em desenvolvimento.")
+            # modulo_boletim() # Descomente quando a função existir.
+
+    else:
+        # Se nenhum módulo foi escolhido, exibe o Painel de Controle (tela inicial).
         st.title("Painel de Controle")
         st.header(f"Bem-vindo(a), {st.session_state['username']}!")
         
         st.write("Selecione o módulo que deseja acessar:")
         col1, col2, col3 = st.columns(3)
         with col1:
+            # Ao clicar, define a escolha e recarrega a página para exibir o módulo.
             if st.button("🚨 Denúncias", use_container_width=True):
                 st.session_state['module_choice'] = "Denúncias"
                 st.rerun()
@@ -780,6 +810,7 @@ def main_app():
                 st.rerun()
         st.divider()
 
+        # O restante da tela principal (Mural de Avisos e Calendário) continua aqui.
         col_form, col_cal = st.columns([1, 1.5])
 
         with col_form:
@@ -867,25 +898,6 @@ def main_app():
                 calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="calendario_mural_final")
             else:
                 st.info("Nenhum evento no mural ou ausência registrada.")
-    else:
-        with st.sidebar:
-            st.title("Navegação")
-            st.write(f"Usuário: **{st.session_state['username']}**")
-            st.divider()
-            if st.button("⬅️ Voltar ao Painel de Controle"):
-                st.session_state['module_choice'] = None
-                st.rerun()
-            st.divider()
-            if st.button("Logout"):
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-                st.rerun()
-        if st.session_state['module_choice'] == "Denúncias":
-            modulo_denuncias()
-        elif st.session_state['module_choice'] == "Recursos Humanos":
-            modulo_rh()
-        elif st.session_state['module_choice'] == "Boletim":
-            modulo_boletim()
 
 if __name__ == "__main__":
     if 'logged_in' not in st.session_state:
