@@ -793,14 +793,26 @@ def login_screen():
                 st.error("Usuário ou senha inválidos.")
 
 def main_app():
-    if 'module_choice' not in st.session_state:
-        st.session_state['module_choice'] = None
-    
-    if st.session_state['module_choice'] is None:
-        st.title("Painel de Controle")
-        st.header(f"Bem-vindo(a), {st.session_state['username']}!")
-        
-     # Com base na escolha, chama a função do módulo correspondente.
+    # Primeiro, verifica se um módulo já foi escolhido para ser exibido.
+    # A condição `st.session_state.get('module_choice')` é uma forma segura de verificar se a chave existe e tem um valor.
+    if st.session_state.get('module_choice'):
+        # Se um módulo foi escolhido, exibe a barra lateral de navegação.
+        with st.sidebar:
+            st.title("Navegação")
+            st.write(f"Usuário: **{st.session_state['username']}**")
+            st.divider()
+            # O botão "Voltar" limpa a escolha do módulo, fazendo a tela principal aparecer no próximo rerun.
+            if st.button("⬅️ Voltar ao Painel de Controle"):
+                st.session_state['module_choice'] = None
+                st.rerun()
+            st.divider()
+            # Botão de Logout para encerrar a sessão.
+            if st.button("Logout"):
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                st.rerun()
+
+        # Com base na escolha, chama a função do módulo correspondente.
         if st.session_state['module_choice'] == "Denúncias":
             modulo_denuncias()
         elif st.session_state['module_choice'] == "Recursos Humanos":
