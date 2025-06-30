@@ -571,8 +571,115 @@ def modulo_rh():
 
 
 def modulo_denuncias():
-    # Código do módulo de denúncias (sem alterações)
-    pass
+    """
+    Função que renderiza a página de gestão de denúncias.
+    Permite registrar e consultar denúncias salvas no Firebase.
+    """
+    st.title("Módulo de Gestão de Denúncias")
+
+    # Criamos abas para organizar as funcionalidades
+    tab_registrar, tab_consultar = st.tabs(["✍️ Registrar Nova Denúncia", "📋 Consultar Denúncias"])
+
+    # --- ABA 1: FORMULÁRIO DE REGISTRO ---
+    with tab_registrar:
+        st.subheader("Formulário de Nova Denúncia")
+
+        # Usamos um formulário para agrupar os campos e o botão
+        with st.form("form_nova_denuncia", clear_on_submit=True):
+            # Usamos o timestamp como uma forma simples de gerar um protocolo único
+            protocolo = f"DEN-{int(time.time())}"
+            st.info(f"Protocolo da Denúncia: **{protocolo}**")
+
+            # Campos do formulário
+            data_denuncia = st.date_input("Data da Ocorrência", value=date.today())
+            denunciante = st.text_input("Nome do Denunciante (Opcional)")
+            endereco = st.text_input("Endereço da Ocorrência")
+            descricao = st.text_area("Descrição Detalhada da Denúncia", height=150)
+            status = st.selectbox("Status Inicial", ["Pendente", "Em Análise", "Visita Agendada", "Resolvida"])
+
+            # Botão para submeter o formulário
+            submitted = st.form_submit_button("Registrar Denúncia")
+
+            # Lógica a ser executada quando o botão é pressionado
+            if submitted:
+                # Validação simples para garantir que os campos essenciais foram preenchidos
+                if not endereco or not descricao:
+                    st.error("Por favor, preencha o Endereço e a Descrição da denúncia.")
+                else:
+                    try:
+                        # Prepara os dados para serem enviados ao Firebase
+                        denuncia_data = {
+                            'protocolo': protocolo,
+                            'data_denuncia': data_denuncia.strftime("%Y-%m-%d"),
+                            'denunciante': denunciante,
+                            'endereco': endereco,
+                            'descricao': descricao,
+                            'status': status,
+                            'data_registro': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                        
+                        # Define a referência no Firebase usando o protocolo como chave única
+                        ref = db.reference(f'denuncias/{protocolo}')
+                        ref.set(denuncia_data)
+                        
+                        st.success(f"Denúncia com protocolo {protocolo} registrada com sucesso!")
+                        # Limpa o cache para garantir que a lista de denúncias será atualizada
+                        st.cache_data.clear()
+
+                    except Exception as e:
+                        st.error(f"Ocorreu um erro ao registrar a denúncia: {e}")
+
+    # --- ABA 2: CONSULTA DE DENÚNCIAS ---
+    with tab_consultar:
+        st.subheader("Histórico de Denúncias Registradas")
+
+        # Carrega os dados de denúncias do Firebase
+        df_denuncias = carregar_dados_firebase('denuncias')
+
+        if df_denuncias.empty:
+            st.info("Nenhuma denúncia registrada até o momento.")
+        else:
+            # Garante que a coluna de data esteja no formato correto para ordenação
+            if 'data_registro' in df_denuncias.columns:
+                 df_denuncias_sorted = df_denuncias.sort_values(by='data_registro', ascending=False)
+            else:
+                 df_denuncias_sorted = df_denuncias
+
+            # Filtros para a consulta
+            st.markdown("##### Filtrar Denúncias")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Cria uma lista de status únicos para o filtro
+                status_disponiveis = ["Todos"] + df_denuncias_sorted['status'].unique().tolist()
+                filtro_status = st.selectbox("Filtrar por Status", options=status_disponiveis)
+
+            with col2:
+                filtro_endereco = st.text_input("Buscar por Endereço")
+
+            # Aplica os filtros no DataFrame
+            df_filtrado = df_denuncias_sorted
+            if filtro_status != "Todos":
+                df_filtrado = df_filtrado[df_filtrado['status'] == filtro_status]
+            if filtro_endereco:
+                # O `case=False` faz a busca ignorar maiúsculas/minúsculas
+                df_filtrado = df_filtrado[df_filtrado['endereco'].str.contains(filtro_endereco, case=False, na=False)]
+
+            # Define as colunas que serão exibidas e seus nomes
+            colunas_para_exibir = {
+                'protocolo': 'Protocolo',
+                'data_denuncia': 'Data Ocorrência',
+                'endereco': 'Endereço',
+                'descricao': 'Descrição',
+                'status': 'Status'
+            }
+            
+            # Exibe o DataFrame na tela
+            st.dataframe(
+                df_filtrado[list(colunas_para_exibir.keys())].rename(columns=colunas_para_exibir),
+                use_container_width=True,
+                hide_index=True
+            )
 
 def create_boletim_word_report(data):
     document = Document()
