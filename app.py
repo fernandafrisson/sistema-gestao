@@ -488,7 +488,7 @@ def modulo_rh():
                 if nome_curto_ficha:
                     nome_completo_ficha = nome_map[nome_curto_ficha]
                     dados_func = df_funcionarios[df_funcionarios['nome'] == nome_completo_ficha].iloc[0]
-                    st.image("https://placehold.co/150x150/FFFFFF/333333?text=FOTO", use_column_width='auto')
+                    st.image("https://placehold.co/150x150/FFFFFF/333333?text=FOTO", use_container_width='auto')
                     st.markdown(f"**Nome:** {dados_func.get('nome', 'N/A')}")
                     st.markdown(f"**Matrícula:** {dados_func.get('matricula', 'N/A')}")
                     st.markdown(f"**Telefone:** {dados_func.get('telefone', 'N/A')}")
