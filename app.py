@@ -856,6 +856,8 @@ def main_app():
                         "start": row['data_inicio'],
                         "end": (pd.to_datetime(row['data_fim']) + timedelta(days=1)).strftime("%Y-%m-%d"),
                         "color": "#FF4B4B" if row['tipo'] == "Férias" else "#1E90FF",
+                        # Adicionando a descrição para uso no clique
+                        "extendedProps": {"description": f"Período de {row['tipo']} para {formatar_nome(row['nome_funcionario'])}."}
                     })
             
             if not df_avisos.empty:
@@ -868,6 +870,8 @@ def main_app():
                         "extendedProps": {"description": row.get('descricao', '')}
                     })
 
+            # --- CORREÇÃO APLICADA AQUI ---
+            # O `eventDidMount` foi removido para evitar o erro do componente.
             calendar_options = {
                 "initialView": "dayGridMonth",
                 "height": "600px",
@@ -877,26 +881,41 @@ def main_app():
                     "center": "title",
                     "right": "dayGridMonth,timeGridWeek"
                 },
-                "eventDidMount": """
-                    function(info) {
-                        if (info.event.extendedProps.description) {
-                            info.el.title = info.event.title + '\\n' + info.event.extendedProps.description;
-                        } else {
-                            info.el.title = info.event.title;
-                        }
-                    }
-                """,
+                # Habilitar o clique nos eventos
+                "selectable": True, 
             }
             
             custom_css = """
                 .fc-event-title {
                     font-size: 11px !important;
+                    cursor: pointer; /* Adiciona um cursor de mão para indicar que o evento é clicável */
                 }
             """
             
-            if calendar_events:
-                calendar(events=calendar_events, options=calendar_options, custom_css=custom_css, key="calendario_mural_final")
-            else:
+            # A variável `event_clicked` irá capturar os dados do evento que o usuário clicar
+            event_clicked = calendar(
+                events=calendar_events, 
+                options=calendar_options, 
+                custom_css=custom_css, 
+                key="calendario_mural_final"
+            )
+
+            # Se um evento foi clicado, exibe os detalhes dele abaixo do calendário
+            if event_clicked and event_clicked.get("eventClick"):
+                clicked_event_details = event_clicked.get("eventClick")
+                st.divider()
+                st.subheader("Detalhes do Evento Selecionado")
+                
+                # Extrai o título e a descrição do evento clicado
+                title = clicked_event_details["event"]["title"]
+                description = clicked_event_details["event"]["extendedProps"].get("description", "Nenhuma descrição disponível.")
+                
+                st.markdown(f"**Evento:** {title}")
+                if description:
+                    st.markdown(f"**Descrição:** {description}")
+            
+            # Mensagem padrão se não houver eventos
+            if not calendar_events:
                 st.info("Nenhum evento no mural ou ausência registrada.")
 
 if __name__ == "__main__":
