@@ -571,7 +571,8 @@ def modulo_rh():
 
 
 def modulo_denuncias():
-    # Código do módulo de denúncias (sem alterações) 
+    # Código do módulo de denúncias (sem alterações)
+    pass
 
 def create_boletim_word_report(data):
     document = Document()
