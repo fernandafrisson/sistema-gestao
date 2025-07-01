@@ -15,6 +15,7 @@ import locale
 from collections import Counter, defaultdict
 import geopandas as gpd
 from streamlit_calendar import calendar
+import pydeck as pdk
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
