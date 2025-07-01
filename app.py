@@ -33,8 +33,6 @@ try:
             cred_dict = dict(st.secrets["firebase_credentials"])
             cred = credentials.Certificate(cred_dict)
         else:
-            # Certifique-se que o seu arquivo de credenciais JSON está na mesma pasta
-            # ou forneça o caminho correto.
             cred = credentials.Certificate("denuncias-48660-firebase-adminsdk-fbsvc-9f27fef1c8.json")
 
         firebase_admin.initialize_app(cred, {
@@ -91,7 +89,6 @@ def carregar_geo_kml():
     """Carrega dados de geolocalização de um arquivo KML no GitHub."""
     url_kml = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quadras%20de%20Guar%C3%A1.kml'
     try:
-        # Habilitar o driver KML que pode não estar ativado por padrão
         gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'rw'
         gdf = gpd.read_file(url_kml, driver='KML')
         pontos = []
@@ -217,7 +214,7 @@ def create_boletim_word_report(data_boletim):
     try:
         locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
     except locale.Error:
-        locale.setlocale(locale.LC_TIME, '') # Fallback para o locale padrão do sistema
+        locale.setlocale(locale.LC_TIME, '') 
 
     data_formatada = pd.to_datetime(data_boletim.get('data')).strftime('%d de %B de %Y')
     p_data = document.add_paragraph(data_formatada.title())
@@ -580,10 +577,10 @@ def modulo_rh():
 
                 def style_status_code(code):
                     color = ''
-                    if code == "PENDING": color = '#fff2cc' # Amarelo claro
-                    elif code == "SCHEDULED": color = '#d4e6f1' # Azul claro
-                    elif code == "ON_VACATION": color = '#d5f5e3' # Verde claro
-                    elif code == "RISK_EXPIRING": color = '#f5b7b1' # Vermelho claro
+                    if code == "PENDING": color = '#fff2cc'
+                    elif code == "SCHEDULED": color = '#d4e6f1'
+                    elif code == "ON_VACATION": color = '#d5f5e3'
+                    elif code == "RISK_EXPIRING": color = '#f5b7b1'
                     return f'background-color: {color}'
 
                 df_para_exibir = df_display[['nome_formatado', 'funcao', 'Período Aquisitivo de Referência', 'Status Agendamento', 'Abonadas no Ano']]
@@ -693,9 +690,28 @@ def modulo_rh():
 def modulo_denuncias():
     """Renderiza a página do módulo de Denúncias."""
     st.title("Denúncias")
+
+    # Lista fixa de motivos para padronização
+    lista_motivos_denuncia = [
+        "Acúmulo de lixo/entulho",
+        "Maus tratos a animais",
+        "Animal de grande porte em via pública",
+        "Foco de dengue/escorpião",
+        "Criação inadequada de animais",
+        "Comércio irregular de animais",
+        "Outros"
+    ]
+
+    # Carrega funcionários para usar na lista de responsáveis
+    df_funcionarios = carregar_dados_firebase('funcionarios')
+    if not df_funcionarios.empty:
+        lista_responsaveis = sorted([formatar_nome(nome) for nome in df_funcionarios['nome']])
+    else:
+        lista_responsaveis = []
+        
     @st.cache_data
     def geocode_addresses(df):
-        geolocator = Nominatim(user_agent=f"streamlit_app_{time.time()}")
+        geolocator = Nominatim(user_agent=f"streamlit_app_{int(time.time())}")
         latitudes, longitudes = [], []
         df_copy = df.copy()
         for col in ['logradouro', 'numero', 'bairro', 'cep']:
@@ -704,11 +720,16 @@ def modulo_denuncias():
             address = f"{row.get('logradouro', '')}, {row.get('numero', '')}, {row.get('bairro', '')}, Guaratinguetá, SP, Brasil"
             try:
                 location = geolocator.geocode(address, timeout=10)
-                if location: latitudes.append(location.latitude); longitudes.append(location.longitude)
-                else: latitudes.append(None); longitudes.append(None)
+                if location:
+                    latitudes.append(location.latitude)
+                    longitudes.append(location.longitude)
+                else:
+                    latitudes.append(None)
+                    longitudes.append(None)
+                time.sleep(1) # Para evitar sobrecarregar o serviço de geocodificação
             except Exception as e:
-                latitudes.append(None); longitudes.append(None)
-            time.sleep(1)
+                latitudes.append(None)
+                longitudes.append(None)
         df_copy['lat'], df_copy['lon'] = latitudes, longitudes
         return df_copy.dropna(subset=['lat', 'lon'])
 
@@ -721,10 +742,20 @@ def modulo_denuncias():
                 if isinstance(dados, dict):
                     dados['protocolo'] = protocolo
                     dados.setdefault('logradouro', dados.get('rua', ''))
-                    dados.setdefault('conclusao_atendimento', ''); dados.setdefault('cep', ''); dados.setdefault('status', 'Não atendida'); dados.setdefault('auto_infracao', 'Não');
-                    dados.setdefault('protocolo_auto_infracao', ''); dados.setdefault('auto_imposicao_penalidade', 'Não');
-                    dados.setdefault('protocolo_auto_imposicao_penalidade', ''); dados.setdefault('responsavel_atendimento', '');
+                    dados.setdefault('conclusao_atendimento', '')
+                    dados.setdefault('cep', '')
+                    dados.setdefault('status', 'Não atendida')
+                    dados.setdefault('auto_infracao', 'Não')
+                    dados.setdefault('protocolo_auto_infracao', '')
+                    dados.setdefault('auto_imposicao_penalidade', 'Não')
+                    dados.setdefault('protocolo_auto_imposicao_penalidade', '')
+                    dados.setdefault('responsavel_atendimento', '')
                     dados.setdefault('relatorio_atendimento', '')
+                    # Adiciona os novos campos com valores padrão para evitar erros
+                    dados.setdefault('data_atendimento', None)
+                    dados.setdefault('responsavel_imovel', '')
+                    dados.setdefault('rg_responsavel', '')
+                    dados.setdefault('cpf_responsavel', '')
                     denuncias_padronizadas.append(dados)
             df = pd.DataFrame(denuncias_padronizadas)
             if 'protocolo' in df.columns:
@@ -732,70 +763,100 @@ def modulo_denuncias():
                 df = df.sort_values(by='protocolo_int', ascending=False)
                 del df['protocolo_int']
             st.session_state.denuncias_df = df
-        else: st.session_state.denuncias_df = pd.DataFrame()
+        else:
+            st.session_state.denuncias_df = pd.DataFrame()
 
-    if 'denuncias_df' not in st.session_state: carregar_e_cachear_denuncias()
+    if 'denuncias_df' not in st.session_state:
+        carregar_e_cachear_denuncias()
     
     tab1, tab2, tab3 = st.tabs(["📋 Registrar Denúncia", "🛠️ Gerenciamento", "📊 Dashboard"])
     
     with tab1:
         st.subheader("Registrar Nova Denúncia")
         with st.form("nova_denuncia_form", clear_on_submit=True):
-            data_denuncia = st.date_input("Data da Denúncia", datetime.now()); motivo_denuncia = st.text_input("Motivo da Denúncia")
-            bairro = st.text_input("Bairro"); logradouro = st.text_input("Logradouro"); numero = st.text_input("Nº"); cep = st.text_input("CEP (Opcional)")
-            detalhes_denuncia = st.text_area("Detalhes da Denúncia"); submit_button = st.form_submit_button("Registrar Denúncia")
+            data_denuncia = st.date_input("Data da Denúncia", datetime.now())
+            # Campo de motivo alterado para selectbox
+            motivo_denuncia = st.selectbox("Motivo da Denúncia", options=lista_motivos_denuncia)
+            
+            bairro = st.text_input("Bairro")
+            logradouro = st.text_input("Logradouro")
+            numero = st.text_input("Nº")
+            cep = st.text_input("CEP (Opcional)")
+            detalhes_denuncia = st.text_area("Detalhes da Denúncia")
+            submit_button = st.form_submit_button("Registrar Denúncia")
+            
         if submit_button:
             if motivo_denuncia and logradouro and bairro:
-                ano_atual = datetime.now().year; ref_contador = db.reference(f'contadores/{ano_atual}')
+                ano_atual = datetime.now().year
+                ref_contador = db.reference(f'contadores/{ano_atual}')
                 def incrementar(valor_atual):
-                    if valor_atual is None: return 1
-                    return valor_atual + 1
-                protocolo_gerado = f"{ref_contador.transaction(incrementar):04d}{ano_atual}"
+                    return (valor_atual or 0) + 1
+                
+                novo_numero = ref_contador.transaction(incrementar)
+                protocolo_gerado = f"{novo_numero:04d}{ano_atual}"
+
                 if protocolo_gerado:
-                    nova_denuncia = { "data_denuncia": data_denuncia.strftime("%Y-%m-%d"), "motivo_denuncia": motivo_denuncia, "bairro": bairro, "logradouro": logradouro, "numero": numero, "cep": cep, "detalhes_denuncia": detalhes_denuncia, "status": "Não atendida", "auto_infracao": "Não", "protocolo_auto_infracao": "", "auto_imposicao_penalidade": "Não", "protocolo_auto_imposicao_penalidade": "", "responsavel_atendimento": "", "relatorio_atendimento": "", "conclusao_atendimento": ""}
-                    ref = db.reference(f'denuncias/{protocolo_gerado}'); ref.set(nova_denuncia)
+                    nova_denuncia = {
+                        "data_denuncia": data_denuncia.strftime("%Y-%m-%d"), "motivo_denuncia": motivo_denuncia, 
+                        "bairro": bairro, "logradouro": logradouro, "numero": numero, "cep": cep, 
+                        "detalhes_denuncia": detalhes_denuncia, "status": "Não atendida", 
+                        "auto_infracao": "Não", "protocolo_auto_infracao": "", 
+                        "auto_imposicao_penalidade": "Não", "protocolo_auto_imposicao_penalidade": "", 
+                        "responsavel_atendimento": "", "relatorio_atendimento": "", "conclusao_atendimento": "",
+                        "data_atendimento": None, "responsavel_imovel": "", "rg_responsavel": "", "cpf_responsavel": ""
+                    }
+                    ref = db.reference(f'denuncias/{protocolo_gerado}')
+                    ref.set(nova_denuncia)
                     st.success(f"Denúncia registrada com sucesso! Protocolo: {protocolo_gerado}")
-                    carregar_e_cachear_denuncias(); st.cache_data.clear(); st.rerun()
-            else: st.warning("Por favor, preencha os campos obrigatórios.")
-        st.divider()
-        st.subheader("Editar Denúncia Registrada")
-        if 'denuncias_df' in st.session_state and not st.session_state.denuncias_df.empty:
-            protocolo_para_editar = st.selectbox("Selecione uma denúncia para editar", st.session_state.denuncias_df['protocolo'].tolist(),index=None,placeholder="Escolha o protocolo...")
-            if protocolo_para_editar:
-                dados_originais = st.session_state.denuncias_df[st.session_state.denuncias_df['protocolo'] == protocolo_para_editar].iloc[0]
-                with st.form("edit_denuncia_form"):
-                    st.write(f"Editando protocolo: **{protocolo_para_editar}**")
-                    data_denuncia_edit = st.date_input("Data da Denúncia", value=pd.to_datetime(dados_originais['data_denuncia']))
-                    motivo_denuncia_edit = st.text_input("Motivo da Denúncia", value=dados_originais['motivo_denuncia'])
-                    bairro_edit = st.text_input("Bairro", value=dados_originais['bairro'])
-                    logradouro_edit = st.text_input("Logradouro", value=dados_originais.get('logradouro', ''))
-                    numero_edit = st.text_input("Nº", value=dados_originais['numero'])
-                    cep_edit = st.text_input("CEP", value=dados_originais['cep'])
-                    detalhes_denuncia_edit = st.text_area("Detalhes da Denúncia", value=dados_originais['detalhes_denuncia'])
-                    if st.form_submit_button("Salvar Alterações"):
-                        dados_atualizados = {'data_denuncia': data_denuncia_edit.strftime("%Y-%m-%d"),'motivo_denuncia': motivo_denuncia_edit,'bairro': bairro_edit,'logradouro': logradouro_edit,'numero': numero_edit,'cep': cep_edit,'detalhes_denuncia': detalhes_denuncia_edit}
-                        ref = db.reference(f'denuncias/{protocolo_para_editar}'); ref.update(dados_atualizados)
-                        st.success("Denúncia atualizada com sucesso!")
-                        carregar_e_cachear_denuncias(); st.cache_data.clear(); st.rerun()
+                    carregar_e_cachear_denuncias()
+                    st.cache_data.clear()
+                    st.rerun()
+            else:
+                st.warning("Por favor, preencha os campos obrigatórios (Motivo, Bairro, Logradouro).")
         st.divider()
         st.subheader("Denúncias Recentes")
         if 'denuncias_df' in st.session_state and not st.session_state.denuncias_df.empty:
-            cols = ['protocolo', 'data_denuncia', 'motivo_denuncia', 'bairro', 'logradouro', 'numero', 'cep', 'detalhes_denuncia']
+            cols = ['protocolo', 'data_denuncia', 'motivo_denuncia', 'bairro', 'logradouro', 'numero']
             df_display = st.session_state.denuncias_df[[c for c in cols if c in st.session_state.denuncias_df.columns]]
-            df_display = df_display.rename(columns={'protocolo': 'PROTOCOLO','data_denuncia': 'DATA DA DENÚNCIA','motivo_denuncia': 'MOTIVO DA DENÚNCIA','bairro': 'BAIRRO','logradouro': 'LOGRADOURO','numero': 'Nº','cep': 'CEP','detalhes_denuncia': 'DETALHES DA DENÚNCIA'})
+            df_display = df_display.rename(columns={'protocolo': 'PROTOCOLO','data_denuncia': 'DATA','motivo_denuncia': 'MOTIVO','bairro': 'BAIRRO','logradouro': 'LOGRADOURO','numero': 'Nº'})
             st.dataframe(df_display,hide_index=True,use_container_width=True)
 
     with tab2:
         if 'denuncias_df' in st.session_state and not st.session_state.denuncias_df.empty:
-            protocolo_selecionado = st.selectbox("Selecione o Protocolo para Gerenciar", options=st.session_state.denuncias_df['protocolo'].tolist(), index=0)
+            protocolo_selecionado = st.selectbox("Selecione o Protocolo para Gerenciar", options=st.session_state.denuncias_df['protocolo'].tolist(), index=None, placeholder="Selecione um protocolo...")
             if protocolo_selecionado:
                 dados_denuncia = st.session_state.denuncias_df[st.session_state.denuncias_df['protocolo'] == protocolo_selecionado].iloc[0]
                 with st.form("gerenciamento_form"):
                     st.subheader(f"Atualizando Protocolo: {protocolo_selecionado}")
+                    
                     status = st.selectbox("Status", options=["Não atendida", "Atendida", "Arquivada"], index=["Não atendida", "Atendida", "Arquivada"].index(dados_denuncia.get('status', 'Não atendida')))
-                    responsavel = st.text_input("Responsável", value=dados_denuncia.get('responsavel_atendimento', ''))
+                    
+                    # Responsável pelo atendimento como lista
+                    responsavel_atendimento = st.selectbox("Responsável pelo Atendimento", options=[""] + lista_responsaveis, index=lista_responsaveis.index(dados_denuncia.get('responsavel_atendimento')) + 1 if dados_denuncia.get('responsavel_atendimento') in lista_responsaveis else 0)
+
+                    # Data do atendimento
+                    data_atendimento_val = pd.to_datetime(dados_denuncia.get('data_atendimento')).date() if dados_denuncia.get('data_atendimento') else None
+                    data_atendimento = st.date_input("Data do Atendimento", value=data_atendimento_val)
+
+                    # Cálculo e exibição da data de retorno
+                    if data_atendimento:
+                        data_retorno = data_atendimento + timedelta(days=14)
+                        st.info(f"ℹ️ Data de Retorno: {data_retorno.strftime('%d/%m/%Y')}")
+
+                    st.divider()
+                    st.markdown("**Dados do Responsável pelo Imóvel**")
+                    responsavel_imovel = st.text_input("Nome do Responsável do Imóvel", value=dados_denuncia.get('responsavel_imovel', ''))
+                    col_doc1, col_doc2 = st.columns(2)
+                    with col_doc1:
+                        rg_responsavel = st.text_input("RG (Opcional)", value=dados_denuncia.get('rg_responsavel', ''))
+                    with col_doc2:
+                        cpf_responsavel = st.text_input("CPF (Opcional)", value=dados_denuncia.get('cpf_responsavel', ''))
+                    
+                    st.divider()
+                    st.markdown("**Relatório e Conclusão**")
                     relatorio = st.text_area("Relatório (Situação Encontrada)", value=dados_denuncia.get('relatorio_atendimento', ''), height=150)
                     conclusao = st.text_area("Conclusão do Atendimento", value=dados_denuncia.get('conclusao_atendimento', ''), height=150)
+                    
                     st.divider()
                     col1, col2 = st.columns(2)
                     with col1:
@@ -804,15 +865,39 @@ def modulo_denuncias():
                     with col2:
                         auto_penalidade = st.selectbox("Auto de Penalidade?", options=["Não", "Sim"], index=["Não", "Sim"].index(dados_denuncia.get('auto_imposicao_penalidade', 'Não')))
                         protocolo_auto_penalidade = st.text_input("Nº Auto de Penalidade", value=dados_denuncia.get('protocolo_auto_imposicao_penalidade', '')) if auto_penalidade == "Sim" else ""
+
                     if st.form_submit_button("Salvar Gerenciamento"):
-                        dados_para_atualizar = {"status": status, "responsavel_atendimento": responsavel, "relatorio_atendimento": relatorio, "conclusao_atendimento": conclusao, "auto_infracao": auto_infracao, "protocolo_auto_infracao": protocolo_auto_infracao, "auto_imposicao_penalidade": auto_penalidade, "protocolo_auto_imposicao_penalidade": protocolo_auto_penalidade}
-                        ref = db.reference(f'denuncias/{protocolo_selecionado}'); ref.update(dados_para_atualizar)
-                        st.success(f"Denúncia {protocolo_selecionado} atualizada!"); carregar_e_cachear_denuncias(); st.cache_data.clear(); st.rerun()
+                        if not responsavel_imovel:
+                             st.error("O campo 'Nome do Responsável do Imóvel' é de preenchimento obrigatório.")
+                        else:
+                            dados_para_atualizar = {
+                                "status": status, 
+                                "responsavel_atendimento": responsavel_atendimento, 
+                                "data_atendimento": data_atendimento.strftime("%Y-%m-%d") if data_atendimento else None,
+                                "responsavel_imovel": responsavel_imovel,
+                                "rg_responsavel": rg_responsavel,
+                                "cpf_responsavel": cpf_responsavel,
+                                "relatorio_atendimento": relatorio, 
+                                "conclusao_atendimento": conclusao, 
+                                "auto_infracao": auto_infracao, 
+                                "protocolo_auto_infracao": protocolo_auto_infracao, 
+                                "auto_imposicao_penalidade": auto_penalidade, 
+                                "protocolo_auto_imposicao_penalidade": protocolo_auto_penalidade
+                            }
+                            ref = db.reference(f'denuncias/{protocolo_selecionado}')
+                            ref.update(dados_para_atualizar)
+                            st.success(f"Denúncia {protocolo_selecionado} atualizada!")
+                            carregar_e_cachear_denuncias()
+                            st.cache_data.clear()
+                            st.rerun()
+
                 with st.expander("🚨 Deletar Denúncia"):
                     if st.button("Eu entendo o risco, deletar denúncia", type="primary"):
                         ref = db.reference(f'denuncias/{protocolo_selecionado}'); ref.delete()
-                        st.success(f"Denúncia {protocolo_selecionado} deletada!"); carregar_e_cachear_denuncias(); st.cache_data.clear(); st.rerun()
-        else: st.info("Nenhuma denúncia registrada para gerenciar.")
+                        st.success(f"Denúncia {protocolo_selecionado} deletada!")
+                        carregar_e_cachear_denuncias(); st.cache_data.clear(); st.rerun()
+        else:
+            st.info("Nenhuma denúncia registrada para gerenciar.")
 
     with tab3:
         if 'denuncias_df' in st.session_state and not st.session_state.denuncias_df.empty:
@@ -823,38 +908,45 @@ def modulo_denuncias():
             col3.metric("Não Atendidas", status_counts.get('Não atendida', 0)); col4.metric("Arquivadas", status_counts.get('Arquivada', 0))
             st.divider()
             st.subheader("Gerar Relatório de Denúncia (.docx)")
-            protocolo_relatorio = st.selectbox("Selecione um Protocolo", options=df_resumo['protocolo'].tolist(), index=None, placeholder="Escolha o protocolo...")
+            protocolo_relatorio = st.selectbox("Selecione um Protocolo para gerar relatório", options=df_resumo['protocolo'].tolist(), index=None, placeholder="Escolha o protocolo...")
             if protocolo_relatorio:
                 dados_relatorio = df_resumo[df_resumo['protocolo'] == protocolo_relatorio].iloc[0]
                 report_bytes = create_word_report(dados_relatorio)
                 st.download_button(label="📥 Baixar Relatório em Word", data=report_bytes, file_name=f"Relatorio_Inspecao_{protocolo_relatorio}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
             st.divider()
             st.subheader("Tabela de Resumo")
-            st.dataframe(df_resumo[['protocolo', 'data_denuncia', 'motivo_denuncia', 'status', 'responsavel_atendimento']].rename(columns={'protocolo': 'Protocolo', 'data_denuncia': 'Data', 'motivo_denuncia': 'Motivo', 'status': 'Status', 'responsavel_atendimento': 'Responsável'}), use_container_width=True)
+            cols_resumo = ['protocolo', 'data_denuncia', 'motivo_denuncia', 'status', 'responsavel_atendimento', 'data_atendimento', 'responsavel_imovel']
+            df_resumo_display = df_resumo[[c for c in cols_resumo if c in df_resumo.columns]]
+            st.dataframe(df_resumo_display.rename(columns={'protocolo': 'Protocolo', 'data_denuncia': 'Data Denúncia', 'motivo_denuncia': 'Motivo', 'status': 'Status', 'responsavel_atendimento': 'Resp. Atendimento', 'data_atendimento': 'Data Atendimento', 'responsavel_imovel': 'Resp. Imóvel'}), use_container_width=True)
             st.divider()
             st.subheader("Análise Gráfica")
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("##### Denúncias Atendidas por Mês")
                 df_atendidas = df_resumo[df_resumo['status'] == 'Atendida'].copy()
-                if not df_atendidas.empty:
-                    df_atendidas['data_denuncia'] = pd.to_datetime(df_atendidas['data_denuncia']); df_atendidas['mes_ano'] = df_atendidas['data_denuncia'].dt.to_period('M').astype(str)
+                if not df_atendidas.empty and 'data_denuncia' in df_atendidas:
+                    df_atendidas['data_denuncia'] = pd.to_datetime(df_atendidas['data_denuncia'])
+                    df_atendidas['mes_ano'] = df_atendidas['data_denuncia'].dt.to_period('M').astype(str)
                     atendidas_por_mes = df_atendidas['mes_ano'].value_counts().sort_index()
-                    fig_bar = px.bar(atendidas_por_mes, x=atendidas_por_mes.index, y=atendidas_por_mes.values, title="Contagem de Denúncias Atendidas Mensalmente", labels={'x': 'Mês/Ano', 'y': 'Quantidade de Denúncias'}, text_auto=True)
-                    fig_bar.update_layout(title_x=0.5, xaxis_title="", yaxis_title=""); st.plotly_chart(fig_bar, use_container_width=True)
-                else: st.info("Nenhuma denúncia foi marcada como 'Atendida' ainda.")
+                    fig_bar = px.bar(atendidas_por_mes, x=atendidas_por_mes.index, y=atendidas_por_mes.values, title="Contagem de Denúncias Atendidas Mensalmente", labels={'x': 'Mês/Ano', 'y': 'Quantidade'}, text_auto=True)
+                    st.plotly_chart(fig_bar, use_container_width=True)
+                else:
+                    st.info("Nenhuma denúncia 'Atendida' para exibir no gráfico.")
             with col2:
                 st.markdown("##### Distribuição de Denúncias por Motivo")
                 denuncias_por_motivo = df_resumo['motivo_denuncia'].value_counts()
-                fig_pie = px.pie(denuncias_por_motivo, values=denuncias_por_motivo.values, names=denuncias_por_motivo.index, title="Distribuição de Denúncias por Motivo", hole=.3, color_discrete_sequence=px.colors.sequential.RdBu)
-                fig_pie.update_layout(title_x=0.5); st.plotly_chart(fig_pie, use_container_width=True)
+                fig_pie = px.pie(denuncias_por_motivo, values=denuncias_por_motivo.values, names=denuncias_por_motivo.index, title="Distribuição por Motivo", hole=.3, color_discrete_sequence=px.colors.sequential.RdBu)
+                st.plotly_chart(fig_pie, use_container_width=True)
             st.divider()
             st.subheader("Geolocalização das Denúncias")
             with st.spinner("Geocodificando endereços..."):
                 df_mapeado = geocode_addresses(df_resumo)
-            if not df_mapeado.empty: st.map(df_mapeado, latitude='lat', longitude='lon', size=10)
-            else: st.warning("Não foi possível geolocalizar nenhum endereço.")
-        else: st.info("Nenhuma denúncia registrada.")
+            if not df_mapeado.empty:
+                st.map(df_mapeado, latitude='lat', longitude='lon', size=10)
+            else:
+                st.warning("Não foi possível geolocalizar nenhum endereço.")
+        else:
+            st.info("Nenhuma denúncia registrada.")
 
 def modulo_boletim():
     """Renderiza a página do módulo de Boletim de Programação Diária."""
