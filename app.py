@@ -89,7 +89,6 @@ def carregar_geo_kml():
     """Carrega dados de geolocalização de um arquivo KML no GitHub."""
     url_kml = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quadras%20de%20Guar%C3%A1.kml'
     try:
-        gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'rw'
         gdf = gpd.read_file(url_kml, driver='KML')
         pontos = []
         for index, row in gdf.iterrows():
