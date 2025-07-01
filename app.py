@@ -1250,18 +1250,18 @@ def modulo_boletim():
                                 st.error(f"Erro ao atualizar o boletim: {e}")
     
     # ### MUDANÇA AQUI ### - Lógica da Tab3 completamente refeita
-    with tab3:
+  with tab3:
         st.subheader("Mapa de Atividades por Dia")
         if df_boletins.empty or df_geo_quarteiroes.empty:
             st.warning("Dados de boletins ou geolocalização de quarteirões não estão disponíveis.")
         else:
-            data_mapa = st.date_input("Selecione a data para visualizar no mapa", date.today(), key="mapa_data")
+            data_mapa = st.date_input("Selecione a data para visualizar no mapa", date.today(), key="mapa_data_plotly")
             boletim_id_mapa = data_mapa.strftime("%Y-%m-%d")
 
             if boletim_id_mapa in df_boletins.index:
                 dados_boletim_mapa = df_boletins.loc[boletim_id_mapa]
                 
-                # 1. Processamento de dados para criar um DataFrame detalhado
+                # 1. Processamento de dados (igual ao anterior)
                 atividades_locs = []
                 for turno in ['equipes_manha', 'equipes_tarde']:
                     if turno in dados_boletim_mapa and dados_boletim_mapa[turno] and isinstance(dados_boletim_mapa[turno], list):
@@ -1286,60 +1286,33 @@ def modulo_boletim():
                     else:
                         st.info(f"Exibindo {len(df_mapa_final)} atividades no mapa para {data_mapa.strftime('%d/%m/%Y')}.")
 
-                        # 2. Mapeamento de cores e criação do mapa com Pydeck
-                        cores_atividades = {
-                            "Controle de criadouros": [255, 87, 34],   # Laranja
-                            "Visita a Imóveis": [33, 150, 243], # Azul
-                            "ADL": [76, 175, 80],              # Verde
-                            "Nebulização": [156, 39, 176]       # Roxo
-                        }
-                        df_mapa_final['cor'] = df_mapa_final['atividade'].apply(lambda x: cores_atividades.get(x, [128, 128, 128])) # Cinza para outros
-
-                        # Configuração do Pydeck
-                        view_state = pdk.ViewState(
-                            latitude=df_mapa_final['lat'].mean(),
-                            longitude=df_mapa_final['lon'].mean(),
-                            zoom=14,
-                            pitch=50
+                        # 2. Criação do mapa com Plotly Express
+                        fig = px.scatter_mapbox(
+                            df_mapa_final,
+                            lat="lat",
+                            lon="lon",
+                            color="atividade",  # Colore os pontos e cria a legenda automaticamente
+                            hover_name="quarteirao",
+                            hover_data={
+                                "equipe": True,      # Mostra a equipe no hover
+                                "atividade": True,
+                                "lat": False,        # Oculta lat/lon do hover para um visual mais limpo
+                                "lon": False
+                            },
+                            zoom=13,
+                            height=600,
+                            title="Distribuição de Atividades por Quarteirão"
                         )
 
-                        layer = pdk.Layer(
-                            'ScatterplotLayer',
-                            data=df_mapa_final,
-                            get_position='[lon, lat]',
-                            get_color='cor',
-                            get_radius=25,
-                            pickable=True,
-                            auto_highlight=True
+                        # 3. Configuração do layout do mapa para usar o OpenStreetMap (sem API Key)
+                        fig.update_layout(
+                            mapbox_style="open-street-map",
+                            margin={"r":0, "t":40, "l":0, "b":0},
+                            legend_title_text='Atividades'
                         )
-                        
-                        tooltip = {
-                           "html": "<b>Quarteirão:</b> {quarteirao}<br/>"
-                                   "<b>Atividade:</b> {atividade}<br/>"
-                                   "<b>Equipe:</b> {equipe}",
-                           "style": {
-                                "backgroundColor": "steelblue",
-                                "color": "white"
-                           }
-                        }
 
-                        st.pydeck_chart(pdk.Deck(
-                            map_style='mapbox://styles/mapbox/light-v9',
-                            initial_view_state=view_state,
-                            layers=[layer],
-                            tooltip=tooltip
-                        ))
-
-                        # 3. Criação da legenda manual
-                        st.subheader("Legenda")
-                        for atividade, cor in cores_atividades.items():
-                            st.markdown(
-                                f"<div style='display: flex; align-items: center; margin-bottom: 5px;'>"
-                                f"<div style='width: 20px; height: 20px; background-color: rgb({cor[0]},{cor[1]},{cor[2]}); border-radius: 50%; margin-right: 10px;'></div>"
-                                f"<span>{atividade}</span>"
-                                f"</div>",
-                                unsafe_allow_html=True
-                            )
+                        # 4. Exibição do mapa
+                        st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info(f"Nenhum boletim encontrado para o dia {data_mapa.strftime('%d/%m/%Y')}.")
     
