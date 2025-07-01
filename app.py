@@ -660,7 +660,7 @@ def modulo_rh():
             with col_uniforme2:
                 numero_bota = st.text_input("Número da Bota (Ex: 40)")
             
-            numero_chave = st.text_input("Número de Chave do Armário")
+            numero_chave = st.text_input("Número de Chave")
             
             submit_funcionario = st.form_submit_button("Cadastrar Funcionário")
             
