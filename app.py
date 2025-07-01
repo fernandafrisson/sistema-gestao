@@ -33,6 +33,8 @@ try:
             cred_dict = dict(st.secrets["firebase_credentials"])
             cred = credentials.Certificate(cred_dict)
         else:
+            # Certifique-se que o seu arquivo de credenciais JSON está na mesma pasta
+            # ou forneça o caminho correto.
             cred = credentials.Certificate("denuncias-48660-firebase-adminsdk-fbsvc-9f27fef1c8.json")
 
         firebase_admin.initialize_app(cred, {
@@ -43,7 +45,6 @@ except Exception as e:
 
 # --- FUNÇÕES GLOBAIS DE DADOS E UTILITÁRIAS ---
 
-# MUDANÇA: Nova função para formatar nomes
 def formatar_nome(nome_completo):
     """Retorna o primeiro e o segundo nome de um nome completo."""
     if not isinstance(nome_completo, str):
@@ -55,6 +56,7 @@ def formatar_nome(nome_completo):
 
 @st.cache_data
 def carregar_dados_firebase(node):
+    """Carrega dados de um nó do Firebase e retorna como DataFrame."""
     try:
         ref = db.reference(f'/{node}')
         data = ref.get()
@@ -74,19 +76,23 @@ def carregar_dados_firebase(node):
 
 @st.cache_data
 def carregar_quarteiroes_csv():
+    """Carrega lista de quarteirões de um CSV no GitHub."""
     url_csv = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quarteirao.csv'
     try:
         df_quarteiroes = pd.read_csv(url_csv, header=None, encoding='latin-1')
         quarteiroes_lista = sorted(df_quarteiroes[0].astype(str).unique().tolist())
         return quarteiroes_lista
     except Exception as e:
-        st.error(f"Não foi possível carregar a lista de quarteirões. Verifique o link no código. Erro: {e}")
+        st.error(f"Não foi possível carregar a lista de quarteirões. Erro: {e}")
         return []
 
 @st.cache_data
 def carregar_geo_kml():
+    """Carrega dados de geolocalização de um arquivo KML no GitHub."""
     url_kml = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quadras%20de%20Guar%C3%A1.kml'
     try:
+        # Habilitar o driver KML que pode não estar ativado por padrão
+        gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'rw'
         gdf = gpd.read_file(url_kml, driver='KML')
         pontos = []
         for index, row in gdf.iterrows():
@@ -102,11 +108,13 @@ def carregar_geo_kml():
         df_geo.dropna(subset=['lat', 'lon'], inplace=True)
         return df_geo
     except Exception as e:
-        st.error(f"Não foi possível carregar os dados de geolocalização do KML. Verifique o link ou o formato do arquivo. Erro: {e}")
+        st.error(f"Não foi possível carregar os dados de geolocalização do KML. Erro: {e}")
         return pd.DataFrame()
 
+# --- FUNÇÕES DE GERAÇÃO DE RELATÓRIOS .DOCX ---
 
 def create_abonada_word_report(data):
+    """Gera um relatório de Falta Abonada em formato .docx."""
     def format_date_pt(dt):
         months = ("Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro")
         return f"{dt.day} de {months[dt.month - 1]} de {dt.year}"
@@ -150,8 +158,8 @@ def create_abonada_word_report(data):
     add_black_run(document.add_paragraph(), "Refere-se à:      1ª (  )      2ª (  )    3ª (  ) do Primeiro Semestre de: ____________")
     add_black_run(document.add_paragraph(), "              1ª (  )      2ª (  )    3ª (  ) do Segundo Semestre de: ____________")
     p_visto = document.add_paragraph("     ___________________________________________");
-    p_visto_label = document.add_paragraph("                      (visto do funcionário da seção de pessoal)")
-    p_abone = document.add_paragraph("                         Abone-se: _____/_____/______")
+    p_visto_label = document.add_paragraph("                   (visto do funcionário da seção de pessoal)")
+    p_abone = document.add_paragraph("                       Abone-se: _____/_____/______")
     p_abone.paragraph_format.space_after = Pt(18)
     p_secretario_sig = document.add_paragraph("_________________________________"); p_secretario_sig.alignment = 1
     p_secretario_label = document.add_paragraph("Secretário Municipal da Saúde"); p_secretario_label.alignment = 1
@@ -166,7 +174,118 @@ def create_abonada_word_report(data):
     buffer.seek(0)
     return buffer.getvalue()
 
+def create_word_report(data):
+    """Gera um relatório de Inspeção Zoossanitária em formato .docx."""
+    document = Document()
+    style = document.styles['Normal']; font = style.font; font.name = 'Calibri'; font.size = Pt(11)
+    titulo = document.add_heading('RELATÓRIO DE INSPEÇÃO ZOOSSANITÁRIA', level=1); titulo.alignment = 1
+    try: data_obj = datetime.strptime(data.get('data_denuncia', ''), '%Y-%m-%d'); data_formatada = data_obj.strftime('%d/%m/%Y')
+    except (ValueError, TypeError): data_formatada = "Data não informada"
+    p_data = document.add_paragraph(data_formatada); p_data.alignment = 2
+    document.add_paragraph('Vigilância Epidemiológica')
+    p = document.add_paragraph(); p.add_run('Responsável: ').bold = True; p.add_run(str(data.get('responsavel_atendimento', '')))
+    endereco_completo = f"{data.get('logradouro', '')}, {data.get('numero', '')} - {data.get('bairro', '')}"
+    p = document.add_paragraph(); p.add_run('Endereço: ').bold = True; p.add_run(endereco_completo)
+    document.add_paragraph(); p = document.add_paragraph(); p.add_run('Relato da Situação: ').bold = True
+    document.add_paragraph(str(data.get('detalhes_denuncia', '')))
+    document.add_paragraph(); p = document.add_paragraph(); p.add_run('Situação Encontrada: ').bold = True
+    document.add_paragraph(str(data.get('relatorio_atendimento', '')))
+    document.add_paragraph(); p = document.add_paragraph(); p.add_run('Conclusão: ').bold = True
+    document.add_paragraph(str(data.get('conclusao_atendimento', '')))
+    footer = document.sections[0].footer; footer_para = footer.paragraphs[0]
+    footer_para.text = ("PREFEITURA MUNICIPAL DA ESTÂNCIA TURÍSTICA DE GUARATINGUETÁ/SP\n"
+                        "Secretaria Municipal de Saúde - Fundo Municipal de Saúde\n"
+                        "Rua Jacques Felix, 02 – São Gonçalo - Guaratinguetá/SP - CEP 12.502-180\n"
+                        "Telefone / Fax: (12) 3123-2900 - e-mail: ccz@guaratingueta.sp.gov.br")
+    footer_para.alignment = 1
+    font_footer = footer_para.style.font
+    font_footer.name = 'Arial'; font_footer.size = Pt(8)
+    buffer = io.BytesIO(); document.save(buffer); buffer.seek(0)
+    return buffer.getvalue()
+
+def create_boletim_word_report(data_boletim):
+    """Gera um relatório do boletim diário em formato .docx."""
+    document = Document()
+    style = document.styles['Normal']
+    font = style.font
+    font.name = 'Calibri'
+    font.size = Pt(11)
+
+    titulo = document.add_heading('BOLETIM DE PROGRAMAÇÃO DIÁRIA', level=1)
+    titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    try:
+        locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
+    except locale.Error:
+        locale.setlocale(locale.LC_TIME, '') # Fallback para o locale padrão do sistema
+
+    data_formatada = pd.to_datetime(data_boletim.get('data')).strftime('%d de %B de %Y')
+    p_data = document.add_paragraph(data_formatada.title())
+    p_data.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_data.paragraph_format.space_after = Pt(18)
+
+    document.add_heading('Informações Gerais', level=2)
+    p_bairros = document.add_paragraph()
+    p_bairros.add_run('Bairros Trabalhados: ').bold = True
+    p_bairros.add_run(data_boletim.get('bairros', 'Não informado'))
+
+    p_atividades = document.add_paragraph()
+    p_atividades.add_run('Atividades Gerais: ').bold = True
+    p_atividades.add_run(', '.join(data_boletim.get('atividades_gerais', ['Nenhuma'])))
+
+    p_motoristas = document.add_paragraph()
+    p_motoristas.add_run('Motorista(s): ').bold = True
+    motoristas_formatados = [formatar_nome(nome) for nome in data_boletim.get('motoristas', [])]
+    p_motoristas.add_run(', '.join(motoristas_formatados) if motoristas_formatados else 'Nenhum')
+    
+    document.add_heading('Ausências do Dia', level=2)
+    faltas_manha = data_boletim.get('faltas_manha', {})
+    nomes_manha = [formatar_nome(nome) for nome in faltas_manha.get('nomes', [])]
+    p_faltas_m = document.add_paragraph()
+    p_faltas_m.add_run('Manhã: ').bold = True
+    p_faltas_m.add_run(f"{', '.join(nomes_manha) if nomes_manha else 'Nenhuma'} - Motivo: {faltas_manha.get('motivo', 'N/A')}")
+
+    faltas_tarde = data_boletim.get('faltas_tarde', {})
+    nomes_tarde = [formatar_nome(nome) for nome in faltas_tarde.get('nomes', [])]
+    p_faltas_t = document.add_paragraph()
+    p_faltas_t.add_run('Tarde: ').bold = True
+    p_faltas_t.add_run(f"{', '.join(nomes_tarde) if nomes_tarde else 'Nenhuma'} - Motivo: {faltas_tarde.get('motivo', 'N/A')}")
+    
+    def adicionar_secao_turno(turno_nome, equipes):
+        document.add_heading(f'Turno da {turno_nome}', level=2)
+        if not equipes or not isinstance(equipes, list):
+            document.add_paragraph('Nenhuma equipe registrada para este turno.')
+            return
+            
+        for i, equipe in enumerate(equipes):
+            document.add_heading(f'Equipe {i + 1}', level=3)
+            
+            membros_formatados = [formatar_nome(nome) for nome in equipe.get('membros', [])]
+            p_membros = document.add_paragraph()
+            p_membros.add_run('Membros: ').bold = True
+            p_membros.add_run(', '.join(membros_formatados) if membros_formatados else 'Nenhum')
+
+            p_atividades_eq = document.add_paragraph()
+            p_atividades_eq.add_run('Atividades: ').bold = True
+            p_atividades_eq.add_run(', '.join(equipe.get('atividades', ['Nenhuma'])))
+
+            p_quarteiroes = document.add_paragraph()
+            p_quarteiroes.add_run('Quarteirões: ').bold = True
+            p_quarteiroes.add_run(', '.join(equipe.get('quarteiroes', ['Nenhum'])))
+            p_quarteiroes.paragraph_format.space_after = Pt(12)
+
+    adicionar_secao_turno("Manhã", data_boletim.get('equipes_manha'))
+    adicionar_secao_turno("Tarde", data_boletim.get('equipes_tarde'))
+    
+    buffer = io.BytesIO()
+    document.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+# --- FUNÇÕES ESPECÍFICAS DO MÓDULO RH ---
+
 def calcular_status_ferias_saldo(employee_row, all_folgas_df):
+    """Calcula o status de férias de um funcionário."""
     try:
         today = date.today()
         if 'data_admissao' not in employee_row or pd.isna(employee_row['data_admissao']):
@@ -238,7 +357,7 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
                 return ref_periodo_str, f"Parcialmente Agendada ({periodo_a_reportar['dias_gozados']}/30)", "SCHEDULED"
             else:
                 return ref_periodo_str, "PENDENTE DE AGENDAMENTO", "PENDING"
-            
+                
         aq_inicio = proximo_periodo_aquisitivo
         aq_fim = aq_inicio + relativedelta(years=1) - relativedelta(days=1)
         if today <= aq_fim:
@@ -249,8 +368,8 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
     except Exception as e:
         return "Erro de Cálculo", f"Erro: {e}", "ERROR"
 
-
 def get_abonadas_ano(employee_id, all_folgas_df):
+    """Retorna o número de faltas abonadas no ano corrente para um funcionário."""
     try:
         current_year = date.today().year
         if all_folgas_df.empty or 'id_funcionario' not in all_folgas_df.columns:
@@ -261,6 +380,7 @@ def get_abonadas_ano(employee_id, all_folgas_df):
         return 0
 
 def get_datas_abonadas_ano(employee_id, all_folgas_df):
+    """Retorna as datas das faltas abonadas no ano corrente."""
     try:
         current_year = date.today().year
         if all_folgas_df.empty or 'id_funcionario' not in all_folgas_df.columns:
@@ -279,8 +399,8 @@ def get_datas_abonadas_ano(employee_id, all_folgas_df):
     except Exception:
         return []
 
-
 def get_ultimas_ferias(employee_id, all_folgas_df):
+    """Retorna a data de início do último período de férias registrado."""
     try:
         if all_folgas_df.empty or 'id_funcionario' not in all_folgas_df.columns:
             return "Nenhum registro"
@@ -293,13 +413,14 @@ def get_ultimas_ferias(employee_id, all_folgas_df):
     except Exception:
         return "Erro"
 
+# --- MÓDULOS DA APLICAÇÃO ---
 
 def modulo_rh():
+    """Renderiza a página do módulo de Recursos Humanos."""
     st.title("Recursos Humanos")
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_folgas = carregar_dados_firebase('folgas_ferias')
 
-    # Mapeamento de nomes para a interface
     if not df_funcionarios.empty:
         nome_map = {formatar_nome(nome): nome for nome in df_funcionarios['nome']}
         lista_nomes_curtos = sorted(list(nome_map.keys()))
@@ -353,7 +474,7 @@ def modulo_rh():
                                 st.session_state.doc_data = None
                             
                             st.cache_data.clear()
-                            st.rerun() 
+                            st.rerun()
                         except Exception as e:
                             st.error(f"Erro ao registrar evento: {e}")
 
@@ -455,14 +576,14 @@ def modulo_rh():
                 df_display['Período Aquisitivo de Referência'] = [info[0] for info in ferias_info_completa]
                 df_display['Status Agendamento'] = [info[1] for info in ferias_info_completa]
                 df_display['status_code'] = [info[2] for info in ferias_info_completa] 
-                df_display['Abonadas no Ano'] = [get_abonadas_ano(func_id, df_funcionarios['id']) for func_id in df_funcionarios['id']]
+                df_display['Abonadas no Ano'] = [get_abonadas_ano(func_id, df_folgas) for func_id in df_funcionarios['id']]
 
                 def style_status_code(code):
                     color = ''
-                    if code == "PENDING": color = '#fff2cc'
-                    elif code == "SCHEDULED": color = '#d4e6f1'
-                    elif code == "ON_VACATION": color = '#d5f5e3'
-                    elif code == "RISK_EXPIRING": color = '#f5b7b1'
+                    if code == "PENDING": color = '#fff2cc' # Amarelo claro
+                    elif code == "SCHEDULED": color = '#d4e6f1' # Azul claro
+                    elif code == "ON_VACATION": color = '#d5f5e3' # Verde claro
+                    elif code == "RISK_EXPIRING": color = '#f5b7b1' # Vermelho claro
                     return f'background-color: {color}'
 
                 df_para_exibir = df_display[['nome_formatado', 'funcao', 'Período Aquisitivo de Referência', 'Status Agendamento', 'Abonadas no Ano']]
@@ -569,8 +690,8 @@ def modulo_rh():
                     except Exception as e:
                         st.error(f"Ocorreu um erro ao deletar: {e}")
 
-
 def modulo_denuncias():
+    """Renderiza a página do módulo de Denúncias."""
     st.title("Denúncias")
     @st.cache_data
     def geocode_addresses(df):
@@ -590,33 +711,7 @@ def modulo_denuncias():
             time.sleep(1)
         df_copy['lat'], df_copy['lon'] = latitudes, longitudes
         return df_copy.dropna(subset=['lat', 'lon'])
-    def create_word_report(data):
-        document = Document()
-        style = document.styles['Normal']; font = style.font; font.name = 'Calibri'; font.size = Pt(11)
-        titulo = document.add_heading('RELATÓRIO DE INSPEÇÃO ZOOSSANITÁRIA', level=1); titulo.alignment = 1
-        try: data_obj = datetime.strptime(data.get('data_denuncia', ''), '%Y-%m-%d'); data_formatada = data_obj.strftime('%d/%m/%Y')
-        except (ValueError, TypeError): data_formatada = "Data não informada"
-        p_data = document.add_paragraph(data_formatada); p_data.alignment = 2
-        document.add_paragraph('Vigilância Epidemiológica')
-        p = document.add_paragraph(); p.add_run('Responsável: ').bold = True; p.add_run(str(data.get('responsavel_atendimento', '')))
-        endereco_completo = f"{data.get('logradouro', '')}, {data.get('numero', '')} - {data.get('bairro', '')}"
-        p = document.add_paragraph(); p.add_run('Endereço: ').bold = True; p.add_run(endereco_completo)
-        document.add_paragraph(); p = document.add_paragraph(); p.add_run('Relato da Situação: ').bold = True
-        document.add_paragraph(str(data.get('detalhes_denuncia', '')))
-        document.add_paragraph(); p = document.add_paragraph(); p.add_run('Situação Encontrada: ').bold = True
-        document.add_paragraph(str(data.get('relatorio_atendimento', '')))
-        document.add_paragraph(); p = document.add_paragraph(); p.add_run('Conclusão: ').bold = True
-        document.add_paragraph(str(data.get('conclusao_atendimento', '')))
-        footer = document.sections[0].footer; footer_para = footer.paragraphs[0]
-        footer_para.text = ("PREFEITURA MUNICIPAL DA ESTÂNCIA TURÍSTICA DE GUARATINGUETÁ/SP\n"
-                            "Secretaria Municipal de Saúde - Fundo Municipal de Saúde\n"
-                            "Rua Jacques Felix, 02 – São Gonçalo - Guaratinguetá/SP - CEP 12.502-180\n"
-                            "Telefone / Fax: (12) 3123-2900 - e-mail: ccz@guaratingueta.sp.gov.br")
-        footer_para.alignment = 1
-        font_footer = footer_para.style.font
-        font_footer.name = 'Arial'; font_footer.size = Pt(8)
-        buffer = io.BytesIO(); document.save(buffer); buffer.seek(0)
-        return buffer.getvalue()
+
     def carregar_e_cachear_denuncias():
         ref = db.reference('denuncias')
         denuncias_data = ref.get()
@@ -638,8 +733,11 @@ def modulo_denuncias():
                 del df['protocolo_int']
             st.session_state.denuncias_df = df
         else: st.session_state.denuncias_df = pd.DataFrame()
+
     if 'denuncias_df' not in st.session_state: carregar_e_cachear_denuncias()
+    
     tab1, tab2, tab3 = st.tabs(["📋 Registrar Denúncia", "🛠️ Gerenciamento", "📊 Dashboard"])
+    
     with tab1:
         st.subheader("Registrar Nova Denúncia")
         with st.form("nova_denuncia_form", clear_on_submit=True):
@@ -686,6 +784,7 @@ def modulo_denuncias():
             df_display = st.session_state.denuncias_df[[c for c in cols if c in st.session_state.denuncias_df.columns]]
             df_display = df_display.rename(columns={'protocolo': 'PROTOCOLO','data_denuncia': 'DATA DA DENÚNCIA','motivo_denuncia': 'MOTIVO DA DENÚNCIA','bairro': 'BAIRRO','logradouro': 'LOGRADOURO','numero': 'Nº','cep': 'CEP','detalhes_denuncia': 'DETALHES DA DENÚNCIA'})
             st.dataframe(df_display,hide_index=True,use_container_width=True)
+
     with tab2:
         if 'denuncias_df' in st.session_state and not st.session_state.denuncias_df.empty:
             protocolo_selecionado = st.selectbox("Selecione o Protocolo para Gerenciar", options=st.session_state.denuncias_df['protocolo'].tolist(), index=0)
@@ -714,6 +813,7 @@ def modulo_denuncias():
                         ref = db.reference(f'denuncias/{protocolo_selecionado}'); ref.delete()
                         st.success(f"Denúncia {protocolo_selecionado} deletada!"); carregar_e_cachear_denuncias(); st.cache_data.clear(); st.rerun()
         else: st.info("Nenhuma denúncia registrada para gerenciar.")
+
     with tab3:
         if 'denuncias_df' in st.session_state and not st.session_state.denuncias_df.empty:
             df_resumo = st.session_state.denuncias_df.copy()
@@ -756,100 +856,15 @@ def modulo_denuncias():
             else: st.warning("Não foi possível geolocalizar nenhum endereço.")
         else: st.info("Nenhuma denúncia registrada.")
 
-def create_boletim_word_report(data_boletim):
-    """Gera um relatório do boletim diário em formato .docx."""
-    document = Document()
-    # Define o estilo padrão do documento
-    style = document.styles['Normal']
-    font = style.font
-    font.name = 'Calibri'
-    font.size = Pt(11)
-
-    # Título Principal
-    titulo = document.add_heading('BOLETIM DE PROGRAMAÇÃO DIÁRIA', level=1)
-    titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    # Data do Boletim
-    # Definindo o locale para português para o nome do mês
-    locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
-    data_formatada = pd.to_datetime(data_boletim.get('data')).strftime('%d de %B de %Y')
-    p_data = document.add_paragraph(data_formatada.title())
-    p_data.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_data.paragraph_format.space_after = Pt(18)
-
-    # Informações Gerais
-    document.add_heading('Informações Gerais', level=2)
-    p_bairros = document.add_paragraph()
-    p_bairros.add_run('Bairros Trabalhados: ').bold = True
-    p_bairros.add_run(data_boletim.get('bairros', 'Não informado'))
-
-    p_atividades = document.add_paragraph()
-    p_atividades.add_run('Atividades Gerais: ').bold = True
-    p_atividades.add_run(', '.join(data_boletim.get('atividades_gerais', ['Nenhuma'])))
-
-    p_motoristas = document.add_paragraph()
-    p_motoristas.add_run('Motorista(s): ').bold = True
-    motoristas_formatados = [formatar_nome(nome) for nome in data_boletim.get('motoristas', [])]
-    p_motoristas.add_run(', '.join(motoristas_formatados) if motoristas_formatados else 'Nenhum')
-    
-    # Faltas do Dia
-    document.add_heading('Ausências do Dia', level=2)
-    faltas_manha = data_boletim.get('faltas_manha', {})
-    nomes_manha = [formatar_nome(nome) for nome in faltas_manha.get('nomes', [])]
-    p_faltas_m = document.add_paragraph()
-    p_faltas_m.add_run('Manhã: ').bold = True
-    p_faltas_m.add_run(f"{', '.join(nomes_manha) if nomes_manha else 'Nenhuma'} - Motivo: {faltas_manha.get('motivo', 'N/A')}")
-
-    faltas_tarde = data_boletim.get('faltas_tarde', {})
-    nomes_tarde = [formatar_nome(nome) for nome in faltas_tarde.get('nomes', [])]
-    p_faltas_t = document.add_paragraph()
-    p_faltas_t.add_run('Tarde: ').bold = True
-    p_faltas_t.add_run(f"{', '.join(nomes_tarde) if nomes_tarde else 'Nenhuma'} - Motivo: {faltas_tarde.get('motivo', 'N/A')}")
-    
-    # Função auxiliar para adicionar seções de equipe
-    def adicionar_secao_turno(turno_nome, equipes):
-        document.add_heading(f'Turno da {turno_nome}', level=2)
-        if not equipes or not isinstance(equipes, list):
-            document.add_paragraph('Nenhuma equipe registrada para este turno.')
-            return
-            
-        for i, equipe in enumerate(equipes):
-            document.add_heading(f'Equipe {i + 1}', level=3)
-            
-            membros_formatados = [formatar_nome(nome) for nome in equipe.get('membros', [])]
-            p_membros = document.add_paragraph()
-            p_membros.add_run('Membros: ').bold = True
-            p_membros.add_run(', '.join(membros_formatados) if membros_formatados else 'Nenhum')
-
-            p_atividades_eq = document.add_paragraph()
-            p_atividades_eq.add_run('Atividades: ').bold = True
-            p_atividades_eq.add_run(', '.join(equipe.get('atividades', ['Nenhuma'])))
-
-            p_quarteiroes = document.add_paragraph()
-            p_quarteiroes.add_run('Quarteirões: ').bold = True
-            p_quarteiroes.add_run(', '.join(equipe.get('quarteiroes', ['Nenhum'])))
-            p_quarteiroes.paragraph_format.space_after = Pt(12)
-
-    # Adiciona as seções para cada turno
-    adicionar_secao_turno("Manhã", data_boletim.get('equipes_manha'))
-    adicionar_secao_turno("Tarde", data_boletim.get('equipes_tarde'))
-    
-    # Salva o documento em um buffer de memória
-    buffer = io.BytesIO()
-    document.save(buffer)
-    buffer.seek(0)
-    return buffer.getvalue()
-
 def modulo_boletim():
+    """Renderiza a página do módulo de Boletim de Programação Diária."""
     st.title("Boletim de Programação Diária")
 
-    # Carregamento dos dados necessários
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_boletins = carregar_dados_firebase('boletins')
     lista_quarteiroes = carregar_quarteiroes_csv()
     df_geo_quarteiroes = carregar_geo_kml()
 
-    # Controle do estado para equipes dinâmicas
     if 'num_equipes_manha' not in st.session_state:
         st.session_state.num_equipes_manha = 1
     if 'num_equipes_tarde' not in st.session_state:
@@ -1143,48 +1158,50 @@ def modulo_boletim():
 
                     if not dados_analise:
                         st.info("Nenhuma atividade registrada no período para análise.")
-                        return
-
-                    df_analise = pd.DataFrame(dados_analise)
-
-                    st.divider()
-                    st.markdown("#### Análise Gráfica do Período")
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-                        st.markdown("**Quarteirões Mais Trabalhados**")
-                        if 'quarteirao' in df_analise.columns and not df_analise['quarteirao'].dropna().empty:
-                            top_quarteiroes = df_analise['quarteirao'].value_counts().nlargest(15)
-                            fig = px.bar(top_quarteiroes, x=top_quarteiroes.index, y=top_quarteiroes.values,
-                                         labels={'y': 'Nº de Vezes Trabalhado', 'x': 'Quarteirão'}, text_auto=True)
-                            fig.update_layout(title_x=0.5, xaxis_title="", yaxis_title="")
-                            st.plotly_chart(fig, use_container_width=True)
-                        else:
-                            st.info("Nenhum dado de quarteirão no período.")
-                    
-                    with col2:
-                        st.markdown("**Atividades Mais Executadas**")
-                        if 'atividade' in df_analise.columns and not df_analise['atividade'].dropna().empty:
-                            top_atividades = df_analise['atividade'].value_counts()
-                            fig_pie = px.pie(top_atividades, values=top_atividades.values, names=top_atividades.index, 
-                                             hole=.3, color_discrete_sequence=px.colors.sequential.RdBu)
-                            fig_pie.update_layout(title_x=0.5)
-                            st.plotly_chart(fig_pie, use_container_width=True)
-                        else:
-                            st.info("Nenhum dado de atividade no período.")
-                    
-                    st.divider()
-                    st.markdown("**Participação dos Funcionários (por turnos trabalhados)**")
-                    if 'membro' in df_analise.columns and not df_analise['membro'].dropna().empty:
-                        participacao = df_analise['membro'].value_counts()
-                        fig_part = px.bar(participacao, x=participacao.index, y=participacao.values,
-                                      labels={'y': 'Nº de Turnos', 'x': 'Funcionário'}, text_auto=True)
-                        fig_part.update_layout(title_x=0.5, xaxis_title="", yaxis_title="")
-                        st.plotly_chart(fig_part, use_container_width=True)
                     else:
-                        st.info("Nenhum dado de participação no período.")
+                        df_analise = pd.DataFrame(dados_analise)
+
+                        st.divider()
+                        st.markdown("#### Análise Gráfica do Período")
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.markdown("**Quarteirões Mais Trabalhados**")
+                            if 'quarteirao' in df_analise.columns and not df_analise['quarteirao'].dropna().empty:
+                                top_quarteiroes = df_analise['quarteirao'].value_counts().nlargest(15)
+                                fig = px.bar(top_quarteiroes, x=top_quarteiroes.index, y=top_quarteiroes.values,
+                                             labels={'y': 'Nº de Vezes Trabalhado', 'x': 'Quarteirão'}, text_auto=True)
+                                fig.update_layout(title_x=0.5, xaxis_title="", yaxis_title="")
+                                st.plotly_chart(fig, use_container_width=True)
+                            else:
+                                st.info("Nenhum dado de quarteirão no período.")
+                        
+                        with col2:
+                            st.markdown("**Atividades Mais Executadas**")
+                            if 'atividade' in df_analise.columns and not df_analise['atividade'].dropna().empty:
+                                top_atividades = df_analise['atividade'].value_counts()
+                                fig_pie = px.pie(top_atividades, values=top_atividades.values, names=top_atividades.index, 
+                                                 hole=.3, color_discrete_sequence=px.colors.sequential.RdBu)
+                                fig_pie.update_layout(title_x=0.5)
+                                st.plotly_chart(fig_pie, use_container_width=True)
+                            else:
+                                st.info("Nenhum dado de atividade no período.")
+                        
+                        st.divider()
+                        st.markdown("**Participação dos Funcionários (por turnos trabalhados)**")
+                        if 'membro' in df_analise.columns and not df_analise['membro'].dropna().empty:
+                            participacao = df_analise['membro'].value_counts()
+                            fig_part = px.bar(participacao, x=participacao.index, y=participacao.values,
+                                          labels={'y': 'Nº de Turnos', 'x': 'Funcionário'}, text_auto=True)
+                            fig_part.update_layout(title_x=0.5, xaxis_title="", yaxis_title="")
+                            st.plotly_chart(fig_part, use_container_width=True)
+                        else:
+                            st.info("Nenhum dado de participação no período.")
+
+# --- ESTRUTURA PRINCIPAL DA APLICAÇÃO (LOGIN E NAVEGAÇÃO) ---
 
 def login_screen():
+    """Renderiza a tela de login."""
     st.title("Sistema Integrado de Gestão")
     with st.form("login_form"):
         st.header("Login do Sistema")
@@ -1200,42 +1217,35 @@ def login_screen():
                 st.error("Usuário ou senha inválidos.")
 
 def main_app():
-    # Verifica se um módulo já foi escolhido para ser exibido.
+    """Controla a navegação e a exibição dos módulos após o login."""
     if st.session_state.get('module_choice'):
-        # Se um módulo foi escolhido, exibe a barra lateral de navegação.
         with st.sidebar:
             st.title("Navegação")
             st.write(f"Usuário: **{st.session_state['username']}**")
             st.divider()
-            # O botão "Voltar" limpa a escolha do módulo, fazendo a tela principal aparecer no próximo rerun.
             if st.button("⬅️ Voltar ao Painel de Controle"):
                 st.session_state['module_choice'] = None
                 st.rerun()
             st.divider()
-            # Botão de Logout para encerrar a sessão.
             if st.button("Logout"):
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
                 st.rerun()
 
-        # Com base na escolha, chama a função do módulo correspondente.
         if st.session_state['module_choice'] == "Denúncias":
             modulo_denuncias()
         elif st.session_state['module_choice'] == "Recursos Humanos":
             modulo_rh()
         elif st.session_state['module_choice'] == "Boletim":
-            # Chama a função do módulo de boletim
             modulo_boletim()
 
     else:
-        # Se nenhum módulo foi escolhido, exibe o Painel de Controle (tela inicial).
         st.title("Painel de Controle")
         st.header(f"Bem-vindo(a), {st.session_state['username']}!")
         
         st.write("Selecione o módulo que deseja acessar:")
         col1, col2, col3 = st.columns(3)
         with col1:
-            # Ao clicar, define a escolha e recarrega a página para exibir o módulo.
             if st.button("🚨 Denúncias", use_container_width=True):
                 st.session_state['module_choice'] = "Denúncias"
                 st.rerun()
@@ -1249,7 +1259,6 @@ def main_app():
                 st.rerun()
         st.divider()
 
-        # O restante da tela principal (Mural de Avisos e Calendário) continua aqui.
         col_form, col_cal = st.columns([1, 1.5])
 
         with col_form:
@@ -1291,7 +1300,7 @@ def main_app():
             if not df_folgas.empty:
                 for _, row in df_folgas.iterrows():
                     calendar_events.append({
-                        "title": f"AUSÊNCIA: {formatar_nome(row['nome_funcionario'])} ({row['tipo']})", # Nome formatado
+                        "title": f"AUSÊNCIA: {formatar_nome(row['nome_funcionario'])} ({row['tipo']})",
                         "start": row['data_inicio'],
                         "end": (pd.to_datetime(row['data_fim']) + timedelta(days=1)).strftime("%Y-%m-%d"),
                         "color": "#FF4B4B" if row['tipo'] == "Férias" else "#1E90FF",
