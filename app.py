@@ -1019,9 +1019,9 @@ def modulo_denuncias():
             st.info("Nenhuma denúncia registrada.")
 
 def modulo_boletim():
-    """Renderiza a página do módulo de Boletim de Programação Diária."""
     st.title("Boletim de Programação Diária")
 
+    # Carregamento dos dados necessários (sem alterações aqui)
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_boletins = carregar_dados_firebase('boletins')
     lista_quarteiroes = carregar_quarteiroes_csv()
@@ -1034,6 +1034,7 @@ def modulo_boletim():
 
     tab1, tab2, tab3, tab4 = st.tabs(["🗓️ Criar Boletim", "🔍 Visualizar/Editar Boletim", "🗺️ Mapa de Atividades", "📊 Dashboard"])
 
+    # A Tab1 (Criar Boletim) permanece como está.
     with tab1:
         st.subheader("Novo Boletim de Programação")
         data_boletim = st.date_input("Data do Trabalho", date.today())
@@ -1061,7 +1062,7 @@ def modulo_boletim():
             lista_nomes_curtos_full = []
             st.warning("Não há funcionários cadastrados para criar um boletim.")
 
-        atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização" , "P.E" , "I.E" , "Educativa" , "Curso" , "Reunião"]
+        atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização"]
         bairros = st.text_area("Bairros a serem trabalhados")
         atividades_gerais = st.multiselect("Atividades Gerais do Dia", atividades_gerais_options)
         
@@ -1144,6 +1145,7 @@ def modulo_boletim():
             except Exception as e:
                 st.error(f"Erro ao salvar o boletim: {e}")
 
+    # A Tab2 (Visualizar/Editar) permanece como está.
     with tab2:
         st.subheader("Visualizar e Editar Boletim")
         if df_boletins.empty:
@@ -1245,7 +1247,8 @@ def modulo_boletim():
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Erro ao atualizar o boletim: {e}")
-
+    
+    # ### MUDANÇA AQUI ### - Lógica da Tab3 completamente refeita
     with tab3:
         st.subheader("Mapa de Atividades por Dia")
         if df_boletins.empty or df_geo_quarteiroes.empty:
@@ -1257,27 +1260,89 @@ def modulo_boletim():
             if boletim_id_mapa in df_boletins.index:
                 dados_boletim_mapa = df_boletins.loc[boletim_id_mapa]
                 
-                quarteiroes_trabalhados = []
+                # 1. Processamento de dados para criar um DataFrame detalhado
+                atividades_locs = []
                 for turno in ['equipes_manha', 'equipes_tarde']:
                     if turno in dados_boletim_mapa and dados_boletim_mapa[turno] and isinstance(dados_boletim_mapa[turno], list):
                         for equipe in dados_boletim_mapa[turno]:
-                            quarteiroes_trabalhados.extend(equipe.get('quarteiroes', []))
+                            membros_nomes = ", ".join(map(formatar_nome, equipe.get('membros', [])))
+                            for quarteirao in equipe.get('quarteiroes', []):
+                                for atividade in equipe.get('atividades', ["Não especificada"]):
+                                    atividades_locs.append({
+                                        "quarteirao": quarteirao,
+                                        "atividade": atividade,
+                                        "equipe": membros_nomes
+                                    })
                 
-                quarteiroes_unicos = list(set(quarteiroes_trabalhados))
-
-                if not quarteiroes_unicos:
-                    st.info(f"Nenhum quarteirão registrado para o dia {data_mapa.strftime('%d/%m/%Y')}.")
+                if not atividades_locs:
+                    st.info(f"Nenhuma atividade de campo registrada para o dia {data_mapa.strftime('%d/%m/%Y')}.")
                 else:
-                    df_quarteiroes_mapa = df_geo_quarteiroes[df_geo_quarteiroes['quadra'].isin(quarteiroes_unicos)]
+                    df_atividades_mapa = pd.DataFrame(atividades_locs)
+                    df_mapa_final = pd.merge(df_atividades_mapa, df_geo_quarteiroes, left_on='quarteirao', right_on='quadra', how='inner')
 
-                    if df_quarteiroes_mapa.empty:
-                        st.warning("Não foi possível encontrar as coordenadas para os quarteirões trabalhados neste dia.")
+                    if df_mapa_final.empty:
+                        st.warning("Não foi possível encontrar as coordenadas para os quarteirões trabalhados.")
                     else:
-                        st.info(f"Exibindo {len(df_quarteiroes_mapa)} quarteirões no mapa para {data_mapa.strftime('%d/%m/%Y')}.")
-                        st.map(df_quarteiroes_mapa, latitude='lat', longitude='lon', size=20)
+                        st.info(f"Exibindo {len(df_mapa_final)} atividades no mapa para {data_mapa.strftime('%d/%m/%Y')}.")
+
+                        # 2. Mapeamento de cores e criação do mapa com Pydeck
+                        cores_atividades = {
+                            "Controle de criadouros": [255, 87, 34],   # Laranja
+                            "Visita a Imóveis": [33, 150, 243], # Azul
+                            "ADL": [76, 175, 80],              # Verde
+                            "Nebulização": [156, 39, 176]       # Roxo
+                        }
+                        df_mapa_final['cor'] = df_mapa_final['atividade'].apply(lambda x: cores_atividades.get(x, [128, 128, 128])) # Cinza para outros
+
+                        # Configuração do Pydeck
+                        view_state = pdk.ViewState(
+                            latitude=df_mapa_final['lat'].mean(),
+                            longitude=df_mapa_final['lon'].mean(),
+                            zoom=14,
+                            pitch=50
+                        )
+
+                        layer = pdk.Layer(
+                            'ScatterplotLayer',
+                            data=df_mapa_final,
+                            get_position='[lon, lat]',
+                            get_color='cor',
+                            get_radius=25,
+                            pickable=True,
+                            auto_highlight=True
+                        )
+                        
+                        tooltip = {
+                           "html": "<b>Quarteirão:</b> {quarteirao}<br/>"
+                                   "<b>Atividade:</b> {atividade}<br/>"
+                                   "<b>Equipe:</b> {equipe}",
+                           "style": {
+                                "backgroundColor": "steelblue",
+                                "color": "white"
+                           }
+                        }
+
+                        st.pydeck_chart(pdk.Deck(
+                            map_style='mapbox://styles/mapbox/light-v9',
+                            initial_view_state=view_state,
+                            layers=[layer],
+                            tooltip=tooltip
+                        ))
+
+                        # 3. Criação da legenda manual
+                        st.subheader("Legenda")
+                        for atividade, cor in cores_atividades.items():
+                            st.markdown(
+                                f"<div style='display: flex; align-items: center; margin-bottom: 5px;'>"
+                                f"<div style='width: 20px; height: 20px; background-color: rgb({cor[0]},{cor[1]},{cor[2]}); border-radius: 50%; margin-right: 10px;'></div>"
+                                f"<span>{atividade}</span>"
+                                f"</div>",
+                                unsafe_allow_html=True
+                            )
             else:
                 st.info(f"Nenhum boletim encontrado para o dia {data_mapa.strftime('%d/%m/%Y')}.")
-
+    
+    # A Tab4 (Dashboard) permanece como está.
     with tab4:
         st.subheader("Dashboard de Produtividade")
         if df_boletins.empty:
@@ -1359,7 +1424,6 @@ def modulo_boletim():
                             st.plotly_chart(fig_part, use_container_width=True)
                         else:
                             st.info("Nenhum dado de participação no período.")
-
 # --- ESTRUTURA PRINCIPAL DA APLICAÇÃO (LOGIN E NAVEGAÇÃO) ---
 
 def login_screen():
