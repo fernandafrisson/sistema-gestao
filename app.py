@@ -1372,6 +1372,8 @@ def login_screen():
             else:
                 st.error("Usuário ou senha inválidos.")
 
+# Substitua sua função main_app por esta versão completa e atualizada:
+
 def main_app():
     """Controla a navegação e a exibição dos módulos após o login."""
     if st.session_state.get('module_choice'):
@@ -1396,6 +1398,7 @@ def main_app():
             modulo_boletim()
 
     else:
+        # Tela Principal (Painel de Controle)
         st.title("Painel de Controle")
         st.header(f"Bem-vindo(a), {st.session_state['username']}!")
         
@@ -1419,10 +1422,28 @@ def main_app():
 
         with col_form:
             st.subheader("📝 Adicionar no Mural")
+            
+            # ### MUDANÇA AQUI ### - Carregando funcionários para a lista de participantes
+            df_funcionarios = carregar_dados_firebase('funcionarios')
+            if not df_funcionarios.empty:
+                lista_nomes_curtos = sorted([formatar_nome(nome) for nome in df_funcionarios['nome']])
+            else:
+                lista_nomes_curtos = []
+
             with st.form("form_avisos", clear_on_submit=True):
-                aviso_titulo = st.text_input("Título do Aviso/Compromisso")
+                aviso_titulo = st.text_input("Título do Evento")
+                
+                # ### MUDANÇA AQUI ### - Novas opções de tipo de evento
+                tipos_de_evento = ["Aviso", "Compromisso", "Reunião", "Curso", "Educativa"]
+                aviso_tipo = st.selectbox("Tipo", tipos_de_evento)
+                
                 aviso_data = st.date_input("Data")
-                aviso_tipo = st.selectbox("Tipo", ["Aviso", "Compromisso"])
+                
+                # ### MUDANÇA AQUI ### - Campo condicional para participantes
+                participantes = []
+                if aviso_tipo in ["Reunião", "Curso", "Educativa"]:
+                    participantes = st.multiselect("Participantes", options=lista_nomes_curtos)
+
                 aviso_descricao = st.text_area("Descrição (Opcional)")
                 
                 submitted = st.form_submit_button("Salvar no Mural")
@@ -1431,11 +1452,13 @@ def main_app():
                         try:
                             aviso_id = str(int(time.time() * 1000))
                             ref = db.reference(f'avisos/{aviso_id}')
+                            # ### MUDANÇA AQUI ### - Salvando a lista de participantes
                             ref.set({
                                 'titulo': aviso_titulo,
                                 'data': aviso_data.strftime("%Y-%m-%d"),
                                 'tipo_aviso': aviso_tipo,
-                                'descricao': aviso_descricao
+                                'descricao': aviso_descricao,
+                                'participantes': participantes 
                             })
                             st.success("Evento salvo no mural com sucesso!")
                             st.cache_data.clear()
@@ -1445,47 +1468,89 @@ def main_app():
                     else:
                         st.warning("Por favor, preencha o Título e a Data.")
 
+            # ### NOVO BLOCO AQUI ### - Lista de eventos do dia com filtro
+            st.divider()
+            st.subheader("🗓️ Eventos Agendados")
+            df_avisos = carregar_dados_firebase('avisos')
+
+            filtro_data = st.date_input("Filtrar eventos por dia", value=date.today())
+
+            if not df_avisos.empty:
+                df_avisos['data_dt'] = pd.to_datetime(df_avisos['data']).dt.date
+                avisos_filtrados = df_avisos[df_avisos['data_dt'] == filtro_data].sort_values(by='titulo')
+
+                if avisos_filtrados.empty:
+                    st.info(f"Nenhum evento agendado para {filtro_data.strftime('%d/%m/%Y')}.")
+                else:
+                    for _, aviso in avisos_filtrados.iterrows():
+                        with st.expander(f"{aviso['tipo_aviso']}: **{aviso['titulo']}**"):
+                            if aviso.get('descricao'):
+                                st.markdown(f"**Descrição:** {aviso.get('descricao')}")
+                            
+                            lista_participantes = aviso.get('participantes', [])
+                            if lista_participantes:
+                                st.markdown(f"**Participantes:** {', '.join(lista_participantes)}")
+            else:
+                st.info("Nenhum evento no mural para exibir.")
+
+
         with col_cal:
-            st.subheader("🗓️ Mural de Avisos e Ausências")
+            st.subheader("📅 Calendário Geral de Eventos e Ausências")
             
             df_folgas = carregar_dados_firebase('folgas_ferias')
-            df_avisos = carregar_dados_firebase('avisos')
+            df_avisos_cal = carregar_dados_firebase('avisos') # Carrega de novo para não interferir com o filtro
             
             calendar_events = []
 
+            # Eventos de ausência (férias, abonadas)
             if not df_folgas.empty:
                 for _, row in df_folgas.iterrows():
                     calendar_events.append({
                         "title": f"AUSÊNCIA: {formatar_nome(row['nome_funcionario'])} ({row['tipo']})",
                         "start": row['data_inicio'],
                         "end": (pd.to_datetime(row['data_fim']) + timedelta(days=1)).strftime("%Y-%m-%d"),
-                        "color": "#FF4B4B" if row['tipo'] == "Férias" else "#1E90FF",
+                        "color": "#FF4B4B" if row['tipo'] == "Férias" else "#FFA07A", # Vermelho para Férias, Salmão para Abonada
                     })
             
-            if not df_avisos.empty:
-                for _, row in df_avisos.iterrows():
+            # ### MUDANÇA AQUI ### - Adicionando os novos tipos de evento ao calendário com cores
+            if not df_avisos_cal.empty:
+                event_colors = {
+                    "Aviso": "#ffc107",        # Amarelo
+                    "Compromisso": "#28a745",  # Verde
+                    "Reunião": "#007bff",      # Azul
+                    "Curso": "#6f42c1",        # Roxo
+                    "Educativa": "#fd7e14"     # Laranja
+                }
+                for _, row in df_avisos_cal.iterrows():
+                    event_type = row.get('tipo_aviso', 'Aviso')
                     calendar_events.append({
-                        "title": f"{row['tipo_aviso'].upper()}: {row['titulo']}",
+                        "title": f"{event_type.upper()}: {row['titulo']}",
                         "start": row['data'],
                         "end": (pd.to_datetime(row['data']) + timedelta(days=1)).strftime("%Y-%m-%d"),
-                        "color": "#28a745" if row['tipo_aviso'] == "Compromisso" else "#ffc107",
+                        "color": event_colors.get(event_type, "#6c757d"), # Cor padrão cinza
                     })
 
             calendar_options = {
                 "initialView": "dayGridMonth",
-                "height": "600px",
+                "height": "800px", # Aumentei um pouco a altura
                 "locale": "pt-br",
                 "headerToolbar": {
                     "left": "prev,next today",
                     "center": "title",
                     "right": "dayGridMonth,timeGridWeek"
+                },
+                "eventTimeFormat": { # Oculta a hora do evento, já que são eventos de dia inteiro
+                    "hour": '2-digit',
+                    "minute": '2-digit',
+                    "meridiem": False
                 }
             }
             
             if calendar_events:
-                calendar(events=calendar_events, options=calendar_options, key="calendario_mural_corrigido")
+                calendar(events=calendar_events, options=calendar_options, key="calendario_mural_atualizado")
             else:
-                st.info("Nenhum evento no mural ou ausência registrada.")
+                st.info("Nenhum evento no mural ou ausência registrada para exibir no calendário.")
+
 
 if __name__ == "__main__":
     if 'logged_in' not in st.session_state:
