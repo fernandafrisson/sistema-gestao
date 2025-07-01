@@ -1020,14 +1020,16 @@ def modulo_denuncias():
             st.info("Nenhuma denúncia registrada.")
 
 def modulo_boletim():
+    """Renderiza a página do módulo de Boletim de Programação Diária."""
     st.title("Boletim de Programação Diária")
 
-    # Carregamento dos dados necessários (sem alterações aqui)
+    # Carregamento dos dados necessários
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_boletins = carregar_dados_firebase('boletins')
     lista_quarteiroes = carregar_quarteiroes_csv()
     df_geo_quarteiroes = carregar_geo_kml()
 
+    # Controle do estado para equipes dinâmicas
     if 'num_equipes_manha' not in st.session_state:
         st.session_state.num_equipes_manha = 1
     if 'num_equipes_tarde' not in st.session_state:
@@ -1035,7 +1037,6 @@ def modulo_boletim():
 
     tab1, tab2, tab3, tab4 = st.tabs(["🗓️ Criar Boletim", "🔍 Visualizar/Editar Boletim", "🗺️ Mapa de Atividades", "📊 Dashboard"])
 
-    # A Tab1 (Criar Boletim) permanece como está.
     with tab1:
         st.subheader("Novo Boletim de Programação")
         data_boletim = st.date_input("Data do Trabalho", date.today())
@@ -1146,7 +1147,6 @@ def modulo_boletim():
             except Exception as e:
                 st.error(f"Erro ao salvar o boletim: {e}")
 
-    # A Tab2 (Visualizar/Editar) permanece como está.
     with tab2:
         st.subheader("Visualizar e Editar Boletim")
         if df_boletins.empty:
@@ -1248,9 +1248,8 @@ def modulo_boletim():
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Erro ao atualizar o boletim: {e}")
-    
-    # ### MUDANÇA AQUI ### - Lógica da Tab3 completamente refeita
-  with tab3:
+
+    with tab3:
         st.subheader("Mapa de Atividades por Dia")
         if df_boletins.empty or df_geo_quarteiroes.empty:
             st.warning("Dados de boletins ou geolocalização de quarteirões não estão disponíveis.")
@@ -1261,7 +1260,6 @@ def modulo_boletim():
             if boletim_id_mapa in df_boletins.index:
                 dados_boletim_mapa = df_boletins.loc[boletim_id_mapa]
                 
-                # 1. Processamento de dados (igual ao anterior)
                 atividades_locs = []
                 for turno in ['equipes_manha', 'equipes_tarde']:
                     if turno in dados_boletim_mapa and dados_boletim_mapa[turno] and isinstance(dados_boletim_mapa[turno], list):
@@ -1286,37 +1284,28 @@ def modulo_boletim():
                     else:
                         st.info(f"Exibindo {len(df_mapa_final)} atividades no mapa para {data_mapa.strftime('%d/%m/%Y')}.")
 
-                        # 2. Criação do mapa com Plotly Express
                         fig = px.scatter_mapbox(
                             df_mapa_final,
                             lat="lat",
                             lon="lon",
-                            color="atividade",  # Colore os pontos e cria a legenda automaticamente
+                            color="atividade",
                             hover_name="quarteirao",
-                            hover_data={
-                                "equipe": True,      # Mostra a equipe no hover
-                                "atividade": True,
-                                "lat": False,        # Oculta lat/lon do hover para um visual mais limpo
-                                "lon": False
-                            },
+                            hover_data={"equipe": True, "atividade": True, "lat": False, "lon": False},
                             zoom=13,
                             height=600,
                             title="Distribuição de Atividades por Quarteirão"
                         )
-
-                        # 3. Configuração do layout do mapa para usar o OpenStreetMap (sem API Key)
+                        
                         fig.update_layout(
                             mapbox_style="open-street-map",
                             margin={"r":0, "t":40, "l":0, "b":0},
                             legend_title_text='Atividades'
                         )
-
-                        # 4. Exibição do mapa
+                        
                         st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info(f"Nenhum boletim encontrado para o dia {data_mapa.strftime('%d/%m/%Y')}.")
-    
-    # A Tab4 (Dashboard) permanece como está.
+
     with tab4:
         st.subheader("Dashboard de Produtividade")
         if df_boletins.empty:
