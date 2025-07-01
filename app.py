@@ -1374,18 +1374,22 @@ def login_screen():
 
 # Substitua sua função main_app por esta versão completa e atualizada:
 
-# Substitua sua função main_app por esta versão CORRIGIDA:
 
-# Substitua sua função main_app por esta versão CORRIGIDA:
+# Substitua sua função main_app por esta versão completa e atualizada:
 
 def main_app():
     """Controla a navegação e a exibição dos módulos após o login."""
+    # ### NOVO ###: Inicializa o estado de edição se ele não existir
+    if 'evento_para_editar_id' not in st.session_state:
+        st.session_state.evento_para_editar_id = None
+
     if st.session_state.get('module_choice'):
         with st.sidebar:
             st.title("Navegação")
             st.write(f"Usuário: **{st.session_state['username']}**")
             st.divider()
             if st.button("⬅️ Voltar ao Painel de Controle"):
+                st.session_state.evento_para_editar_id = None # Limpa o estado de edição ao sair
                 st.session_state['module_choice'] = None
                 st.rerun()
             st.divider()
@@ -1425,18 +1429,63 @@ def main_app():
         col_form, col_cal = st.columns([1, 1.5])
 
         with col_form:
-            st.subheader("📝 Adicionar no Mural")
-            
             df_funcionarios = carregar_dados_firebase('funcionarios')
             if not df_funcionarios.empty:
                 lista_nomes_curtos = sorted([formatar_nome(nome) for nome in df_funcionarios['nome']])
             else:
                 lista_nomes_curtos = []
+
+            # ### NOVO BLOCO ###: Formulário de Edição (só aparece quando um evento é selecionado)
+            if st.session_state.evento_para_editar_id:
+                st.subheader("✏️ Editando Evento")
+                df_avisos_all = carregar_dados_firebase('avisos')
+                dados_evento = df_avisos_all.loc[st.session_state.evento_para_editar_id]
+
+                with st.form("form_avisos_edit"):
+                    titulo_edit = st.text_input("Título do Evento", value=dados_evento.get('titulo', ''))
+                    
+                    tipos_de_evento = ["Aviso", "Compromisso", "Reunião", "Curso", "Educativa"]
+                    tipo_idx = tipos_de_evento.index(dados_evento.get('tipo_aviso')) if dados_evento.get('tipo_aviso') in tipos_de_evento else 0
+                    tipo_edit = st.selectbox("Tipo", tipos_de_evento, index=tipo_idx, key='tipo_evento_edit')
+
+                    data_val = pd.to_datetime(dados_evento.get('data')).date() if pd.notna(dados_evento.get('data')) else date.today()
+                    data_edit = st.date_input("Data", value=data_val)
+
+                    participantes_edit = []
+                    if tipo_edit in ["Reunião", "Curso", "Educativa"]:
+                        participantes_edit = st.multiselect("Participantes", options=lista_nomes_curtos, default=dados_evento.get('participantes', []))
+                    
+                    descricao_edit = st.text_area("Descrição (Opcional)", value=dados_evento.get('descricao', ''))
+
+                    col_save, col_cancel = st.columns(2)
+                    with col_save:
+                        if st.form_submit_button("Salvar Alterações", use_container_width=True):
+                            dados_atualizados = {
+                                'titulo': titulo_edit,
+                                'data': data_edit.strftime("%Y-%m-%d"),
+                                'tipo_aviso': tipo_edit,
+                                'descricao': descricao_edit,
+                                'participantes': participantes_edit
+                            }
+                            db.reference(f'avisos/{st.session_state.evento_para_editar_id}').update(dados_atualizados)
+                            st.success("Evento atualizado com sucesso!")
+                            st.session_state.evento_para_editar_id = None
+                            st.cache_data.clear()
+                            st.rerun()
+
+                    with col_cancel:
+                        if st.form_submit_button("Cancelar", type="secondary", use_container_width=True):
+                            st.session_state.evento_para_editar_id = None
+                            st.rerun()
+                st.divider()
+
+
+            st.subheader("📝 Adicionar no Mural")
             
-            tipos_de_evento = ["Aviso", "Compromisso", "Reunião", "Curso", "Educativa"]
-            aviso_tipo = st.selectbox("Tipo de Evento", tipos_de_evento, key='tipo_evento_selecionado')
+            tipos_de_evento_add = ["Aviso", "Compromisso", "Reunião", "Curso", "Educativa"]
+            aviso_tipo_add = st.selectbox("Tipo de Evento", tipos_de_evento_add, key='tipo_evento_selecionado')
             
-            with st.form("form_avisos", clear_on_submit=True):
+            with st.form("form_avisos_add", clear_on_submit=True):
                 aviso_titulo = st.text_input("Título do Evento")
                 aviso_data = st.date_input("Data")
                 
@@ -1480,18 +1529,30 @@ def main_app():
                 if avisos_filtrados.empty:
                     st.info(f"Nenhum evento agendado para {filtro_data.strftime('%d/%m/%Y')}.")
                 else:
-                    for _, aviso in avisos_filtrados.iterrows():
+                    for id, aviso in avisos_filtrados.iterrows():
                         with st.expander(f"{aviso.get('tipo_aviso', 'Evento')}: **{aviso.get('titulo', 'Sem título')}**"):
                             if aviso.get('descricao'):
                                 st.markdown(f"**Descrição:** {aviso.get('descricao')}")
                             
                             lista_participantes = aviso.get('participantes', [])
                             if lista_participantes and isinstance(lista_participantes, list):
-                                # ### CORREÇÃO AQUI ###
-                                # Filtra a lista para remover itens nulos ou vazios antes de usar o .join()
                                 participantes_validos = [str(p) for p in lista_participantes if p]
                                 if participantes_validos:
                                     st.markdown(f"**Participantes:** {', '.join(participantes_validos)}")
+                            
+                            st.markdown("---")
+                            # ### ALTERAÇÃO AQUI ###: Botões de Editar e Deletar
+                            col_b1, col_b2, _ = st.columns([1, 1, 3])
+                            with col_b1:
+                                if st.button("✏️ Editar", key=f"edit_{id}", use_container_width=True):
+                                    st.session_state.evento_para_editar_id = id
+                                    st.rerun()
+                            with col_b2:
+                                if st.button("🗑️ Deletar", key=f"del_{id}", type="primary", use_container_width=True):
+                                    db.reference(f'avisos/{id}').delete()
+                                    st.success(f"Evento '{aviso.get('titulo')}' deletado.")
+                                    st.cache_data.clear()
+                                    st.rerun()
             else:
                 st.info("Nenhum evento no mural para exibir.")
 
