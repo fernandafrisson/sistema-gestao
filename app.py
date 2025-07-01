@@ -412,6 +412,8 @@ def get_ultimas_ferias(employee_id, all_folgas_df):
 
 # --- MÓDULOS DA APLICAÇÃO ---
 
+# Substitua sua função modulo_rh por esta:
+
 def modulo_rh():
     """Renderiza a página do módulo de Recursos Humanos."""
     st.title("Recursos Humanos")
@@ -615,6 +617,16 @@ def modulo_rh():
                     if data_adm_str != 'N/A':
                         data_adm_str = pd.to_datetime(data_adm_str).strftime('%d/%m/%Y')
                     st.markdown(f"**Data de Admissão:** {data_adm_str}")
+                    
+                    # ### MUDANÇA AQUI: Exibição dos novos campos na ficha ###
+                    data_nasc_str = dados_func.get('data_nascimento', 'N/A')
+                    if pd.notna(data_nasc_str):
+                        data_nasc_str = pd.to_datetime(data_nasc_str).strftime('%d/%m/%Y')
+                    st.markdown(f"**Data de Nascimento:** {data_nasc_str}")
+                    
+                    st.markdown(f"**Tam. Camisa:** {dados_func.get('tamanho_camisa', 'N/A')}")
+                    st.markdown(f"**Nº Bota:** {dados_func.get('numero_bota', 'N/A')}")
+                    st.markdown(f"**Nº Chave:** {dados_func.get('numero_chave', 'N/A')}")
 
                     st.divider()
                     st.markdown("**Histórico Recente:**")
@@ -636,12 +648,37 @@ def modulo_rh():
             funcao = st.text_input("Função")
             unidade_trabalho = st.text_input("Unidade de Trabalho")
             data_admissao = st.date_input("Data de Admissão", datetime.now())
+            
+            # ### MUDANÇA AQUI: Novos campos no formulário de cadastro ###
+            st.divider()
+            st.markdown("**Informações Adicionais**")
+            data_nascimento = st.date_input("Data de Nascimento", min_value=date(1940, 1, 1), max_value=date.today() - relativedelta(years=18), value=date.today() - relativedelta(years=25))
+            
+            col_uniforme1, col_uniforme2 = st.columns(2)
+            with col_uniforme1:
+                tamanho_camisa = st.text_input("Tamanho da Camisa (Ex: P, M, G, GG)")
+            with col_uniforme2:
+                numero_bota = st.text_input("Número da Bota (Ex: 40)")
+            
+            numero_chave = st.text_input("Número de Chave do Armário")
+            
             submit_funcionario = st.form_submit_button("Cadastrar Funcionário")
+            
             if submit_funcionario and nome and funcao and unidade_trabalho:
                 try:
                     novo_id = str(int(time.time() * 1000))
                     ref = db.reference(f'funcionarios/{novo_id}')
-                    ref.set({'id': novo_id, 'nome': nome, 'matricula': matricula, 'telefone': telefone, 'funcao': funcao, 'unidade_trabalho': unidade_trabalho, 'data_admissao': data_admissao.strftime("%Y-%m-%d")})
+                    # ### MUDANÇA AQUI: Adiciona os novos campos ao salvar ###
+                    dados_novos = {
+                        'id': novo_id, 'nome': nome, 'matricula': matricula, 
+                        'telefone': telefone, 'funcao': funcao, 'unidade_trabalho': unidade_trabalho, 
+                        'data_admissao': data_admissao.strftime("%Y-%m-%d"),
+                        'data_nascimento': data_nascimento.strftime("%Y-%m-%d"),
+                        'tamanho_camisa': tamanho_camisa,
+                        'numero_bota': numero_bota,
+                        'numero_chave': numero_chave
+                    }
+                    ref.set(dados_novos)
                     st.success(f"Funcionário {nome} cadastrado com sucesso!")
                     st.cache_data.clear(); st.rerun()
                 except Exception as e:
@@ -661,8 +698,34 @@ def modulo_rh():
                     funcao_edit = st.text_input("Função", value=dados_func_originais.get('funcao'))
                     unidade_edit = st.text_input("Unidade de Trabalho", value=dados_func_originais.get('unidade_trabalho'))
                     data_admissao_edit = st.date_input("Data de Admissão", value=pd.to_datetime(dados_func_originais.get('data_admissao')))
+
+                    # ### MUDANÇA AQUI: Novos campos no formulário de edição ###
+                    st.divider()
+                    st.markdown("**Informações Adicionais**")
+                    
+                    data_nasc_val = pd.to_datetime(dados_func_originais.get('data_nascimento')) if pd.notna(dados_func_originais.get('data_nascimento')) else date.today() - relativedelta(years=25)
+                    data_nascimento_edit = st.date_input("Data de Nascimento", value=data_nasc_val)
+                    
+                    col_edit_uniforme1, col_edit_uniforme2 = st.columns(2)
+                    with col_edit_uniforme1:
+                        tamanho_camisa_edit = st.text_input("Tamanho da Camisa", value=dados_func_originais.get('tamanho_camisa', ''))
+                    with col_edit_uniforme2:
+                        numero_bota_edit = st.text_input("Número da Bota", value=dados_func_originais.get('numero_bota', ''))
+                    
+                    numero_chave_edit = st.text_input("Número de Chave do Armário", value=dados_func_originais.get('numero_chave', ''))
+                    
                     if st.form_submit_button("Salvar Alterações"):
-                        dados_atualizados = {'nome': nome_edit, 'matricula': matricula_edit, 'telefone': telefone_edit, 'funcao': funcao_edit, 'unidade_trabalho': unidade_edit, 'data_admissao': data_admissao_edit.strftime('%Y-%m-%d')}
+                        # ### MUDANÇA AQUI: Adiciona os novos campos ao atualizar ###
+                        dados_atualizados = {
+                            'nome': nome_edit, 'matricula': matricula_edit, 
+                            'telefone': telefone_edit, 'funcao': funcao_edit, 
+                            'unidade_trabalho': unidade_edit, 
+                            'data_admissao': data_admissao_edit.strftime('%Y-%m-%d'),
+                            'data_nascimento': data_nascimento_edit.strftime('%Y-%m-%d'),
+                            'tamanho_camisa': tamanho_camisa_edit,
+                            'numero_bota': numero_bota_edit,
+                            'numero_chave': numero_chave_edit
+                        }
                         ref = db.reference(f"funcionarios/{dados_func_originais['id']}")
                         ref.update(dados_atualizados)
                         st.success("Dados do funcionário atualizados com sucesso!")
@@ -680,8 +743,9 @@ def modulo_rh():
                         db.reference(f'funcionarios/{id_func_deletar}').delete()
                         folgas_ref = db.reference('folgas_ferias')
                         folgas_para_deletar = folgas_ref.order_by_child('id_funcionario').equal_to(id_func_deletar).get()
-                        for key in folgas_para_deletar:
-                            folgas_ref.child(key).delete()
+                        if folgas_para_deletar:
+                            for key in folgas_para_deletar:
+                                folgas_ref.child(key).delete()
                         st.success(f"Funcionário {nome_completo_para_deletar} deletado com sucesso.")
                         st.cache_data.clear(); st.rerun()
                     except Exception as e:
