@@ -9,3 +9,4 @@ fpdf2
 geopandas
 fiona
 streamlit-calendar
+pydeck
