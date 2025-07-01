@@ -1376,6 +1376,8 @@ def login_screen():
 
 # Substitua sua função main_app por esta versão CORRIGIDA:
 
+# Substitua sua função main_app por esta versão CORRIGIDA:
+
 def main_app():
     """Controla a navegação e a exibição dos módulos após o login."""
     if st.session_state.get('module_choice'):
@@ -1431,19 +1433,13 @@ def main_app():
             else:
                 lista_nomes_curtos = []
             
-            # ### CORREÇÃO AQUI ###
-            # 1. O seletor de TIPO agora está FORA do formulário.
-            # Usamos uma "key" para que o Streamlit guarde a escolha.
             tipos_de_evento = ["Aviso", "Compromisso", "Reunião", "Curso", "Educativa"]
             aviso_tipo = st.selectbox("Tipo de Evento", tipos_de_evento, key='tipo_evento_selecionado')
             
-            # 2. O formulário agora contém os outros campos.
             with st.form("form_avisos", clear_on_submit=True):
                 aviso_titulo = st.text_input("Título do Evento")
                 aviso_data = st.date_input("Data")
                 
-                # 3. O campo de participantes aparece condicionalmente DENTRO do formulário,
-                #    baseado na escolha feita FORA dele (st.session_state.tipo_evento_selecionado).
                 participantes = []
                 if st.session_state.tipo_evento_selecionado in ["Reunião", "Curso", "Educativa"]:
                     participantes = st.multiselect("Participantes", options=lista_nomes_curtos)
@@ -1459,7 +1455,7 @@ def main_app():
                             ref.set({
                                 'titulo': aviso_titulo,
                                 'data': aviso_data.strftime("%Y-%m-%d"),
-                                'tipo_aviso': st.session_state.tipo_evento_selecionado, # Usamos o valor guardado
+                                'tipo_aviso': st.session_state.tipo_evento_selecionado,
                                 'descricao': aviso_descricao,
                                 'participantes': participantes 
                             })
@@ -1485,13 +1481,17 @@ def main_app():
                     st.info(f"Nenhum evento agendado para {filtro_data.strftime('%d/%m/%Y')}.")
                 else:
                     for _, aviso in avisos_filtrados.iterrows():
-                        with st.expander(f"{aviso['tipo_aviso']}: **{aviso['titulo']}**"):
+                        with st.expander(f"{aviso.get('tipo_aviso', 'Evento')}: **{aviso.get('titulo', 'Sem título')}**"):
                             if aviso.get('descricao'):
                                 st.markdown(f"**Descrição:** {aviso.get('descricao')}")
                             
                             lista_participantes = aviso.get('participantes', [])
-                            if lista_participantes:
-                                st.markdown(f"**Participantes:** {', '.join(lista_participantes)}")
+                            if lista_participantes and isinstance(lista_participantes, list):
+                                # ### CORREÇÃO AQUI ###
+                                # Filtra a lista para remover itens nulos ou vazios antes de usar o .join()
+                                participantes_validos = [str(p) for p in lista_participantes if p]
+                                if participantes_validos:
+                                    st.markdown(f"**Participantes:** {', '.join(participantes_validos)}")
             else:
                 st.info("Nenhum evento no mural para exibir.")
 
