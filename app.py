@@ -756,16 +756,100 @@ def modulo_denuncias():
             else: st.warning("Não foi possível geolocalizar nenhum endereço.")
         else: st.info("Nenhuma denúncia registrada.")
 
+def create_boletim_word_report(data_boletim):
+    """Gera um relatório do boletim diário em formato .docx."""
+    document = Document()
+    # Define o estilo padrão do documento
+    style = document.styles['Normal']
+    font = style.font
+    font.name = 'Calibri'
+    font.size = Pt(11)
+
+    # Título Principal
+    titulo = document.add_heading('BOLETIM DE PROGRAMAÇÃO DIÁRIA', level=1)
+    titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    # Data do Boletim
+    # Definindo o locale para português para o nome do mês
+    locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
+    data_formatada = pd.to_datetime(data_boletim.get('data')).strftime('%d de %B de %Y')
+    p_data = document.add_paragraph(data_formatada.title())
+    p_data.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_data.paragraph_format.space_after = Pt(18)
+
+    # Informações Gerais
+    document.add_heading('Informações Gerais', level=2)
+    p_bairros = document.add_paragraph()
+    p_bairros.add_run('Bairros Trabalhados: ').bold = True
+    p_bairros.add_run(data_boletim.get('bairros', 'Não informado'))
+
+    p_atividades = document.add_paragraph()
+    p_atividades.add_run('Atividades Gerais: ').bold = True
+    p_atividades.add_run(', '.join(data_boletim.get('atividades_gerais', ['Nenhuma'])))
+
+    p_motoristas = document.add_paragraph()
+    p_motoristas.add_run('Motorista(s): ').bold = True
+    motoristas_formatados = [formatar_nome(nome) for nome in data_boletim.get('motoristas', [])]
+    p_motoristas.add_run(', '.join(motoristas_formatados) if motoristas_formatados else 'Nenhum')
+    
+    # Faltas do Dia
+    document.add_heading('Ausências do Dia', level=2)
+    faltas_manha = data_boletim.get('faltas_manha', {})
+    nomes_manha = [formatar_nome(nome) for nome in faltas_manha.get('nomes', [])]
+    p_faltas_m = document.add_paragraph()
+    p_faltas_m.add_run('Manhã: ').bold = True
+    p_faltas_m.add_run(f"{', '.join(nomes_manha) if nomes_manha else 'Nenhuma'} - Motivo: {faltas_manha.get('motivo', 'N/A')}")
+
+    faltas_tarde = data_boletim.get('faltas_tarde', {})
+    nomes_tarde = [formatar_nome(nome) for nome in faltas_tarde.get('nomes', [])]
+    p_faltas_t = document.add_paragraph()
+    p_faltas_t.add_run('Tarde: ').bold = True
+    p_faltas_t.add_run(f"{', '.join(nomes_tarde) if nomes_tarde else 'Nenhuma'} - Motivo: {faltas_tarde.get('motivo', 'N/A')}")
+    
+    # Função auxiliar para adicionar seções de equipe
+    def adicionar_secao_turno(turno_nome, equipes):
+        document.add_heading(f'Turno da {turno_nome}', level=2)
+        if not equipes or not isinstance(equipes, list):
+            document.add_paragraph('Nenhuma equipe registrada para este turno.')
+            return
+            
+        for i, equipe in enumerate(equipes):
+            document.add_heading(f'Equipe {i + 1}', level=3)
+            
+            membros_formatados = [formatar_nome(nome) for nome in equipe.get('membros', [])]
+            p_membros = document.add_paragraph()
+            p_membros.add_run('Membros: ').bold = True
+            p_membros.add_run(', '.join(membros_formatados) if membros_formatados else 'Nenhum')
+
+            p_atividades_eq = document.add_paragraph()
+            p_atividades_eq.add_run('Atividades: ').bold = True
+            p_atividades_eq.add_run(', '.join(equipe.get('atividades', ['Nenhuma'])))
+
+            p_quarteiroes = document.add_paragraph()
+            p_quarteiroes.add_run('Quarteirões: ').bold = True
+            p_quarteiroes.add_run(', '.join(equipe.get('quarteiroes', ['Nenhum'])))
+            p_quarteiroes.paragraph_format.space_after = Pt(12)
+
+    # Adiciona as seções para cada turno
+    adicionar_secao_turno("Manhã", data_boletim.get('equipes_manha'))
+    adicionar_secao_turno("Tarde", data_boletim.get('equipes_tarde'))
+    
+    # Salva o documento em um buffer de memória
+    buffer = io.BytesIO()
+    document.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
 def modulo_boletim():
     st.title("Boletim de Programação Diária")
 
-    # Carregamento dos dados necessários (sem alterações aqui)
+    # Carregamento dos dados necessários
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_boletins = carregar_dados_firebase('boletins')
     lista_quarteiroes = carregar_quarteiroes_csv()
     df_geo_quarteiroes = carregar_geo_kml()
 
-    # Controle do estado para equipes dinâmicas (sem alterações aqui)
+    # Controle do estado para equipes dinâmicas
     if 'num_equipes_manha' not in st.session_state:
         st.session_state.num_equipes_manha = 1
     if 'num_equipes_tarde' not in st.session_state:
@@ -773,8 +857,6 @@ def modulo_boletim():
 
     tab1, tab2, tab3, tab4 = st.tabs(["🗓️ Criar Boletim", "🔍 Visualizar/Editar Boletim", "🗺️ Mapa de Atividades", "📊 Dashboard"])
 
-    # A Tab1 (Criar Boletim) permanece como está no seu código original.
-    # Incluí ela aqui para que a função fique completa.
     with tab1:
         st.subheader("Novo Boletim de Programação")
         data_boletim = st.date_input("Data do Trabalho", date.today())
@@ -890,36 +972,40 @@ def modulo_boletim():
         if df_boletins.empty:
             st.info("Nenhum boletim encontrado para visualização.")
         else:
-            # Ordena os boletins pela data (ID) em ordem decrescente
             lista_boletins = sorted(df_boletins['id'].tolist(), reverse=True)
             boletim_id_selecionado = st.selectbox(
                 "Selecione a data do boletim", 
                 options=lista_boletins,
-                format_func=lambda x: pd.to_datetime(x).strftime('%d/%m/%Y') # Formata a data para exibição
+                format_func=lambda x: pd.to_datetime(x).strftime('%d/%m/%Y')
             )
 
             if boletim_id_selecionado:
-                # Obtém os dados do boletim selecionado
                 dados_boletim = df_boletins.loc[boletim_id_selecionado]
-
                 st.markdown(f"#### Detalhes do dia: {pd.to_datetime(dados_boletim['data']).strftime('%d/%m/%Y')}")
 
-                # Exibição dos dados
                 st.markdown(f"**Bairros trabalhados:** {dados_boletim.get('bairros', 'Não informado')}")
                 st.markdown(f"**Atividades gerais:** {', '.join(dados_boletim.get('atividades_gerais', []))}")
                 st.markdown(f"**Motorista(s):** {', '.join(map(formatar_nome, dados_boletim.get('motoristas', [])))}")
-                
-                # Exibição das faltas
                 st.markdown(f"**Ausentes (Manhã):** {', '.join(map(formatar_nome, dados_boletim.get('faltas_manha', {}).get('nomes', [])))} - *Motivo: {dados_boletim.get('faltas_manha', {}).get('motivo', '')}*")
                 st.markdown(f"**Ausentes (Tarde):** {', '.join(map(formatar_nome, dados_boletim.get('faltas_tarde', {}).get('nomes', [])))} - *Motivo: {dados_boletim.get('faltas_tarde', {}).get('motivo', '')}*")
+                
+                st.divider()
+                
+                report_bytes = create_boletim_word_report(dados_boletim)
+                st.download_button(
+                    label="📥 Baixar Boletim (.docx)",
+                    data=report_bytes,
+                    file_name=f"Boletim_Diario_{boletim_id_selecionado}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+                
                 st.divider()
 
-                # Exibição das equipes
                 col_manha, col_tarde = st.columns(2)
                 with col_manha:
                     st.markdown("**Equipes da Manhã**")
                     equipes_manha = dados_boletim.get('equipes_manha', [])
-                    if equipes_manha:
+                    if equipes_manha and isinstance(equipes_manha, list):
                         for i, equipe in enumerate(equipes_manha):
                             with st.expander(f"Equipe {i+1} (Manhã)"):
                                 st.write(f"**Membros:** {', '.join(map(formatar_nome, equipe.get('membros', [])))}")
@@ -931,7 +1017,7 @@ def modulo_boletim():
                 with col_tarde:
                     st.markdown("**Equipes da Tarde**")
                     equipes_tarde = dados_boletim.get('equipes_tarde', [])
-                    if equipes_tarde:
+                    if equipes_tarde and isinstance(equipes_tarde, list):
                         for i, equipe in enumerate(equipes_tarde):
                             with st.expander(f"Equipe {i+1} (Tarde)"):
                                 st.write(f"**Membros:** {', '.join(map(formatar_nome, equipe.get('membros', [])))}")
@@ -942,7 +1028,6 @@ def modulo_boletim():
                 
                 st.divider()
 
-                # Formulário de Edição
                 with st.expander("✏️ Editar este Boletim"):
                     with st.form(key="edit_boletim_form"):
                         st.warning("A edição de equipes ainda não é suportada. Em breve!")
@@ -950,7 +1035,6 @@ def modulo_boletim():
                         bairros_edit = st.text_area("Bairros a serem trabalhados", value=dados_boletim.get('bairros', ''))
                         atividades_gerais_edit = st.multiselect("Atividades Gerais do Dia", options=["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização"], default=dados_boletim.get('atividades_gerais', []))
                         
-                        # Edição de motoristas e faltas (aqui precisa do mapa de nomes completo)
                         nome_map_full = {formatar_nome(nome): nome for nome in df_funcionarios['nome']}
                         lista_nomes_curtos_full_edit = sorted(list(nome_map_full.keys()))
 
@@ -965,7 +1049,6 @@ def modulo_boletim():
                         submit_button = st.form_submit_button(label='Salvar Alterações')
 
                         if submit_button:
-                            # Converte os nomes curtos editados de volta para nomes completos
                             motoristas_completos_edit = [nome_map_full[nome] for nome in motoristas_edit_curtos]
                             faltas_manha_completos_edit = [nome_map_full[nome] for nome in faltas_manha_edit_curtos]
                             faltas_tarde_completos_edit = [nome_map_full[nome] for nome in faltas_tarde_edit_curtos]
@@ -991,26 +1074,23 @@ def modulo_boletim():
         if df_boletins.empty or df_geo_quarteiroes.empty:
             st.warning("Dados de boletins ou geolocalização de quarteirões não estão disponíveis.")
         else:
-            data_mapa = st.date_input("Selecione a data para visualizar no mapa", date.today())
+            data_mapa = st.date_input("Selecione a data para visualizar no mapa", date.today(), key="mapa_data")
             boletim_id_mapa = data_mapa.strftime("%Y-%m-%d")
 
             if boletim_id_mapa in df_boletins.index:
                 dados_boletim_mapa = df_boletins.loc[boletim_id_mapa]
                 
-                # Coleta todos os quarteirões do dia
                 quarteiroes_trabalhados = []
                 for turno in ['equipes_manha', 'equipes_tarde']:
-                    if turno in dados_boletim_mapa and dados_boletim_mapa[turno]:
+                    if turno in dados_boletim_mapa and dados_boletim_mapa[turno] and isinstance(dados_boletim_mapa[turno], list):
                         for equipe in dados_boletim_mapa[turno]:
                             quarteiroes_trabalhados.extend(equipe.get('quarteiroes', []))
                 
-                # Remove duplicatas
                 quarteiroes_unicos = list(set(quarteiroes_trabalhados))
 
                 if not quarteiroes_unicos:
                     st.info(f"Nenhum quarteirão registrado para o dia {data_mapa.strftime('%d/%m/%Y')}.")
                 else:
-                    # Filtra o df_geo para conter apenas os quarteirões trabalhados
                     df_quarteiroes_mapa = df_geo_quarteiroes[df_geo_quarteiroes['quadra'].isin(quarteiroes_unicos)]
 
                     if df_quarteiroes_mapa.empty:
@@ -1026,31 +1106,30 @@ def modulo_boletim():
         if df_boletins.empty:
             st.info("Nenhum dado de boletim para gerar o dashboard.")
         else:
-            # Filtro de data
             hoje = date.today()
             inicio_padrao = hoje - timedelta(days=30)
             data_inicio_dash, data_fim_dash = st.date_input(
                 "Selecione o período de análise",
                 [inicio_padrao, hoje],
-                max_value=hoje
+                max_value=hoje,
+                key="dash_date_range"
             )
 
             if data_inicio_dash and data_fim_dash and data_inicio_dash <= data_fim_dash:
-                # Filtra os boletins pelo período selecionado
+                df_boletins['data_dt'] = pd.to_datetime(df_boletins['data']).dt.date
                 df_boletins_filtrado = df_boletins[
-                    (pd.to_datetime(df_boletins['data']).dt.date >= data_inicio_dash) &
-                    (pd.to_datetime(df_boletins['data']).dt.date <= data_fim_dash)
+                    (df_boletins['data_dt'] >= data_inicio_dash) &
+                    (df_boletins['data_dt'] <= data_fim_dash)
                 ]
 
                 if df_boletins_filtrado.empty:
                     st.warning("Nenhum boletim encontrado no período selecionado.")
                 else:
-                    # Processamento para "achatar" os dados
                     dados_analise = []
                     for _, boletim in df_boletins_filtrado.iterrows():
                         data = boletim['data']
                         for turno in ['equipes_manha', 'equipes_tarde']:
-                            if turno in boletim and boletim[turno]:
+                            if turno in boletim and boletim[turno] and isinstance(boletim[turno], list):
                                 for equipe in boletim[turno]:
                                     membros = equipe.get('membros', [])
                                     atividades = equipe.get('atividades', [])
@@ -1062,6 +1141,10 @@ def modulo_boletim():
                                     for quarteirao in quarteiroes:
                                         dados_analise.append({'data': data, 'quarteirao': quarteirao})
 
+                    if not dados_analise:
+                        st.info("Nenhuma atividade registrada no período para análise.")
+                        return
+
                     df_analise = pd.DataFrame(dados_analise)
 
                     st.divider()
@@ -1070,7 +1153,7 @@ def modulo_boletim():
 
                     with col1:
                         st.markdown("**Quarteirões Mais Trabalhados**")
-                        if 'quarteirao' in df_analise.columns:
+                        if 'quarteirao' in df_analise.columns and not df_analise['quarteirao'].dropna().empty:
                             top_quarteiroes = df_analise['quarteirao'].value_counts().nlargest(15)
                             fig = px.bar(top_quarteiroes, x=top_quarteiroes.index, y=top_quarteiroes.values,
                                          labels={'y': 'Nº de Vezes Trabalhado', 'x': 'Quarteirão'}, text_auto=True)
@@ -1081,7 +1164,7 @@ def modulo_boletim():
                     
                     with col2:
                         st.markdown("**Atividades Mais Executadas**")
-                        if 'atividade' in df_analise.columns:
+                        if 'atividade' in df_analise.columns and not df_analise['atividade'].dropna().empty:
                             top_atividades = df_analise['atividade'].value_counts()
                             fig_pie = px.pie(top_atividades, values=top_atividades.values, names=top_atividades.index, 
                                              hole=.3, color_discrete_sequence=px.colors.sequential.RdBu)
@@ -1092,7 +1175,7 @@ def modulo_boletim():
                     
                     st.divider()
                     st.markdown("**Participação dos Funcionários (por turnos trabalhados)**")
-                    if 'membro' in df_analise.columns:
+                    if 'membro' in df_analise.columns and not df_analise['membro'].dropna().empty:
                         participacao = df_analise['membro'].value_counts()
                         fig_part = px.bar(participacao, x=participacao.index, y=participacao.values,
                                       labels={'y': 'Nº de Turnos', 'x': 'Funcionário'}, text_auto=True)
