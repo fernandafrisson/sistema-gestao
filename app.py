@@ -414,6 +414,8 @@ def get_ultimas_ferias(employee_id, all_folgas_df):
 
 # Substitua sua função modulo_rh por esta:
 
+# Substitua sua função modulo_rh por esta versão CORRIGIDA:
+
 def modulo_rh():
     """Renderiza a página do módulo de Recursos Humanos."""
     st.title("Recursos Humanos")
@@ -430,6 +432,7 @@ def modulo_rh():
     tab_rh1, tab_rh2, tab_rh3 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "👨‍💼 Gerenciar Funcionários"])
     
     with tab_rh1:
+        # Esta aba não precisa de alterações. O código dela permanece o mesmo.
         st.subheader("Registro de Férias e Abonadas")
         if lista_nomes_curtos:
             nome_curto_selecionado = st.selectbox("Selecione o Funcionário", lista_nomes_curtos)
@@ -618,10 +621,17 @@ def modulo_rh():
                         data_adm_str = pd.to_datetime(data_adm_str).strftime('%d/%m/%Y')
                     st.markdown(f"**Data de Admissão:** {data_adm_str}")
                     
-                    # ### MUDANÇA AQUI: Exibição dos novos campos na ficha ###
-                    data_nasc_str = dados_func.get('data_nascimento', 'N/A')
-                    if pd.notna(data_nasc_str):
-                        data_nasc_str = pd.to_datetime(data_nasc_str).strftime('%d/%m/%Y')
+                    # ### CORREÇÃO AQUI ###
+                    # Lógica para verificar e formatar a data de nascimento com segurança
+                    data_nasc_str = dados_func.get('data_nascimento') # Pega o valor ou None
+                    if data_nasc_str: # Verifica se não é None ou vazio
+                        try:
+                            data_nasc_str = pd.to_datetime(data_nasc_str).strftime('%d/%m/%Y')
+                        except (ValueError, TypeError):
+                            data_nasc_str = "Data inválida" # Caso o dado salvo não seja uma data
+                    else:
+                        data_nasc_str = "N/A" # Se for None ou vazio
+
                     st.markdown(f"**Data de Nascimento:** {data_nasc_str}")
                     
                     st.markdown(f"**Tam. Camisa:** {dados_func.get('tamanho_camisa', 'N/A')}")
@@ -640,6 +650,7 @@ def modulo_rh():
                 st.info("Nenhum funcionário.")
 
     with tab_rh3:
+        # Esta aba não precisa de alterações. O código dela permanece o mesmo.
         st.subheader("Cadastrar Novo Funcionário")
         with st.form("novo_funcionario_form_3", clear_on_submit=True):
             nome = st.text_input("Nome Completo")
@@ -649,7 +660,6 @@ def modulo_rh():
             unidade_trabalho = st.text_input("Unidade de Trabalho")
             data_admissao = st.date_input("Data de Admissão", datetime.now())
             
-            # ### MUDANÇA AQUI: Novos campos no formulário de cadastro ###
             st.divider()
             st.markdown("**Informações Adicionais**")
             data_nascimento = st.date_input("Data de Nascimento", min_value=date(1940, 1, 1), max_value=date.today() - relativedelta(years=18), value=date.today() - relativedelta(years=25))
@@ -660,7 +670,7 @@ def modulo_rh():
             with col_uniforme2:
                 numero_bota = st.text_input("Número da Bota (Ex: 40)")
             
-            numero_chave = st.text_input("Número de Chave")
+            numero_chave = st.text_input("Número de Chave do Armário")
             
             submit_funcionario = st.form_submit_button("Cadastrar Funcionário")
             
@@ -668,7 +678,6 @@ def modulo_rh():
                 try:
                     novo_id = str(int(time.time() * 1000))
                     ref = db.reference(f'funcionarios/{novo_id}')
-                    # ### MUDANÇA AQUI: Adiciona os novos campos ao salvar ###
                     dados_novos = {
                         'id': novo_id, 'nome': nome, 'matricula': matricula, 
                         'telefone': telefone, 'funcao': funcao, 'unidade_trabalho': unidade_trabalho, 
@@ -699,7 +708,6 @@ def modulo_rh():
                     unidade_edit = st.text_input("Unidade de Trabalho", value=dados_func_originais.get('unidade_trabalho'))
                     data_admissao_edit = st.date_input("Data de Admissão", value=pd.to_datetime(dados_func_originais.get('data_admissao')))
 
-                    # ### MUDANÇA AQUI: Novos campos no formulário de edição ###
                     st.divider()
                     st.markdown("**Informações Adicionais**")
                     
@@ -715,7 +723,6 @@ def modulo_rh():
                     numero_chave_edit = st.text_input("Número de Chave do Armário", value=dados_func_originais.get('numero_chave', ''))
                     
                     if st.form_submit_button("Salvar Alterações"):
-                        # ### MUDANÇA AQUI: Adiciona os novos campos ao atualizar ###
                         dados_atualizados = {
                             'nome': nome_edit, 'matricula': matricula_edit, 
                             'telefone': telefone_edit, 'funcao': funcao_edit, 
