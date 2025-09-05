@@ -17,6 +17,11 @@ import geopandas as gpd
 from streamlit_calendar import calendar
 import pydeck as pdk
 
+# ### NOVAS IMPORTAÇÕES PARA WEB SCRAPING ###
+import requests
+from bs4 import BeautifulSoup
+import json
+
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide")
 
@@ -54,7 +59,7 @@ def formatar_nome(nome_completo):
         return f"{partes[0]} {partes[1]}"
     return partes[0] if partes else ""
 
-# ### NOVA FUNÇÃO DE LOG DE ATIVIDADE ###
+# ### FUNÇÃO DE LOG DE ATIVIDADE ###
 def log_atividade(usuario, acao, detalhes=""):
     """
     Registra uma ação do usuário no banco de dados.
@@ -128,6 +133,46 @@ def carregar_geo_kml():
     except Exception as e:
         st.error(f"Não foi possível carregar os dados de geolocalização do KML. Erro: {e}")
         return pd.DataFrame()
+
+# ### NOVA FUNÇÃO: OBTENÇÃO DA PREVISÃO DO TEMPO VIA WEB SCRAPING ###
+@st.cache_data(ttl=60*60) # Armazena em cache por 1 hora
+def obter_previsao_tempo_google(cidade):
+    """
+    Obtém a previsão do tempo de um site de busca usando web scraping.
+    """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+    }
+    search_url = f'https://www.google.com/search?q=previsão do tempo {cidade}'
+    
+    try:
+        response = requests.get(search_url, headers=headers, timeout=10)
+        response.raise_for_status() # Lança um erro para códigos de status HTTP ruins
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        temperatura_tag = soup.find('span', {'id': 'wob_tm'})
+        descricao_tag = soup.find('span', {'id': 'wob_dc'})
+        icone_tag = soup.find('img', {'id': 'wob_tci'})
+
+        if temperatura_tag and descricao_tag and icone_tag:
+            temperatura = temperatura_tag.text.strip()
+            descricao = descricao_tag.text.strip().title()
+            icone_url = "https:" + icone_tag.get('src', '')
+            
+            return {
+                'temperatura': f"{temperatura}°C",
+                'descricao': descricao,
+                'icone': icone_url
+            }
+        else:
+            return {'erro': "Não foi possível encontrar os dados da previsão do tempo no site."}
+            
+    except requests.exceptions.RequestException as e:
+        return {'erro': f"Erro de conexão ao tentar acessar o site: {e}"}
+    except Exception as e:
+        return {'erro': f"Erro ao processar os dados do site: {e}"}
+
 
 # --- FUNÇÕES DE GERAÇÃO DE RELATÓRIOS .DOCX ---
 
@@ -1568,6 +1613,44 @@ def login_screen():
             else:
                 st.error("Usuário ou senha inválidos.")
 
+@st.cache_data(ttl=60*60)
+def obter_previsao_tempo_google(cidade):
+    """
+    Obtém a previsão do tempo de um site de busca usando web scraping.
+    """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+    }
+    search_url = f'https://www.google.com/search?q=previsão do tempo {cidade}'
+    
+    try:
+        response = requests.get(search_url, headers=headers, timeout=10)
+        response.raise_for_status() # Lança um erro para códigos de status HTTP ruins
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        temperatura_tag = soup.find('span', {'id': 'wob_tm'})
+        descricao_tag = soup.find('span', {'id': 'wob_dc'})
+        icone_tag = soup.find('img', {'id': 'wob_tci'})
+
+        if temperatura_tag and descricao_tag and icone_tag:
+            temperatura = temperatura_tag.text.strip()
+            descricao = descricao_tag.text.strip().title()
+            icone_url = "https:" + icone_tag.get('src', '')
+            
+            return {
+                'temperatura': f"{temperatura}°C",
+                'descricao': descricao,
+                'icone': icone_url
+            }
+        else:
+            return {'erro': "Não foi possível encontrar os dados da previsão do tempo no site."}
+            
+    except requests.exceptions.RequestException as e:
+        return {'erro': f"Erro de conexão ao tentar acessar o site: {e}"}
+    except Exception as e:
+        return {'erro': f"Erro ao processar os dados do site: {e}"}
+
 def main_app():
     """Controla a navegação e a exibição dos módulos após o login."""
     if 'evento_para_editar_id' not in st.session_state:
@@ -1599,8 +1682,30 @@ def main_app():
             modulo_logs()
 
     else:
+        # Tela Principal (Painel de Controle)
         st.title("Painel de Controle")
         st.header(f"Bem-vindo(a), {st.session_state['username']}!")
+        
+        # --- BLOCO: PREVISÃO DO TEMPO com Web Scraping ---
+        CIDADE = "Guaratinguetá"
+        previsao = obter_previsao_tempo_google(CIDADE)
+        
+        if 'erro' not in previsao:
+            st.markdown(f"""
+                <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <img src="{previsao['icone']}" alt="Ícone do tempo" width="60">
+                        <div>
+                            <h4 style="margin: 0; padding: 0;">Previsão do Tempo em {CIDADE}</h4>
+                            <p style="margin: 0; padding: 0;">Hoje: {previsao['descricao']} | Temperatura: **{previsao['temperatura']}**</p>
+                        </div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.warning(f"Não foi possível obter a previsão do tempo. {previsao['erro']}")
+        
+        # --- FIM DO BLOCO DE PREVISÃO DO TEMPO ---
         
         st.write("Selecione o módulo que deseja acessar:")
         col1, col2, col3, col4 = st.columns(4)
