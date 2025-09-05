@@ -54,7 +54,7 @@ def formatar_nome(nome_completo):
         return f"{partes[0]} {partes[1]}"
     return partes[0] if partes else ""
 
-# ### LOGGING ###
+# ### NOVA FUNÇÃO DE LOG DE ATIVIDADE ###
 def log_atividade(usuario, acao, detalhes=""):
     """
     Registra uma ação do usuário no banco de dados.
@@ -483,7 +483,6 @@ def modulo_rh():
                             ref = db.reference(f'folgas_ferias/{evento_id}')
                             ref.set({'id_funcionario': id_funcionario,'nome_funcionario': nome_completo,'tipo': tipo_evento,'data_inicio': data_inicio.strftime("%Y-%m-%d"),'data_fim': data_fim.strftime("%Y-%m-%d")})
                             
-                            # ### LOGGING ###
                             log_atividade(st.session_state.get('username'), f"Registrou {tipo_evento}", f"Funcionário: {nome_completo}, Período: {data_inicio} a {data_fim}")
 
                             st.success(f"{tipo_evento} para {nome_completo} registrado com sucesso!")
@@ -545,7 +544,6 @@ def modulo_rh():
                                     ref = db.reference(f'folgas_ferias/{evento_id}')
                                     ref.update({'data_inicio': data_inicio_edit.strftime("%Y-%m-%d"),'data_fim': data_fim_edit.strftime("%Y-%m-%d")})
                                     
-                                    # ### LOGGING ###
                                     log_atividade(st.session_state.get('username'), "Editou ausência", f"Registro: {dados_evento['label']}, Novas datas: {data_inicio_edit} a {data_fim_edit}")
                                     
                                     st.success("Registro atualizado com sucesso!")
@@ -645,16 +643,14 @@ def modulo_rh():
                         data_adm_str = pd.to_datetime(data_adm_str).strftime('%d/%m/%Y')
                     st.markdown(f"**Data de Admissão:** {data_adm_str}")
                     
-                    # ### CORREÇÃO AQUI ###
-                    # Lógica para verificar e formatar a data de nascimento com segurança
-                    data_nasc_str = dados_func.get('data_nascimento') # Pega o valor ou None
-                    if data_nasc_str: # Verifica se não é None ou vazio
+                    data_nasc_str = dados_func.get('data_nascimento')
+                    if data_nasc_str:
                         try:
                             data_nasc_str = pd.to_datetime(data_nasc_str).strftime('%d/%m/%Y')
                         except (ValueError, TypeError):
-                            data_nasc_str = "Data inválida" # Caso o dado salvo não seja uma data
+                            data_nasc_str = "Data inválida"
                     else:
-                        data_nasc_str = "N/A" # Se for None ou vazio
+                        data_nasc_str = "N/A"
 
                     st.markdown(f"**Data de Nascimento:** {data_nasc_str}")
                     
@@ -712,7 +708,6 @@ def modulo_rh():
                     }
                     ref.set(dados_novos)
                     
-                    # ### LOGGING ###
                     log_atividade(st.session_state.get('username'), "Cadastrou novo funcionário", f"Nome: {nome}")
                     
                     st.success(f"Funcionário {nome} cadastrado com sucesso!")
@@ -763,7 +758,6 @@ def modulo_rh():
                         ref = db.reference(f"funcionarios/{dados_func_originais['id']}")
                         ref.update(dados_atualizados)
                         
-                        # ### LOGGING ###
                         log_atividade(st.session_state.get('username'), "Editou funcionário", f"Nome: {nome_edit}")
                         
                         st.success("Dados do funcionário atualizados com sucesso!")
@@ -785,7 +779,6 @@ def modulo_rh():
                             for key in folgas_para_deletar:
                                 folgas_ref.child(key).delete()
                         
-                        # ### LOGGING ###
                         log_atividade(st.session_state.get('username'), "Deletou funcionário", f"Nome: {nome_completo_para_deletar}")
 
                         st.success(f"Funcionário {nome_completo_para_deletar} deletado com sucesso.")
@@ -914,7 +907,6 @@ def modulo_denuncias():
                     ref = db.reference(f'denuncias/{protocolo_gerado}')
                     ref.set(nova_denuncia)
                     
-                    # ### LOGGING ###
                     log_atividade(st.session_state.get('username'), "Registrou nova denúncia", f"Protocolo: {protocolo_gerado}")
 
                     st.success(f"Denúncia registrada com sucesso! Protocolo: {protocolo_gerado}")
@@ -997,7 +989,6 @@ def modulo_denuncias():
                             ref = db.reference(f'denuncias/{protocolo_selecionado}')
                             ref.update(dados_para_atualizar)
                             
-                            # ### LOGGING ###
                             log_atividade(st.session_state.get('username'), "Atualizou denúncia", f"Protocolo: {protocolo_selecionado}, Status: {status}")
 
                             st.success(f"Denúncia {protocolo_selecionado} atualizada!")
@@ -1009,7 +1000,6 @@ def modulo_denuncias():
                     if st.button("Eu entendo o risco, deletar denúncia", type="primary"):
                         ref = db.reference(f'denuncias/{protocolo_selecionado}'); ref.delete()
                         
-                        # ### LOGGING ###
                         log_atividade(st.session_state.get('username'), "Deletou denúncia", f"Protocolo: {protocolo_selecionado}")
 
                         st.success(f"Denúncia {protocolo_selecionado} deletada!")
@@ -1086,100 +1076,147 @@ def modulo_boletim():
 
     with tab1:
         st.subheader("Novo Boletim de Programação")
-        data_boletim = st.date_input("Data do Trabalho", date.today())
         
-        df_folgas = carregar_dados_firebase('folgas_ferias')
-        
-        if isinstance(df_funcionarios, pd.DataFrame) and not df_funcionarios.empty:
-            funcionarios_do_dia = df_funcionarios.copy()
-            if not df_folgas.empty and 'data_inicio' in df_folgas.columns and 'data_fim' in df_folgas.columns:
-                try:
-                    datas_validas_folgas = df_folgas.dropna(subset=['data_inicio', 'data_fim'])
-                    ausentes_ids = datas_validas_folgas[
-                        (pd.to_datetime(datas_validas_folgas['data_inicio']).dt.date <= data_boletim) & 
-                        (pd.to_datetime(datas_validas_folgas['data_fim']).dt.date >= data_boletim)
-                    ]['id_funcionario'].tolist()
-                    if ausentes_ids:
-                        funcionarios_do_dia = df_funcionarios[~df_funcionarios['id'].isin(ausentes_ids)]
-                except Exception as e:
-                    st.warning(f"Não foi possível filtrar funcionários ausentes do RH: {e}")
-            
-            nome_map = {formatar_nome(nome): nome for nome in funcionarios_do_dia['nome']}
-            lista_nomes_curtos_full = sorted(list(nome_map.keys()))
-        else:
-            nome_map = {}
-            lista_nomes_curtos_full = []
-            st.warning("Não há funcionários cadastrados para criar um boletim.")
+        # --- BLOCO DE INFORMAÇÕES GERAIS (Fundo Cinza) ---
+        st.markdown("""
+        <style>
+            .bloco-cinza {
+                background-color: #f0f2f6;
+                padding: 20px;
+                border-radius: 10px;
+                margin-bottom: 20px;
+            }
+        </style>
+        """, unsafe_allow_html=True)
 
-        atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização"]
-        bairros = st.text_area("Bairros a serem trabalhados")
-        atividades_gerais = st.multiselect("Atividades Gerais do Dia", atividades_gerais_options)
-        
-        motoristas_curtos = st.multiselect("Motorista(s)", options=lista_nomes_curtos_full)
-        st.divider()
-        
-        st.markdown("**Faltas do Dia**")
-        col_m, col_t = st.columns(2)
-        with col_m:
-            faltas_manha_curtos = st.multiselect("Ausentes (Manhã)", options=lista_nomes_curtos_full, key="falta_manha_nomes")
-            motivo_falta_manha = st.text_input("Motivo (Manhã)", key="falta_manha_motivo")
-        with col_t:
-            faltas_tarde_curtos = st.multiselect("Ausentes (Tarde)", options=lista_nomes_curtos_full, key="falta_tarde_nomes")
-            motivo_falta_tarde = st.text_input("Motivo (Tarde)", key="falta_tarde_motivo")
-        st.divider()
-        
-        nomes_disponiveis_manha = [nome for nome in lista_nomes_curtos_full if nome not in faltas_manha_curtos and nome not in motoristas_curtos]
-        nomes_disponiveis_tarde = [nome for nome in lista_nomes_curtos_full if nome not in faltas_tarde_curtos and nome not in motoristas_curtos]
-
-        equipes_manha = []
-        membros_selecionados_manha = []
-        st.markdown("**Turno da Manhã**")
-        for i in range(st.session_state.num_equipes_manha):
-            st.markdown(f"--- *Equipe {i+1}* ---")
-            opcoes_equipe_manha = [nome for nome in nomes_disponiveis_manha if nome not in membros_selecionados_manha]
+        with st.container():
+            st.markdown("<div class='bloco-cinza'>", unsafe_allow_html=True)
+            st.markdown("#### Informações Gerais")
+            data_boletim = st.date_input("Data do Trabalho", date.today())
             
-            cols = st.columns([2, 2, 3])
-            with cols[0]:
+            df_folgas = carregar_dados_firebase('folgas_ferias')
+            
+            if isinstance(df_funcionarios, pd.DataFrame) and not df_funcionarios.empty:
+                funcionarios_do_dia = df_funcionarios.copy()
+                if not df_folgas.empty and 'data_inicio' in df_folgas.columns and 'data_fim' in df_folgas.columns:
+                    try:
+                        datas_validas_folgas = df_folgas.dropna(subset=['data_inicio', 'data_fim'])
+                        ausentes_ids = datas_validas_folgas[
+                            (pd.to_datetime(datas_validas_folgas['data_inicio']).dt.date <= data_boletim) & 
+                            (pd.to_datetime(datas_validas_folgas['data_fim']).dt.date >= data_boletim)
+                        ]['id_funcionario'].tolist()
+                        if ausentes_ids:
+                            funcionarios_do_dia = df_funcionarios[~df_funcionarios['id'].isin(ausentes_ids)]
+                    except Exception as e:
+                        st.warning(f"Não foi possível filtrar funcionários ausentes do RH: {e}")
+                
+                nome_map = {formatar_nome(nome): nome for nome in funcionarios_do_dia['nome']}
+                lista_nomes_curtos_full = sorted(list(nome_map.keys()))
+            else:
+                nome_map = {}
+                lista_nomes_curtos_full = []
+                st.warning("Não há funcionários cadastrados para criar um boletim.")
+
+            atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização"]
+            bairros = st.text_area("Bairros a serem trabalhados")
+            atividades_gerais = st.multiselect("Atividades Gerais do Dia", atividades_gerais_options)
+            
+            motoristas_curtos = st.multiselect("Motorista(s)", options=lista_nomes_curtos_full)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # --- BLOCO DE FALTAS (Fundo Branco) ---
+        st.markdown("""
+        <style>
+            .bloco-branco {
+                background-color: #ffffff;
+                padding: 20px;
+                border-radius: 10px;
+                margin-bottom: 20px;
+            }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        with st.container():
+            st.markdown("<div class='bloco-branco'>", unsafe_allow_html=True)
+            st.markdown("#### Faltas do Dia")
+            col_m, col_t = st.columns(2)
+            with col_m:
+                faltas_manha_curtos = st.multiselect("Ausentes (Manhã)", options=lista_nomes_curtos_full, key="falta_manha_nomes")
+                motivo_falta_manha = st.text_input("Motivo (Manhã)", key="falta_manha_motivo")
+            with col_t:
+                faltas_tarde_curtos = st.multiselect("Ausentes (Tarde)", options=lista_nomes_curtos_full, key="falta_tarde_nomes")
+                motivo_falta_tarde = st.text_input("Motivo (Tarde)", key="falta_tarde_motivo")
+            st.markdown("</div>", unsafe_allow_html=True)
+        
+        # --- BLOCOS DE EQUIPES (Fundo Vermelho Claro e Azul Claro) ---
+        st.markdown("""
+        <style>
+            .bloco-vermelho-claro {
+                background-color: #f8d7da;
+                padding: 20px;
+                border-radius: 10px;
+                margin-bottom: 20px;
+            }
+            .bloco-azul-claro {
+                background-color: #d1ecf1;
+                padding: 20px;
+                border-radius: 10px;
+                margin-bottom: 20px;
+            }
+        </style>
+        """, unsafe_allow_html=True)
+
+        col_manha_eq, col_tarde_eq = st.columns(2)
+
+        with col_manha_eq:
+            st.markdown("<div class='bloco-vermelho-claro'>", unsafe_allow_html=True)
+            st.markdown("#### Turno da Manhã")
+            equipes_manha = []
+            membros_selecionados_manha = []
+            for i in range(st.session_state.num_equipes_manha):
+                st.markdown(f"--- **Equipe {i+1}** ---")
+                opcoes_equipe_manha = [nome for nome in lista_nomes_curtos_full if nome not in faltas_manha_curtos and nome not in motoristas_curtos and nome not in membros_selecionados_manha]
+                
                 membros_curtos = st.multiselect(f"Membros da Equipe {i+1}", options=opcoes_equipe_manha, key=f"manha_membros_{i}")
-            with cols[1]:
                 atividades = st.multiselect("Atividades", options=atividades_gerais_options, key=f"manha_atividades_{i}")
-            with cols[2]:
                 quarteiroes = st.multiselect("Quarteirões", options=lista_quarteiroes, key=f"manha_quarteiroes_{i}")
+                
+                if membros_curtos:
+                    membros_completos = [nome_map[nome] for nome in membros_curtos]
+                    equipes_manha.append({"membros": membros_completos, "atividades": atividades, "quarteiroes": quarteiroes})
+                    membros_selecionados_manha.extend(membros_curtos)
             
-            if membros_curtos:
-                membros_completos = [nome_map[nome] for nome in membros_curtos]
-                equipes_manha.append({"membros": membros_completos, "atividades": atividades, "quarteiroes": quarteiroes})
-                membros_selecionados_manha.extend(membros_curtos)
+            if st.button("➕ Adicionar Equipe", key="add_equipe_manha", use_container_width=True):
+                st.session_state.num_equipes_manha += 1
+                st.rerun()
 
-        if st.button("➕ Adicionar Equipe (Manhã)"):
-            st.session_state.num_equipes_manha += 1
-            st.rerun()
-        st.divider()
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        equipes_tarde = []
-        membros_selecionados_tarde = []
-        st.markdown("**Turno da Tarde**")
-        for i in range(st.session_state.num_equipes_tarde):
-            st.markdown(f"--- *Equipe {i+1}* ---")
-            opcoes_equipe_tarde = [nome for nome in nomes_disponiveis_tarde if nome not in membros_selecionados_tarde]
+        with col_tarde_eq:
+            st.markdown("<div class='bloco-azul-claro'>", unsafe_allow_html=True)
+            st.markdown("#### Turno da Tarde")
+            equipes_tarde = []
+            membros_selecionados_tarde = []
+            for i in range(st.session_state.num_equipes_tarde):
+                st.markdown(f"--- **Equipe {i+1}** ---")
+                opcoes_equipe_tarde = [nome for nome in lista_nomes_curtos_full if nome not in faltas_tarde_curtos and nome not in motoristas_curtos and nome not in membros_selecionados_tarde]
 
-            cols = st.columns([2, 2, 3])
-            with cols[0]:
                 membros_curtos = st.multiselect(f"Membros da Equipe {i+1}", options=opcoes_equipe_tarde, key=f"tarde_membros_{i}")
-            with cols[1]:
                 atividades = st.multiselect("Atividades ", options=atividades_gerais_options, key=f"tarde_atividades_{i}")
-            with cols[2]:
                 quarteiroes = st.multiselect("Quarteirões ", options=lista_quarteiroes, key=f"tarde_quarteiroes_{i}")
-            
-            if membros_curtos:
-                membros_completos = [nome_map[nome] for nome in membros_curtos]
-                equipes_tarde.append({"membros": membros_completos, "atividades": atividades, "quarteiroes": quarteiroes})
-                membros_selecionados_tarde.extend(membros_curtos)
+                
+                if membros_curtos:
+                    membros_completos = [nome_map[nome] for nome in membros_curtos]
+                    equipes_tarde.append({"membros": membros_completos, "atividades": atividades, "quarteiroes": quarteiroes})
+                    membros_selecionados_tarde.extend(membros_curtos)
 
-        if st.button("➕ Adicionar Equipe (Tarde)"):
-            st.session_state.num_equipes_tarde += 1
-            st.rerun()
+            if st.button("➕ Adicionar Equipe", key="add_equipe_tarde", use_container_width=True):
+                st.session_state.num_equipes_tarde += 1
+                st.rerun()
+
+            st.markdown("</div>", unsafe_allow_html=True)
         
+        st.markdown("<br>", unsafe_allow_html=True)
         if st.button("Salvar Boletim", use_container_width=True, type="primary"):
             motoristas_completos = [nome_map[nome] for nome in motoristas_curtos]
             faltas_manha_completos = [nome_map[nome] for nome in faltas_manha_curtos]
@@ -1189,8 +1226,7 @@ def modulo_boletim():
             boletim_data = {"data": boletim_id, "bairros": bairros, "atividades_gerais": atividades_gerais, "motoristas": motoristas_completos, "equipes_manha": equipes_manha, "equipes_tarde": equipes_tarde, "faltas_manha": {"nomes": faltas_manha_completos, "motivo": motivo_falta_manha}, "faltas_tarde": {"nomes": faltas_tarde_completos, "motivo": motivo_falta_tarde}}
             try:
                 ref = db.reference(f'boletins/{boletim_id}'); ref.set(boletim_data)
-
-                # ### LOGGING ###
+                
                 log_atividade(st.session_state.get('username'), "Criou novo boletim", f"Data: {boletim_id}, Bairros: {bairros}")
 
                 st.success(f"Boletim para o dia {data_boletim.strftime('%d/%m/%Y')} salvo com sucesso!")
@@ -1295,7 +1331,6 @@ def modulo_boletim():
                                 ref = db.reference(f'boletins/{boletim_id_selecionado}')
                                 ref.update(dados_atualizados)
 
-                                # ### LOGGING ###
                                 log_atividade(st.session_state.get('username'), "Editou boletim", f"Boletim: {boletim_id_selecionado}")
 
                                 st.success("Boletim atualizado com sucesso!")
@@ -1518,7 +1553,6 @@ def main_app():
                 st.rerun()
             st.divider()
             if st.button("Logout"):
-                # ### LOGGING ###
                 log_atividade(st.session_state.get('username'), "Logout", "Usuário encerrou a sessão.")
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
@@ -1530,7 +1564,6 @@ def main_app():
             modulo_rh()
         elif st.session_state['module_choice'] == "Boletim":
             modulo_boletim()
-        # ### LOGGING ###
         elif st.session_state['module_choice'] == "Logs":
             modulo_logs()
 
@@ -1540,7 +1573,7 @@ def main_app():
         st.header(f"Bem-vindo(a), {st.session_state['username']}!")
         
         st.write("Selecione o módulo que deseja acessar:")
-        col1, col2, col3, col4 = st.columns(4) # Alterado para 4 colunas para incluir o novo botão
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             if st.button("🚨 Denúncias", use_container_width=True):
                 st.session_state['module_choice'] = "Denúncias"
@@ -1553,7 +1586,6 @@ def main_app():
             if st.button("🗓️ Boletim Diário", use_container_width=True):
                 st.session_state['module_choice'] = "Boletim"
                 st.rerun()
-        # ### LOGGING ###
         with col4:
             if st.button("📄 Logs de Atividade", use_container_width=True):
                 st.session_state['module_choice'] = "Logs"
@@ -1569,7 +1601,6 @@ def main_app():
             else:
                 lista_nomes_curtos = []
 
-            # ### NOVO BLOCO ###: Formulário de Edição (só aparece quando um evento é selecionado)
             if st.session_state.evento_para_editar_id:
                 st.subheader("✏️ Editando Evento")
                 df_avisos_all = carregar_dados_firebase('avisos')
@@ -1603,7 +1634,6 @@ def main_app():
                             }
                             db.reference(f'avisos/{st.session_state.evento_para_editar_id}').update(dados_atualizados)
                             
-                            # ### LOGGING ###
                             log_atividade(st.session_state.get('username'), "Editou aviso no mural", f"Título: {titulo_edit}")
 
                             st.success("Evento atualizado com sucesso!")
@@ -1647,7 +1677,6 @@ def main_app():
                                 'participantes': participantes 
                             })
                             
-                            # ### LOGGING ###
                             log_atividade(st.session_state.get('username'), "Adicionou aviso no mural", f"Título: {aviso_titulo}")
 
                             st.success("Evento salvo no mural com sucesso!")
@@ -1683,7 +1712,6 @@ def main_app():
                                     st.markdown(f"**Participantes:** {', '.join(participantes_validos)}")
                             
                             st.markdown("---")
-                            # ### ALTERAÇÃO AQUI ###: Botões de Editar e Deletar
                             col_b1, col_b2, _ = st.columns([1, 1, 3])
                             with col_b1:
                                 if st.button("✏️ Editar", key=f"edit_{id}", use_container_width=True):
@@ -1693,7 +1721,6 @@ def main_app():
                                 if st.button("🗑️ Deletar", key=f"del_{id}", type="primary", use_container_width=True):
                                     db.reference(f'avisos/{id}').delete()
                                     
-                                    # ### LOGGING ###
                                     log_atividade(st.session_state.get('username'), "Deletou aviso no mural", f"Título: {aviso.get('titulo')}")
 
                                     st.success(f"Evento '{aviso.get('titulo')}' deletado.")
