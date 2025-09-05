@@ -1056,9 +1056,50 @@ def modulo_denuncias():
         else:
             st.info("Nenhuma denúncia registrada.")
 
+# --- MÓDULO DO BOLETIM (LAYOUT ALTERADO) ---
 def modulo_boletim():
-    """Renderiza a página do módulo de Boletim de Programação Diária."""
+    """Renderiza a página do módulo de Boletim de Programação Diária com um layout melhorado."""
     st.title("Boletim de Programação Diária")
+
+    # Injeta CSS personalizado para o layout de cartões
+    st.markdown("""
+        <style>
+            .main-content {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 20px;
+            }
+            .card {
+                background-color: #ffffff;
+                border-radius: 12px;
+                padding: 20px;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            }
+            .card-full-width {
+                flex: 1 1 100%;
+            }
+            .card-half-width {
+                flex: 1 1 45%; /* Ajustado para 45% para permitir espaçamento */
+            }
+            .stTabs [data-baseweb="tab-list"] {
+                gap: 24px;
+            }
+            .stTabs [data-baseweb="tab"] {
+                border-radius: 100px;
+                padding: 10px 20px;
+                background-color: #f0f2f6;
+            }
+            .stTabs [aria-selected="true"] {
+                background-color: #007bff;
+                color: white;
+            }
+            /* Style for the sidebar to match the layout */
+            [data-testid="stSidebar"] {
+                background-color: #f0f2f6;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
 
     # Carregamento dos dados necessários
     df_funcionarios = carregar_dados_firebase('funcionarios')
@@ -1075,109 +1116,77 @@ def modulo_boletim():
     tab1, tab2, tab3, tab4 = st.tabs(["🗓️ Criar Boletim", "🔍 Visualizar/Editar Boletim", "🗺️ Mapa de Atividades", "📊 Dashboard"])
 
     with tab1:
-        st.subheader("Novo Boletim de Programação")
-        
-        # --- BLOCO DE INFORMAÇÕES GERAIS (Fundo Cinza) ---
-        st.markdown("""
-        <style>
-            .bloco-cinza {
-                background-color: #f0f2f6;
-                padding: 20px;
-                border-radius: 10px;
-                margin-bottom: 20px;
-            }
-        </style>
-        """, unsafe_allow_html=True)
+        st.header("Novo Boletim de Programação")
 
-        with st.container():
-            st.markdown("<div class='bloco-cinza'>", unsafe_allow_html=True)
-            st.markdown("#### Informações Gerais")
-            data_boletim = st.date_input("Data do Trabalho", date.today())
-            
-            df_folgas = carregar_dados_firebase('folgas_ferias')
-            
-            if isinstance(df_funcionarios, pd.DataFrame) and not df_funcionarios.empty:
-                funcionarios_do_dia = df_funcionarios.copy()
-                if not df_folgas.empty and 'data_inicio' in df_folgas.columns and 'data_fim' in df_folgas.columns:
-                    try:
-                        datas_validas_folgas = df_folgas.dropna(subset=['data_inicio', 'data_fim'])
-                        ausentes_ids = datas_validas_folgas[
-                            (pd.to_datetime(datas_validas_folgas['data_inicio']).dt.date <= data_boletim) & 
-                            (pd.to_datetime(datas_validas_folgas['data_fim']).dt.date >= data_boletim)
-                        ]['id_funcionario'].tolist()
-                        if ausentes_ids:
-                            funcionarios_do_dia = df_funcionarios[~df_funcionarios['id'].isin(ausentes_ids)]
-                    except Exception as e:
-                        st.warning(f"Não foi possível filtrar funcionários ausentes do RH: {e}")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Novo Boletim (Card de Formulário Principal)
+            st.markdown("<div class='card card-full-width'>", unsafe_allow_html=True)
+            with st.form("main_boletim_form", clear_on_submit=False):
+                st.subheader("Dados do Boletim")
+                data_boletim = st.date_input("Data do Trabalho", date.today())
+
+                df_folgas = carregar_dados_firebase('folgas_ferias')
                 
-                nome_map = {formatar_nome(nome): nome for nome in funcionarios_do_dia['nome']}
-                lista_nomes_curtos_full = sorted(list(nome_map.keys()))
-            else:
-                nome_map = {}
-                lista_nomes_curtos_full = []
-                st.warning("Não há funcionários cadastrados para criar um boletim.")
+                if isinstance(df_funcionarios, pd.DataFrame) and not df_funcionarios.empty:
+                    funcionarios_do_dia = df_funcionarios.copy()
+                    if not df_folgas.empty and 'data_inicio' in df_folgas.columns and 'data_fim' in df_folgas.columns:
+                        try:
+                            datas_validas_folgas = df_folgas.dropna(subset=['data_inicio', 'data_fim'])
+                            ausentes_ids = datas_validas_folgas[
+                                (pd.to_datetime(datas_validas_folgas['data_inicio']).dt.date <= data_boletim) & 
+                                (pd.to_datetime(datas_validas_folgas['data_fim']).dt.date >= data_boletim)
+                            ]['id_funcionario'].tolist()
+                            if ausentes_ids:
+                                funcionarios_do_dia = df_funcionarios[~df_funcionarios['id'].isin(ausentes_ids)]
+                        except Exception as e:
+                            st.warning(f"Não foi possível filtrar funcionários ausentes do RH: {e}")
+                    
+                    nome_map = {formatar_nome(nome): nome for nome in funcionarios_do_dia['nome']}
+                    lista_nomes_curtos_full = sorted(list(nome_map.keys()))
+                else:
+                    nome_map = {}
+                    lista_nomes_curtos_full = []
+                    st.warning("Não há funcionários cadastrados para criar um boletim.")
 
-            atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização"]
-            bairros = st.text_area("Bairros a serem trabalhados")
-            atividades_gerais = st.multiselect("Atividades Gerais do Dia", atividades_gerais_options)
+                atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização"]
+                
+                bairros = st.text_area("Bairros a serem trabalhados")
+                atividades_gerais = st.multiselect("Atividades Gerais do Dia", atividades_gerais_options)
+                motoristas_curtos = st.multiselect("Motorista(s)", options=lista_nomes_curtos_full)
+
+                st.markdown("<hr style='margin-top: 20px; margin-bottom: 20px; border-color: #ddd;'>", unsafe_allow_html=True)
+
+                st.subheader("Ausências do Dia")
+                col_m, col_t = st.columns(2)
+                with col_m:
+                    faltas_manha_curtos = st.multiselect("Ausentes (Manhã)", options=lista_nomes_curtos_full, key="falta_manha_nomes")
+                    motivo_falta_manha = st.text_input("Motivo (Manhã)", key="falta_manha_motivo")
+                with col_t:
+                    faltas_tarde_curtos = st.multiselect("Ausentes (Tarde)", options=lista_nomes_curtos_full, key="falta_tarde_nomes")
+                    motivo_falta_tarde = st.text_input("Motivo (Tarde)", key="falta_tarde_motivo")
+
+                submit_button_main = st.form_submit_button("Salvar Boletim", use_container_width=True, type="primary")
+
+            st.markdown("</div>", unsafe_allow_html=True) # Fim do card
+
+        with col2:
+            # Equipes da Manhã e da Tarde (Cards de Equipes)
+            st.markdown("<div class='card card-full-width'>", unsafe_allow_html=True)
+            st.subheader("Equipes")
             
-            motoristas_curtos = st.multiselect("Motorista(s)", options=lista_nomes_curtos_full)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        # --- BLOCO DE FALTAS (Fundo Branco) ---
-        st.markdown("""
-        <style>
-            .bloco-branco {
-                background-color: #ffffff;
-                padding: 20px;
-                border-radius: 10px;
-                margin-bottom: 20px;
-            }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        with st.container():
-            st.markdown("<div class='bloco-branco'>", unsafe_allow_html=True)
-            st.markdown("#### Faltas do Dia")
-            col_m, col_t = st.columns(2)
-            with col_m:
-                faltas_manha_curtos = st.multiselect("Ausentes (Manhã)", options=lista_nomes_curtos_full, key="falta_manha_nomes")
-                motivo_falta_manha = st.text_input("Motivo (Manhã)", key="falta_manha_motivo")
-            with col_t:
-                faltas_tarde_curtos = st.multiselect("Ausentes (Tarde)", options=lista_nomes_curtos_full, key="falta_tarde_nomes")
-                motivo_falta_tarde = st.text_input("Motivo (Tarde)", key="falta_tarde_motivo")
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        # --- BLOCOS DE EQUIPES (Fundo Vermelho Claro e Azul Claro) ---
-        st.markdown("""
-        <style>
-            .bloco-vermelho-claro {
-                background-color: #f8d7da;
-                padding: 20px;
-                border-radius: 10px;
-                margin-bottom: 20px;
-            }
-            .bloco-azul-claro {
-                background-color: #d1ecf1;
-                padding: 20px;
-                border-radius: 10px;
-                margin-bottom: 20px;
-            }
-        </style>
-        """, unsafe_allow_html=True)
-
-        col_manha_eq, col_tarde_eq = st.columns(2)
-
-        with col_manha_eq:
-            st.markdown("<div class='bloco-vermelho-claro'>", unsafe_allow_html=True)
-            st.markdown("#### Turno da Manhã")
+            # Sub-seções de Equipes (Manhã)
+            st.markdown("---")
+            st.markdown("#### Manhã")
             equipes_manha = []
             membros_selecionados_manha = []
+            nomes_disponiveis_manha = [nome for nome in lista_nomes_curtos_full if nome not in faltas_manha_curtos and nome not in motoristas_curtos]
             for i in range(st.session_state.num_equipes_manha):
-                st.markdown(f"--- **Equipe {i+1}** ---")
-                opcoes_equipe_manha = [nome for nome in lista_nomes_curtos_full if nome not in faltas_manha_curtos and nome not in motoristas_curtos and nome not in membros_selecionados_manha]
+                st.markdown(f"**Equipe {i+1}**")
+                opcoes_equipe_manha = [nome for nome in nomes_disponiveis_manha if nome not in membros_selecionados_manha]
                 
-                membros_curtos = st.multiselect(f"Membros da Equipe {i+1}", options=opcoes_equipe_manha, key=f"manha_membros_{i}")
+                membros_curtos = st.multiselect("Membros", options=opcoes_equipe_manha, key=f"manha_membros_{i}")
                 atividades = st.multiselect("Atividades", options=atividades_gerais_options, key=f"manha_atividades_{i}")
                 quarteiroes = st.multiselect("Quarteirões", options=lista_quarteiroes, key=f"manha_quarteiroes_{i}")
                 
@@ -1185,23 +1194,27 @@ def modulo_boletim():
                     membros_completos = [nome_map[nome] for nome in membros_curtos]
                     equipes_manha.append({"membros": membros_completos, "atividades": atividades, "quarteiroes": quarteiroes})
                     membros_selecionados_manha.extend(membros_curtos)
-            
-            if st.button("➕ Adicionar Equipe", key="add_equipe_manha", use_container_width=True):
+                
+                if i < st.session_state.num_equipes_manha - 1:
+                    st.markdown("<hr>", unsafe_allow_html=True)
+
+            if st.button("➕ Adicionar Equipe (Manhã)", key="add_equipe_manha_button"):
                 st.session_state.num_equipes_manha += 1
                 st.rerun()
 
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
 
-        with col_tarde_eq:
-            st.markdown("<div class='bloco-azul-claro'>", unsafe_allow_html=True)
-            st.markdown("#### Turno da Tarde")
+            # Sub-seções de Equipes (Tarde)
+            st.markdown("---")
+            st.markdown("#### Tarde")
             equipes_tarde = []
             membros_selecionados_tarde = []
+            nomes_disponiveis_tarde = [nome for nome in lista_nomes_curtos_full if nome not in faltas_tarde_curtos and nome not in motoristas_curtos]
             for i in range(st.session_state.num_equipes_tarde):
-                st.markdown(f"--- **Equipe {i+1}** ---")
-                opcoes_equipe_tarde = [nome for nome in lista_nomes_curtos_full if nome not in faltas_tarde_curtos and nome not in motoristas_curtos and nome not in membros_selecionados_tarde]
+                st.markdown(f"**Equipe {i+1}**")
+                opcoes_equipe_tarde = [nome for nome in nomes_disponiveis_tarde if nome not in membros_selecionados_tarde]
 
-                membros_curtos = st.multiselect(f"Membros da Equipe {i+1}", options=opcoes_equipe_tarde, key=f"tarde_membros_{i}")
+                membros_curtos = st.multiselect("Membros ", options=opcoes_equipe_tarde, key=f"tarde_membros_{i}")
                 atividades = st.multiselect("Atividades ", options=atividades_gerais_options, key=f"tarde_atividades_{i}")
                 quarteiroes = st.multiselect("Quarteirões ", options=lista_quarteiroes, key=f"tarde_quarteiroes_{i}")
                 
@@ -1210,20 +1223,33 @@ def modulo_boletim():
                     equipes_tarde.append({"membros": membros_completos, "atividades": atividades, "quarteiroes": quarteiroes})
                     membros_selecionados_tarde.extend(membros_curtos)
 
-            if st.button("➕ Adicionar Equipe", key="add_equipe_tarde", use_container_width=True):
+                if i < st.session_state.num_equipes_tarde - 1:
+                    st.markdown("<hr>", unsafe_allow_html=True)
+
+            if st.button("➕ Adicionar Equipe (Tarde)", key="add_equipe_tarde_button"):
                 st.session_state.num_equipes_tarde += 1
                 st.rerun()
 
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Salvar Boletim", use_container_width=True, type="primary"):
+            st.markdown("</div>", unsafe_allow_html=True) # Fim do card
+
+
+        # Lógica de submissão do formulário principal
+        if submit_button_main:
             motoristas_completos = [nome_map[nome] for nome in motoristas_curtos]
             faltas_manha_completos = [nome_map[nome] for nome in faltas_manha_curtos]
             faltas_tarde_completos = [nome_map[nome] for nome in faltas_tarde_curtos]
             
             boletim_id = data_boletim.strftime("%Y-%m-%d")
-            boletim_data = {"data": boletim_id, "bairros": bairros, "atividades_gerais": atividades_gerais, "motoristas": motoristas_completos, "equipes_manha": equipes_manha, "equipes_tarde": equipes_tarde, "faltas_manha": {"nomes": faltas_manha_completos, "motivo": motivo_falta_manha}, "faltas_tarde": {"nomes": faltas_tarde_completos, "motivo": motivo_falta_tarde}}
+            boletim_data = {
+                "data": boletim_id,
+                "bairros": bairros,
+                "atividades_gerais": atividades_gerais,
+                "motoristas": motoristas_completos,
+                "equipes_manha": equipes_manha,
+                "equipes_tarde": equipes_tarde,
+                "faltas_manha": {"nomes": faltas_manha_completos, "motivo": motivo_falta_manha},
+                "faltas_tarde": {"nomes": faltas_tarde_completos, "motivo": motivo_falta_tarde}
+            }
             try:
                 ref = db.reference(f'boletins/{boletim_id}'); ref.set(boletim_data)
                 
@@ -1231,8 +1257,11 @@ def modulo_boletim():
 
                 st.success(f"Boletim para o dia {data_boletim.strftime('%d/%m/%Y')} salvo com sucesso!")
                 st.cache_data.clear()
+                time.sleep(1)
+                st.rerun()
             except Exception as e:
                 st.error(f"Erro ao salvar o boletim: {e}")
+
 
     with tab2:
         st.subheader("Visualizar e Editar Boletim")
@@ -1535,10 +1564,8 @@ def login_screen():
             else:
                 st.error("Usuário ou senha inválidos.")
 
-# ### LOGGING ###
 def main_app():
     """Controla a navegação e a exibição dos módulos após o login."""
-    # Inicializa o estado de edição se ele não existir
     if 'evento_para_editar_id' not in st.session_state:
         st.session_state.evento_para_editar_id = None
 
@@ -1548,7 +1575,7 @@ def main_app():
             st.write(f"Usuário: **{st.session_state['username']}**")
             st.divider()
             if st.button("⬅️ Voltar ao Painel de Controle"):
-                st.session_state.evento_para_editar_id = None # Limpa o estado de edição ao sair
+                st.session_state.evento_para_editar_id = None
                 st.session_state['module_choice'] = None
                 st.rerun()
             st.divider()
@@ -1568,7 +1595,6 @@ def main_app():
             modulo_logs()
 
     else:
-        # Tela Principal (Painel de Controle)
         st.title("Painel de Controle")
         st.header(f"Bem-vindo(a), {st.session_state['username']}!")
         
