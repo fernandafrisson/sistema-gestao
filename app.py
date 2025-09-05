@@ -42,6 +42,7 @@ try:
 except Exception as e:
     st.error(f"Erro ao inicializar o Firebase: {e}. Verifique as suas credenciais.")
 
+
 # --- FUNÇÕES GLOBAIS DE DADOS E UTILITÁRIAS ---
 
 def formatar_nome(nome_completo):
@@ -52,6 +53,26 @@ def formatar_nome(nome_completo):
     if len(partes) > 1:
         return f"{partes[0]} {partes[1]}"
     return partes[0] if partes else ""
+
+# ### LOGGING ###
+def log_atividade(usuario, acao, detalhes=""):
+    """
+    Registra uma ação do usuário no banco de dados.
+    """
+    try:
+        ref = db.reference('logs_de_atividade')
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_id = str(int(time.time() * 1000))
+        
+        ref.child(log_id).set({
+            "usuario": usuario,
+            "acao": acao,
+            "detalhes": detalhes,
+            "timestamp": timestamp
+        })
+    except Exception as e:
+        st.error(f"Erro ao registrar log de atividade: {e}")
+
 
 @st.cache_data
 def carregar_dados_firebase(node):
@@ -152,11 +173,11 @@ def create_abonada_word_report(data):
     p_lab2 = document.add_paragraph('Assinatura da Chefia Imediata'); p_lab2.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_lab2.paragraph_format.space_after = Pt(18)
     p_info = document.add_paragraph(); add_black_run(p_info, 'Informação da Seção de Pessoal:', bold=True)
-    add_black_run(document.add_paragraph(), "Refere-se à:      1ª (  )      2ª (  )    3ª (  ) do Primeiro Semestre de: ____________")
-    add_black_run(document.add_paragraph(), "              1ª (  )      2ª (  )    3ª (  ) do Segundo Semestre de: ____________")
-    p_visto = document.add_paragraph("     ___________________________________________");
-    p_visto_label = document.add_paragraph("                   (visto do funcionário da seção de pessoal)")
-    p_abone = document.add_paragraph("                       Abone-se: _____/_____/______")
+    add_black_run(document.add_paragraph(), "Refere-se à:       1ª (   )     2ª (   )   3ª (   ) do Primeiro Semestre de: ____________")
+    add_black_run(document.add_paragraph(), "           1ª (   )     2ª (   )   3ª (   ) do Segundo Semestre de: ____________")
+    p_visto = document.add_paragraph("      ___________________________________________");
+    p_visto_label = document.add_paragraph("          (visto do funcionário da seção de pessoal)")
+    p_abone = document.add_paragraph("                Abone-se: _____/_____/______")
     p_abone.paragraph_format.space_after = Pt(18)
     p_secretario_sig = document.add_paragraph("_________________________________"); p_secretario_sig.alignment = 1
     p_secretario_label = document.add_paragraph("Secretário Municipal da Saúde"); p_secretario_label.alignment = 1
@@ -412,10 +433,6 @@ def get_ultimas_ferias(employee_id, all_folgas_df):
 
 # --- MÓDULOS DA APLICAÇÃO ---
 
-# Substitua sua função modulo_rh por esta:
-
-# Substitua sua função modulo_rh por esta versão CORRIGIDA:
-
 def modulo_rh():
     """Renderiza a página do módulo de Recursos Humanos."""
     st.title("Recursos Humanos")
@@ -432,7 +449,6 @@ def modulo_rh():
     tab_rh1, tab_rh2, tab_rh3 = st.tabs(["✈️ Férias e Abonadas", "👥 Visualizar Equipe", "👨‍💼 Gerenciar Funcionários"])
     
     with tab_rh1:
-        # Esta aba não precisa de alterações. O código dela permanece o mesmo.
         st.subheader("Registro de Férias e Abonadas")
         if lista_nomes_curtos:
             nome_curto_selecionado = st.selectbox("Selecione o Funcionário", lista_nomes_curtos)
@@ -466,6 +482,10 @@ def modulo_rh():
                             evento_id = str(int(time.time() * 1000))
                             ref = db.reference(f'folgas_ferias/{evento_id}')
                             ref.set({'id_funcionario': id_funcionario,'nome_funcionario': nome_completo,'tipo': tipo_evento,'data_inicio': data_inicio.strftime("%Y-%m-%d"),'data_fim': data_fim.strftime("%Y-%m-%d")})
+                            
+                            # ### LOGGING ###
+                            log_atividade(st.session_state.get('username'), f"Registrou {tipo_evento}", f"Funcionário: {nome_completo}, Período: {data_inicio} a {data_fim}")
+
                             st.success(f"{tipo_evento} para {nome_completo} registrado com sucesso!")
                             
                             if tipo_evento == "Abonada":
@@ -524,6 +544,10 @@ def modulo_rh():
                                 try:
                                     ref = db.reference(f'folgas_ferias/{evento_id}')
                                     ref.update({'data_inicio': data_inicio_edit.strftime("%Y-%m-%d"),'data_fim': data_fim_edit.strftime("%Y-%m-%d")})
+                                    
+                                    # ### LOGGING ###
+                                    log_atividade(st.session_state.get('username'), "Editou ausência", f"Registro: {dados_evento['label']}, Novas datas: {data_inicio_edit} a {data_fim_edit}")
+                                    
                                     st.success("Registro atualizado com sucesso!")
                                     st.cache_data.clear()
                                     st.rerun()
@@ -650,7 +674,6 @@ def modulo_rh():
                 st.info("Nenhum funcionário.")
 
     with tab_rh3:
-        # Esta aba não precisa de alterações. O código dela permanece o mesmo.
         st.subheader("Cadastrar Novo Funcionário")
         with st.form("novo_funcionario_form_3", clear_on_submit=True):
             nome = st.text_input("Nome Completo")
@@ -688,6 +711,10 @@ def modulo_rh():
                         'numero_chave': numero_chave
                     }
                     ref.set(dados_novos)
+                    
+                    # ### LOGGING ###
+                    log_atividade(st.session_state.get('username'), "Cadastrou novo funcionário", f"Nome: {nome}")
+                    
                     st.success(f"Funcionário {nome} cadastrado com sucesso!")
                     st.cache_data.clear(); st.rerun()
                 except Exception as e:
@@ -735,6 +762,10 @@ def modulo_rh():
                         }
                         ref = db.reference(f"funcionarios/{dados_func_originais['id']}")
                         ref.update(dados_atualizados)
+                        
+                        # ### LOGGING ###
+                        log_atividade(st.session_state.get('username'), "Editou funcionário", f"Nome: {nome_edit}")
+                        
                         st.success("Dados do funcionário atualizados com sucesso!")
                         st.cache_data.clear(); st.rerun()
         st.divider()
@@ -753,6 +784,10 @@ def modulo_rh():
                         if folgas_para_deletar:
                             for key in folgas_para_deletar:
                                 folgas_ref.child(key).delete()
+                        
+                        # ### LOGGING ###
+                        log_atividade(st.session_state.get('username'), "Deletou funcionário", f"Nome: {nome_completo_para_deletar}")
+
                         st.success(f"Funcionário {nome_completo_para_deletar} deletado com sucesso.")
                         st.cache_data.clear(); st.rerun()
                     except Exception as e:
@@ -878,6 +913,10 @@ def modulo_denuncias():
                     }
                     ref = db.reference(f'denuncias/{protocolo_gerado}')
                     ref.set(nova_denuncia)
+                    
+                    # ### LOGGING ###
+                    log_atividade(st.session_state.get('username'), "Registrou nova denúncia", f"Protocolo: {protocolo_gerado}")
+
                     st.success(f"Denúncia registrada com sucesso! Protocolo: {protocolo_gerado}")
                     carregar_e_cachear_denuncias()
                     st.cache_data.clear()
@@ -939,7 +978,7 @@ def modulo_denuncias():
 
                     if st.form_submit_button("Salvar Gerenciamento"):
                         if not responsavel_imovel:
-                             st.error("O campo 'Nome do Responsável do Imóvel' é de preenchimento obrigatório.")
+                               st.error("O campo 'Nome do Responsável do Imóvel' é de preenchimento obrigatório.")
                         else:
                             dados_para_atualizar = {
                                 "status": status, 
@@ -957,6 +996,10 @@ def modulo_denuncias():
                             }
                             ref = db.reference(f'denuncias/{protocolo_selecionado}')
                             ref.update(dados_para_atualizar)
+                            
+                            # ### LOGGING ###
+                            log_atividade(st.session_state.get('username'), "Atualizou denúncia", f"Protocolo: {protocolo_selecionado}, Status: {status}")
+
                             st.success(f"Denúncia {protocolo_selecionado} atualizada!")
                             carregar_e_cachear_denuncias()
                             st.cache_data.clear()
@@ -965,6 +1008,10 @@ def modulo_denuncias():
                 with st.expander("🚨 Deletar Denúncia"):
                     if st.button("Eu entendo o risco, deletar denúncia", type="primary"):
                         ref = db.reference(f'denuncias/{protocolo_selecionado}'); ref.delete()
+                        
+                        # ### LOGGING ###
+                        log_atividade(st.session_state.get('username'), "Deletou denúncia", f"Protocolo: {protocolo_selecionado}")
+
                         st.success(f"Denúncia {protocolo_selecionado} deletada!")
                         carregar_e_cachear_denuncias(); st.cache_data.clear(); st.rerun()
         else:
@@ -1142,6 +1189,10 @@ def modulo_boletim():
             boletim_data = {"data": boletim_id, "bairros": bairros, "atividades_gerais": atividades_gerais, "motoristas": motoristas_completos, "equipes_manha": equipes_manha, "equipes_tarde": equipes_tarde, "faltas_manha": {"nomes": faltas_manha_completos, "motivo": motivo_falta_manha}, "faltas_tarde": {"nomes": faltas_tarde_completos, "motivo": motivo_falta_tarde}}
             try:
                 ref = db.reference(f'boletins/{boletim_id}'); ref.set(boletim_data)
+
+                # ### LOGGING ###
+                log_atividade(st.session_state.get('username'), "Criou novo boletim", f"Data: {boletim_id}, Bairros: {bairros}")
+
                 st.success(f"Boletim para o dia {data_boletim.strftime('%d/%m/%Y')} salvo com sucesso!")
                 st.cache_data.clear()
             except Exception as e:
@@ -1243,6 +1294,10 @@ def modulo_boletim():
                             try:
                                 ref = db.reference(f'boletins/{boletim_id_selecionado}')
                                 ref.update(dados_atualizados)
+
+                                # ### LOGGING ###
+                                log_atividade(st.session_state.get('username'), "Editou boletim", f"Boletim: {boletim_id_selecionado}")
+
                                 st.success("Boletim atualizado com sucesso!")
                                 st.cache_data.clear()
                                 st.rerun()
@@ -1382,11 +1437,51 @@ def modulo_boletim():
                         if 'membro' in df_analise.columns and not df_analise['membro'].dropna().empty:
                             participacao = df_analise['membro'].value_counts()
                             fig_part = px.bar(participacao, x=participacao.index, y=participacao.values,
-                                          labels={'y': 'Nº de Turnos', 'x': 'Funcionário'}, text_auto=True)
+                                             labels={'y': 'Nº de Turnos', 'x': 'Funcionário'}, text_auto=True)
                             fig_part.update_layout(title_x=0.5, xaxis_title="", yaxis_title="")
                             st.plotly_chart(fig_part, use_container_width=True)
                         else:
                             st.info("Nenhum dado de participação no período.")
+
+# ### NOVO MÓDULO DE LOGS ###
+def modulo_logs():
+    """Renderiza a página para visualizar os logs de atividade."""
+    st.title("Logs de Atividade")
+
+    df_logs = carregar_dados_firebase('logs_de_atividade')
+
+    if not df_logs.empty:
+        df_logs['timestamp_dt'] = pd.to_datetime(df_logs['timestamp'])
+        df_logs_display = df_logs.sort_values(by='timestamp_dt', ascending=False).copy()
+        
+        # Opcional: Filtros para facilitar a busca
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("Filtrar Logs")
+        usuarios_logados = sorted(df_logs_display['usuario'].unique().tolist())
+        filtro_usuario = st.sidebar.selectbox("Filtrar por Usuário", options=["Todos"] + usuarios_logados)
+
+        acoes_disponiveis = sorted(df_logs_display['acao'].unique().tolist())
+        filtro_acao = st.sidebar.multiselect("Filtrar por Ação", options=acoes_disponiveis)
+
+        if filtro_usuario != "Todos":
+            df_logs_display = df_logs_display[df_logs_display['usuario'] == filtro_usuario]
+
+        if filtro_acao:
+            df_logs_display = df_logs_display[df_logs_display['acao'].isin(filtro_acao)]
+
+        # Exibe os dados filtrados
+        cols_to_display = ['timestamp', 'usuario', 'acao', 'detalhes']
+        st.dataframe(
+            df_logs_display[cols_to_display].rename(
+                columns={'timestamp': 'Data/Hora', 'usuario': 'Usuário', 'acao': 'Ação', 'detalhes': 'Detalhes'}
+            ),
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.info("Nenhum log de atividade encontrado.")
+
+
 # --- ESTRUTURA PRINCIPAL DA APLICAÇÃO (LOGIN E NAVEGAÇÃO) ---
 
 def login_screen():
@@ -1405,14 +1500,10 @@ def login_screen():
             else:
                 st.error("Usuário ou senha inválidos.")
 
-# Substitua sua função main_app por esta versão completa e atualizada:
-
-
-# Substitua sua função main_app por esta versão completa e atualizada:
-
+# ### LOGGING ###
 def main_app():
     """Controla a navegação e a exibição dos módulos após o login."""
-    # ### NOVO ###: Inicializa o estado de edição se ele não existir
+    # Inicializa o estado de edição se ele não existir
     if 'evento_para_editar_id' not in st.session_state:
         st.session_state.evento_para_editar_id = None
 
@@ -1427,6 +1518,8 @@ def main_app():
                 st.rerun()
             st.divider()
             if st.button("Logout"):
+                # ### LOGGING ###
+                log_atividade(st.session_state.get('username'), "Logout", "Usuário encerrou a sessão.")
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
                 st.rerun()
@@ -1437,6 +1530,9 @@ def main_app():
             modulo_rh()
         elif st.session_state['module_choice'] == "Boletim":
             modulo_boletim()
+        # ### LOGGING ###
+        elif st.session_state['module_choice'] == "Logs":
+            modulo_logs()
 
     else:
         # Tela Principal (Painel de Controle)
@@ -1444,7 +1540,7 @@ def main_app():
         st.header(f"Bem-vindo(a), {st.session_state['username']}!")
         
         st.write("Selecione o módulo que deseja acessar:")
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4) # Alterado para 4 colunas para incluir o novo botão
         with col1:
             if st.button("🚨 Denúncias", use_container_width=True):
                 st.session_state['module_choice'] = "Denúncias"
@@ -1456,6 +1552,11 @@ def main_app():
         with col3:
             if st.button("🗓️ Boletim Diário", use_container_width=True):
                 st.session_state['module_choice'] = "Boletim"
+                st.rerun()
+        # ### LOGGING ###
+        with col4:
+            if st.button("📄 Logs de Atividade", use_container_width=True):
+                st.session_state['module_choice'] = "Logs"
                 st.rerun()
         st.divider()
 
@@ -1501,6 +1602,10 @@ def main_app():
                                 'participantes': participantes_edit
                             }
                             db.reference(f'avisos/{st.session_state.evento_para_editar_id}').update(dados_atualizados)
+                            
+                            # ### LOGGING ###
+                            log_atividade(st.session_state.get('username'), "Editou aviso no mural", f"Título: {titulo_edit}")
+
                             st.success("Evento atualizado com sucesso!")
                             st.session_state.evento_para_editar_id = None
                             st.cache_data.clear()
@@ -1541,6 +1646,10 @@ def main_app():
                                 'descricao': aviso_descricao,
                                 'participantes': participantes 
                             })
+                            
+                            # ### LOGGING ###
+                            log_atividade(st.session_state.get('username'), "Adicionou aviso no mural", f"Título: {aviso_titulo}")
+
                             st.success("Evento salvo no mural com sucesso!")
                             st.cache_data.clear()
                             st.rerun()
@@ -1583,6 +1692,10 @@ def main_app():
                             with col_b2:
                                 if st.button("🗑️ Deletar", key=f"del_{id}", type="primary", use_container_width=True):
                                     db.reference(f'avisos/{id}').delete()
+                                    
+                                    # ### LOGGING ###
+                                    log_atividade(st.session_state.get('username'), "Deletou aviso no mural", f"Título: {aviso.get('titulo')}")
+
                                     st.success(f"Evento '{aviso.get('titulo')}' deletado.")
                                     st.cache_data.clear()
                                     st.rerun()
