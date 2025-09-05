@@ -1,3 +1,4 @@
+# CÓDIGO CORRIGIDO PARA OBTENÇÃO DO TEMPO VIA WEB SCRAPING DO GOOGLE
 import streamlit as st
 import pandas as pd
 import firebase_admin
@@ -17,7 +18,7 @@ import geopandas as gpd
 from streamlit_calendar import calendar
 import pydeck as pdk
 
-# ### NOVAS IMPORTAÇÕES PARA WEB SCRAPING ###
+# NOVAS IMPORTAÇÕES PARA WEB SCRAPING
 import requests
 from bs4 import BeautifulSoup
 import json
@@ -59,7 +60,7 @@ def formatar_nome(nome_completo):
         return f"{partes[0]} {partes[1]}"
     return partes[0] if partes else ""
 
-# ### FUNÇÃO DE LOG DE ATIVIDADE ###
+# FUNÇÃO DE LOG DE ATIVIDADE
 def log_atividade(usuario, acao, detalhes=""):
     """
     Registra uma ação do usuário no banco de dados.
@@ -134,14 +135,14 @@ def carregar_geo_kml():
         st.error(f"Não foi possível carregar os dados de geolocalização do KML. Erro: {e}")
         return pd.DataFrame()
 
-# ### NOVA FUNÇÃO: OBTENÇÃO DA PREVISÃO DO TEMPO VIA WEB SCRAPING ###
-@st.cache_data(ttl=60*60) # Armazena em cache por 1 hora
+@st.cache_data(ttl=60*60)
 def obter_previsao_tempo_google(cidade):
     """
     Obtém a previsão do tempo de um site de busca usando web scraping.
     """
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
     }
     search_url = f'https://www.google.com/search?q=previsão do tempo {cidade}'
     
@@ -172,7 +173,6 @@ def obter_previsao_tempo_google(cidade):
         return {'erro': f"Erro de conexão ao tentar acessar o site: {e}"}
     except Exception as e:
         return {'erro': f"Erro ao processar os dados do site: {e}"}
-
 
 # --- FUNÇÕES DE GERAÇÃO DE RELATÓRIOS .DOCX ---
 
@@ -235,35 +235,6 @@ def create_abonada_word_report(data):
     buffer = io.BytesIO()
     document.save(buffer)
     buffer.seek(0)
-    return buffer.getvalue()
-
-def create_word_report(data):
-    """Gera um relatório de Inspeção Zoossanitária em formato .docx."""
-    document = Document()
-    style = document.styles['Normal']; font = style.font; font.name = 'Calibri'; font.size = Pt(11)
-    titulo = document.add_heading('RELATÓRIO DE INSPEÇÃO ZOOSSANITÁRIA', level=1); titulo.alignment = 1
-    try: data_obj = datetime.strptime(data.get('data_denuncia', ''), '%Y-%m-%d'); data_formatada = data_obj.strftime('%d/%m/%Y')
-    except (ValueError, TypeError): data_formatada = "Data não informada"
-    p_data = document.add_paragraph(data_formatada); p_data.alignment = 2
-    document.add_paragraph('Vigilância Epidemiológica')
-    p = document.add_paragraph(); p.add_run('Responsável: ').bold = True; p.add_run(str(data.get('responsavel_atendimento', '')))
-    endereco_completo = f"{data.get('logradouro', '')}, {data.get('numero', '')} - {data.get('bairro', '')}"
-    p = document.add_paragraph(); p.add_run('Endereço: ').bold = True; p.add_run(endereco_completo)
-    document.add_paragraph(); p = document.add_paragraph(); p.add_run('Relato da Situação: ').bold = True
-    document.add_paragraph(str(data.get('detalhes_denuncia', '')))
-    document.add_paragraph(); p = document.add_paragraph(); p.add_run('Situação Encontrada: ').bold = True
-    document.add_paragraph(str(data.get('relatorio_atendimento', '')))
-    document.add_paragraph(); p = document.add_paragraph(); p.add_run('Conclusão: ').bold = True
-    document.add_paragraph(str(data.get('conclusao_atendimento', '')))
-    footer = document.sections[0].footer; footer_para = footer.paragraphs[0]
-    footer_para.text = ("PREFEITURA MUNICIPAL DA ESTÂNCIA TURÍSTICA DE GUARATINGUETÁ/SP\n"
-                        "Secretaria Municipal de Saúde - Fundo Municipal de Saúde\n"
-                        "Rua Jacques Felix, 02 – São Gonçalo - Guaratinguetá/SP - CEP 12.502-180\n"
-                        "Telefone / Fax: (12) 3123-2900 - e-mail: ccz@guaratingueta.sp.gov.br")
-    footer_para.alignment = 1
-    font_footer = footer_para.style.font
-    font_footer.name = 'Arial'; font_footer.size = Pt(8)
-    buffer = io.BytesIO(); document.save(buffer); buffer.seek(0)
     return buffer.getvalue()
 
 def create_boletim_word_report(data_boletim):
@@ -1613,43 +1584,44 @@ def login_screen():
             else:
                 st.error("Usuário ou senha inválidos.")
 
-@st.cache_data(ttl=60*60)
-def obter_previsao_tempo_google(cidade):
+# --- API wttr.in (OPÇÃO 2) ---
+@st.cache_data(ttl=60*60) # Armazena em cache por 1 hora
+def obter_previsao_tempo_wttr(cidade):
     """
-    Obtém a previsão do tempo de um site de busca usando web scraping.
+    Obtém a previsão do tempo para uma cidade usando a API wttr.in.
     """
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
-    }
-    search_url = f'https://www.google.com/search?q=previsão do tempo {cidade}'
-    
     try:
-        response = requests.get(search_url, headers=headers, timeout=10)
+        response = requests.get(f'https://wttr.in/{cidade}?format=j1', timeout=10)
         response.raise_for_status() # Lança um erro para códigos de status HTTP ruins
+        data = response.json()
         
-        soup = BeautifulSoup(response.text, 'html.parser')
+        previsao_atual = data['current_condition'][0]
         
-        temperatura_tag = soup.find('span', {'id': 'wob_tm'})
-        descricao_tag = soup.find('span', {'id': 'wob_dc'})
-        icone_tag = soup.find('img', {'id': 'wob_tci'})
-
-        if temperatura_tag and descricao_tag and icone_tag:
-            temperatura = temperatura_tag.text.strip()
-            descricao = descricao_tag.text.strip().title()
-            icone_url = "https:" + icone_tag.get('src', '')
-            
-            return {
-                'temperatura': f"{temperatura}°C",
-                'descricao': descricao,
-                'icone': icone_url
-            }
-        else:
-            return {'erro': "Não foi possível encontrar os dados da previsão do tempo no site."}
-            
+        temperatura = previsao_atual['temp_C']
+        descricao = previsao_atual['lang_pt'][0]['value']
+        
+        # O wttr.in não fornece um ícone, mas podemos mapear a descrição para um emoji
+        icones = {
+            'sol': '☀️', 'chuva': '🌧️', 'nublado': '☁️',
+            'parcialmente nublado': '⛅', 'neve': '❄️',
+            'trovoada': '⚡', 'névoa': '🌫️',
+        }
+        
+        icone = '🌍'
+        for key, value in icones.items():
+            if key in descricao.lower():
+                icone = value
+                break
+        
+        return {
+            'temperatura': f"{temperatura}°C",
+            'descricao': descricao.title(),
+            'icone': icone
+        }
     except requests.exceptions.RequestException as e:
-        return {'erro': f"Erro de conexão ao tentar acessar o site: {e}"}
+        return {'erro': f"Erro de conexão: {e}"}
     except Exception as e:
-        return {'erro': f"Erro ao processar os dados do site: {e}"}
+        return {'erro': f"Erro ao processar os dados da API: {e}"}
 
 def main_app():
     """Controla a navegação e a exibição dos módulos após o login."""
@@ -1686,9 +1658,14 @@ def main_app():
         st.title("Painel de Controle")
         st.header(f"Bem-vindo(a), {st.session_state['username']}!")
         
-        # --- BLOCO: PREVISÃO DO TEMPO com Web Scraping ---
+        # --- BLOCO: PREVISÃO DO TEMPO ---
         CIDADE = "Guaratinguetá"
+        
+        # ### Opção de Web Scraping do Google (pode ser instável) ###
         previsao = obter_previsao_tempo_google(CIDADE)
+        
+        # ### Opção de API gratuita wttr.in (mais estável, sem chave) ###
+        # previsao = obter_previsao_tempo_wttr(CIDADE)
         
         if 'erro' not in previsao:
             st.markdown(f"""
