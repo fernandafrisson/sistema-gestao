@@ -1064,22 +1064,18 @@ def modulo_boletim():
     # Injeta CSS personalizado para o layout de cartões
     st.markdown("""
         <style>
-            .main-content {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 20px;
-            }
-            .card {
-                background-color: #ffffff;
+            .card-layout {
+                background-color: white;
                 border-radius: 12px;
-                padding: 20px;
-                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+                padding: 24px;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+                margin-bottom: 24px;
             }
-            .card-full-width {
-                flex: 1 1 100%;
-            }
-            .card-half-width {
-                flex: 1 1 45%; /* Ajustado para 45% para permitir espaçamento */
+            .card-header {
+                font-size: 1.5rem;
+                font-weight: 600;
+                margin-bottom: 16px;
+                color: #333;
             }
             .stTabs [data-baseweb="tab-list"] {
                 gap: 24px;
@@ -1096,6 +1092,17 @@ def modulo_boletim():
             /* Style for the sidebar to match the layout */
             [data-testid="stSidebar"] {
                 background-color: #f0f2f6;
+            }
+            .css-1d391kg {
+                padding-top: 2rem;
+                padding-right: 1rem;
+                padding-bottom: 1.5rem;
+                padding-left: 1rem;
+            }
+            hr {
+                margin-top: 1rem;
+                margin-bottom: 1rem;
+                border-top: 1px solid rgba(0, 0, 0, 0.1);
             }
         </style>
     """, unsafe_allow_html=True)
@@ -1121,120 +1128,117 @@ def modulo_boletim():
         col1, col2 = st.columns(2)
 
         with col1:
-            # Novo Boletim (Card de Formulário Principal)
-            st.markdown("<div class='card card-full-width'>", unsafe_allow_html=True)
-            with st.form("main_boletim_form", clear_on_submit=False):
-                st.subheader("Dados do Boletim")
-                data_boletim = st.date_input("Data do Trabalho", date.today())
+            # Card: Dados do Boletim
+            st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
+            st.markdown("<div class='card-header'>Dados do Boletim</div>", unsafe_allow_html=True)
 
-                df_folgas = carregar_dados_firebase('folgas_ferias')
+            data_boletim = st.date_input("Data do Trabalho", date.today())
+            bairros = st.text_area("Bairros a serem trabalhados")
+            atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização"]
+            atividades_gerais = st.multiselect("Atividades Gerais do Dia", atividades_gerais_options)
+
+            if isinstance(df_funcionarios, pd.DataFrame) and not df_funcionarios.empty:
+                nome_map = {formatar_nome(nome): nome for nome in df_funcionarios['nome']}
+                lista_nomes_curtos_full = sorted(list(nome_map.keys()))
+            else:
+                nome_map = {}
+                lista_nomes_curtos_full = []
+                st.warning("Não há funcionários cadastrados para criar um boletim.")
+
+            motoristas_curtos = st.multiselect("Motorista(s)", options=lista_nomes_curtos_full)
+            st.markdown("</div>", unsafe_allow_html=True) # Fim do card
+
+            # Card: Equipes
+            st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
+            st.markdown("<div class='card-header'>Equipes</div>", unsafe_allow_html=True)
+            
+            col_equipe_manhã, col_equipe_tarde = st.columns(2)
+            
+            with col_equipe_manhã:
+                st.markdown("#### Manhã")
+                equipes_manha = []
+                membros_selecionados_manha = []
+                nomes_disponiveis_manha = [nome for nome in lista_nomes_curtos_full]
                 
-                if isinstance(df_funcionarios, pd.DataFrame) and not df_funcionarios.empty:
-                    funcionarios_do_dia = df_funcionarios.copy()
-                    if not df_folgas.empty and 'data_inicio' in df_folgas.columns and 'data_fim' in df_folgas.columns:
-                        try:
-                            datas_validas_folgas = df_folgas.dropna(subset=['data_inicio', 'data_fim'])
-                            ausentes_ids = datas_validas_folgas[
-                                (pd.to_datetime(datas_validas_folgas['data_inicio']).dt.date <= data_boletim) & 
-                                (pd.to_datetime(datas_validas_folgas['data_fim']).dt.date >= data_boletim)
-                            ]['id_funcionario'].tolist()
-                            if ausentes_ids:
-                                funcionarios_do_dia = df_funcionarios[~df_funcionarios['id'].isin(ausentes_ids)]
-                        except Exception as e:
-                            st.warning(f"Não foi possível filtrar funcionários ausentes do RH: {e}")
+                # Removendo ausentes e motoristas da lista
+                if 'faltas_manha_curtos' in st.session_state and st.session_state.faltas_manha_curtos is not None:
+                    nomes_disponiveis_manha = [nome for nome in nomes_disponiveis_manha if nome not in st.session_state.faltas_manha_curtos]
+                if motoristas_curtos:
+                    nomes_disponiveis_manha = [nome for nome in nomes_disponiveis_manha if nome not in motoristas_curtos]
+
+                for i in range(st.session_state.num_equipes_manha):
+                    st.markdown(f"**Equipe {i+1}**")
+                    opcoes_equipe_manha = [nome for nome in nomes_disponiveis_manha if nome not in membros_selecionados_manha]
                     
-                    nome_map = {formatar_nome(nome): nome for nome in funcionarios_do_dia['nome']}
-                    lista_nomes_curtos_full = sorted(list(nome_map.keys()))
-                else:
-                    nome_map = {}
-                    lista_nomes_curtos_full = []
-                    st.warning("Não há funcionários cadastrados para criar um boletim.")
+                    membros_curtos = st.multiselect("Membros", options=opcoes_equipe_manha, key=f"manha_membros_{i}")
+                    atividades = st.multiselect("Atividades", options=atividades_gerais_options, key=f"manha_atividades_{i}")
+                    quarteiroes = st.multiselect("Quarteirões", options=lista_quarteiroes, key=f"manha_quarteiroes_{i}")
+                    
+                    if membros_curtos:
+                        membros_completos = [nome_map[nome] for nome in membros_curtos]
+                        equipes_manha.append({"membros": membros_completos, "atividades": atividades, "quarteiroes": quarteiroes})
+                        membros_selecionados_manha.extend(membros_curtos)
+                    
+                    if i < st.session_state.num_equipes_manha - 1:
+                        st.markdown("<hr>")
 
-                atividades_gerais_options = ["Controle de criadouros", "Visita a Imóveis", "ADL", "Nebulização"]
+                if st.button("➕ Adicionar Equipe (Manhã)", key="add_equipe_manha_button"):
+                    st.session_state.num_equipes_manha += 1
+                    st.rerun()
+
+            with col_equipe_tarde:
+                st.markdown("#### Tarde")
+                equipes_tarde = []
+                membros_selecionados_tarde = []
+                nomes_disponiveis_tarde = [nome for nome in lista_nomes_curtos_full]
                 
-                bairros = st.text_area("Bairros a serem trabalhados")
-                atividades_gerais = st.multiselect("Atividades Gerais do Dia", atividades_gerais_options)
-                motoristas_curtos = st.multiselect("Motorista(s)", options=lista_nomes_curtos_full)
+                # Removendo ausentes e motoristas da lista
+                if 'faltas_tarde_curtos' in st.session_state and st.session_state.faltas_tarde_curtos is not None:
+                    nomes_disponiveis_tarde = [nome for nome in nomes_disponiveis_tarde if nome not in st.session_state.faltas_tarde_curtos]
+                if motoristas_curtos:
+                    nomes_disponiveis_tarde = [nome for nome in nomes_disponiveis_tarde if nome not in motoristas_curtos]
 
-                st.markdown("<hr style='margin-top: 20px; margin-bottom: 20px; border-color: #ddd;'>", unsafe_allow_html=True)
+                for i in range(st.session_state.num_equipes_tarde):
+                    st.markdown(f"**Equipe {i+1}**")
+                    opcoes_equipe_tarde = [nome for nome in nomes_disponiveis_tarde if nome not in membros_selecionados_tarde]
 
-                st.subheader("Ausências do Dia")
-                col_m, col_t = st.columns(2)
-                with col_m:
-                    faltas_manha_curtos = st.multiselect("Ausentes (Manhã)", options=lista_nomes_curtos_full, key="falta_manha_nomes")
-                    motivo_falta_manha = st.text_input("Motivo (Manhã)", key="falta_manha_motivo")
-                with col_t:
-                    faltas_tarde_curtos = st.multiselect("Ausentes (Tarde)", options=lista_nomes_curtos_full, key="falta_tarde_nomes")
-                    motivo_falta_tarde = st.text_input("Motivo (Tarde)", key="falta_tarde_motivo")
+                    membros_curtos = st.multiselect("Membros ", options=opcoes_equipe_tarde, key=f"tarde_membros_{i}")
+                    atividades = st.multiselect("Atividades ", options=atividades_gerais_options, key=f"tarde_atividades_{i}")
+                    quarteiroes = st.multiselect("Quarteirões ", options=lista_quarteiroes, key=f"tarde_quarteiroes_{i}")
+                    
+                    if membros_curtos:
+                        membros_completos = [nome_map[nome] for nome in membros_curtos]
+                        equipes_tarde.append({"membros": membros_completos, "atividades": atividades, "quarteiroes": quarteiroes})
+                        membros_selecionados_tarde.extend(membros_curtos)
 
-                submit_button_main = st.form_submit_button("Salvar Boletim", use_container_width=True, type="primary")
+                    if i < st.session_state.num_equipes_tarde - 1:
+                        st.markdown("<hr>")
+
+                if st.button("➕ Adicionar Equipe (Tarde)", key="add_equipe_tarde_button"):
+                    st.session_state.num_equipes_tarde += 1
+                    st.rerun()
 
             st.markdown("</div>", unsafe_allow_html=True) # Fim do card
 
         with col2:
-            # Equipes da Manhã e da Tarde (Cards de Equipes)
-            st.markdown("<div class='card card-full-width'>", unsafe_allow_html=True)
-            st.subheader("Equipes")
+            # Card: Ausências do Dia
+            st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
+            st.markdown("<div class='card-header'>Ausências do Dia</div>", unsafe_allow_html=True)
             
-            # Sub-seções de Equipes (Manhã)
-            st.markdown("---")
-            st.markdown("#### Manhã")
-            equipes_manha = []
-            membros_selecionados_manha = []
-            nomes_disponiveis_manha = [nome for nome in lista_nomes_curtos_full if nome not in faltas_manha_curtos and nome not in motoristas_curtos]
-            for i in range(st.session_state.num_equipes_manha):
-                st.markdown(f"**Equipe {i+1}**")
-                opcoes_equipe_manha = [nome for nome in nomes_disponiveis_manha if nome not in membros_selecionados_manha]
-                
-                membros_curtos = st.multiselect("Membros", options=opcoes_equipe_manha, key=f"manha_membros_{i}")
-                atividades = st.multiselect("Atividades", options=atividades_gerais_options, key=f"manha_atividades_{i}")
-                quarteiroes = st.multiselect("Quarteirões", options=lista_quarteiroes, key=f"manha_quarteiroes_{i}")
-                
-                if membros_curtos:
-                    membros_completos = [nome_map[nome] for nome in membros_curtos]
-                    equipes_manha.append({"membros": membros_completos, "atividades": atividades, "quarteiroes": quarteiroes})
-                    membros_selecionados_manha.extend(membros_curtos)
-                
-                if i < st.session_state.num_equipes_manha - 1:
-                    st.markdown("<hr>", unsafe_allow_html=True)
-
-            if st.button("➕ Adicionar Equipe (Manhã)", key="add_equipe_manha_button"):
-                st.session_state.num_equipes_manha += 1
-                st.rerun()
-
-            st.markdown("<br>", unsafe_allow_html=True)
-
-            # Sub-seções de Equipes (Tarde)
-            st.markdown("---")
-            st.markdown("#### Tarde")
-            equipes_tarde = []
-            membros_selecionados_tarde = []
-            nomes_disponiveis_tarde = [nome for nome in lista_nomes_curtos_full if nome not in faltas_tarde_curtos and nome not in motoristas_curtos]
-            for i in range(st.session_state.num_equipes_tarde):
-                st.markdown(f"**Equipe {i+1}**")
-                opcoes_equipe_tarde = [nome for nome in nomes_disponiveis_tarde if nome not in membros_selecionados_tarde]
-
-                membros_curtos = st.multiselect("Membros ", options=opcoes_equipe_tarde, key=f"tarde_membros_{i}")
-                atividades = st.multiselect("Atividades ", options=atividades_gerais_options, key=f"tarde_atividades_{i}")
-                quarteiroes = st.multiselect("Quarteirões ", options=lista_quarteiroes, key=f"tarde_quarteiroes_{i}")
-                
-                if membros_curtos:
-                    membros_completos = [nome_map[nome] for nome in membros_curtos]
-                    equipes_tarde.append({"membros": membros_completos, "atividades": atividades, "quarteiroes": quarteiroes})
-                    membros_selecionados_tarde.extend(membros_curtos)
-
-                if i < st.session_state.num_equipes_tarde - 1:
-                    st.markdown("<hr>", unsafe_allow_html=True)
-
-            if st.button("➕ Adicionar Equipe (Tarde)", key="add_equipe_tarde_button"):
-                st.session_state.num_equipes_tarde += 1
-                st.rerun()
-
+            ausencias_col1, ausencias_col2 = st.columns(2)
+            with ausencias_col1:
+                st.subheader("Manhã")
+                faltas_manha_curtos = st.multiselect("Ausentes", options=lista_nomes_curtos_full, key="faltas_manha_curtos")
+                motivo_falta_manha = st.text_input("Motivo", key="motivo_falta_manha")
+            with ausencias_col2:
+                st.subheader("Tarde")
+                faltas_tarde_curtos = st.multiselect("Ausentes", options=lista_nomes_curtos_full, key="faltas_tarde_curtos")
+                motivo_falta_tarde = st.text_input("Motivo", key="motivo_falta_tarde")
+            
             st.markdown("</div>", unsafe_allow_html=True) # Fim do card
 
-
-        # Lógica de submissão do formulário principal
-        if submit_button_main:
+        # Botão de salvar no final
+        if st.button("Salvar Boletim", use_container_width=True, type="primary", key="save_boletim_button"):
             motoristas_completos = [nome_map[nome] for nome in motoristas_curtos]
             faltas_manha_completos = [nome_map[nome] for nome in faltas_manha_curtos]
             faltas_tarde_completos = [nome_map[nome] for nome in faltas_tarde_curtos]
