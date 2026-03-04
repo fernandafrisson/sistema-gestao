@@ -1274,6 +1274,7 @@ def modulo_boletim():
         st.caption("**P.E** = Ponto de Encontro (frequência quinzenal) · **I.E** = Imóvel Especial (frequência trimestral)")
 
         df_pe_ie = carregar_dados_firebase('pe_ie_cadastros')
+        df_boletins_pe_ie = carregar_dados_firebase('boletins_pe_ie')
 
         if isinstance(df_funcionarios, pd.DataFrame) and not df_funcionarios.empty:
             nome_map_pe = {formatar_nome(nome): nome for nome in df_funcionarios['nome']}
@@ -1282,58 +1283,45 @@ def modulo_boletim():
             nome_map_pe = {}
             lista_nomes_pe = []
 
-        sub_tab_cadastrar, sub_tab_listar = st.tabs(["➕ Cadastrar P.E / I.E", "📋 Cadastros Existentes"])
+        # Monta lista de P.E/I.E cadastrados para usar no boletim
+        lista_pe_ie_opcoes = []
+        if not df_pe_ie.empty:
+            for idx_pe, row_pe in df_pe_ie.iterrows():
+                label = f"{row_pe.get('tipo', '')} - {row_pe.get('nome_fantasia', '')} (Nº {row_pe.get('numero_cadastro', '')})"
+                lista_pe_ie_opcoes.append({"id": idx_pe, "label": label, "tipo": row_pe.get('tipo', ''), "dados": row_pe})
 
+        sub_tab_cadastrar, sub_tab_boletim, sub_tab_listar, sub_tab_historico = st.tabs([
+            "📝 Cadastrar P.E / I.E",
+            "🗓️ Criar Boletim P.E / I.E",
+            "📋 Cadastros Existentes",
+            "🔍 Histórico de Boletins"
+        ])
+
+        # =============================================
+        # SUB-ABA 1: CADASTRAR P.E / I.E
+        # =============================================
         with sub_tab_cadastrar:
-            st.subheader("Novo Cadastro")
+            st.subheader("Novo Cadastro de Imóvel")
 
-            col_form_pe, col_equipe_pe = st.columns(2)
+            st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
+            st.markdown("<div class='card-header'>Dados do Imóvel</div>", unsafe_allow_html=True)
 
-            with col_form_pe:
-                st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
-                st.markdown("<div class='card-header'>Dados do Imóvel</div>", unsafe_allow_html=True)
-
-                tipo_pe_ie = st.selectbox("Tipo", ["P.E - Ponto de Encontro", "I.E - Imóvel Especial"], key="tipo_pe_ie_cadastro")
+            tipo_pe_ie = st.selectbox("Tipo", ["P.E - Ponto de Encontro", "I.E - Imóvel Especial"], key="tipo_pe_ie_cadastro")
+            
+            col_cad1, col_cad2 = st.columns(2)
+            with col_cad1:
                 numero_cadastro = st.text_input("Número de Cadastro", key="num_cadastro_pe")
                 endereco_pe = st.text_input("Endereço", key="endereco_pe")
                 nome_fantasia = st.text_input("Nome Fantasia do Imóvel", key="nome_fantasia_pe")
-
+            with col_cad2:
                 col_coord1, col_coord2 = st.columns(2)
                 with col_coord1:
                     latitude_pe = st.text_input("Latitude", key="lat_pe", placeholder="-22.8136")
                 with col_coord2:
                     longitude_pe = st.text_input("Longitude", key="lon_pe", placeholder="-45.1917")
-
                 quarteirao_pe = st.selectbox("Número de Quarteirão", options=[""] + lista_quarteiroes, key="quarteirao_pe")
 
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            with col_equipe_pe:
-                st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
-                st.markdown("<div class='card-header'>Equipe Responsável</div>", unsafe_allow_html=True)
-
-                equipes_pe_ie = []
-                membros_selecionados_pe = []
-
-                for i in range(st.session_state.num_equipes_pe_ie):
-                    if i > 0:
-                        st.markdown("<hr>", unsafe_allow_html=True)
-
-                    st.markdown(f"**Equipe {i+1}**")
-                    opcoes_equipe_pe = [nome for nome in lista_nomes_pe if nome not in membros_selecionados_pe]
-
-                    membros_pe_curtos = st.multiselect("Membros", options=opcoes_equipe_pe, key=f"pe_ie_membros_{i}")
-
-                    if membros_pe_curtos:
-                        membros_pe_completos = [nome_map_pe[nome] for nome in membros_pe_curtos]
-                        equipes_pe_ie.append({"membros": membros_pe_completos})
-                        membros_selecionados_pe.extend(membros_pe_curtos)
-
-                if st.button("➕ Adicionar Equipe", key="add_equipe_pe_ie_button"):
-                    st.session_state.num_equipes_pe_ie += 1
-                    st.rerun()
-
-                st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
             if st.button("Salvar Cadastro", use_container_width=True, type="primary", key="save_pe_ie_button"):
                 if numero_cadastro and endereco_pe and nome_fantasia:
@@ -1350,7 +1338,6 @@ def modulo_boletim():
                         "latitude": latitude_pe,
                         "longitude": longitude_pe,
                         "quarteirao": quarteirao_pe,
-                        "equipes": equipes_pe_ie,
                         "data_cadastro": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
                     try:
@@ -1360,7 +1347,6 @@ def modulo_boletim():
                         log_atividade(st.session_state.get('username'), f"Cadastrou {tipo_sigla}", f"Nº Cadastro: {numero_cadastro}, Nome: {nome_fantasia}")
 
                         st.success(f"{tipo_sigla} - {nome_fantasia} cadastrado com sucesso!")
-                        st.session_state.num_equipes_pe_ie = 1
                         st.cache_data.clear()
                         st.rerun()
                     except Exception as e:
@@ -1368,6 +1354,101 @@ def modulo_boletim():
                 else:
                     st.warning("Por favor, preencha os campos obrigatórios: Número de Cadastro, Endereço e Nome Fantasia.")
 
+        # =============================================
+        # SUB-ABA 2: CRIAR BOLETIM DE P.E / I.E
+        # =============================================
+        with sub_tab_boletim:
+            st.subheader("Novo Boletim de P.E / I.E")
+
+            if not lista_pe_ie_opcoes:
+                st.warning("Nenhum P.E ou I.E cadastrado. Cadastre primeiro na aba 'Cadastrar P.E / I.E'.")
+            else:
+                col_bol1, col_bol2 = st.columns(2)
+
+                with col_bol1:
+                    # Card: Dados do Boletim
+                    st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
+                    st.markdown("<div class='card-header'>Dados do Boletim</div>", unsafe_allow_html=True)
+
+                    data_boletim_pe = st.date_input("Data do Trabalho", date.today(), key="data_boletim_pe_ie")
+
+                    filtro_tipo_boletim = st.selectbox("Filtrar imóveis por tipo", ["Todos", "P.E", "I.E"], key="filtro_tipo_boletim_pe")
+
+                    opcoes_imoveis = [item["label"] for item in lista_pe_ie_opcoes if filtro_tipo_boletim == "Todos" or item["tipo"] == filtro_tipo_boletim]
+
+                    imoveis_selecionados = st.multiselect(
+                        "Selecione os P.E / I.E trabalhados",
+                        options=opcoes_imoveis,
+                        key="imoveis_selecionados_pe_ie"
+                    )
+
+                    observacoes_pe = st.text_area("Observações gerais", key="obs_boletim_pe_ie")
+
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+                with col_bol2:
+                    # Card: Equipes
+                    st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
+                    st.markdown("<div class='card-header'>Equipes</div>", unsafe_allow_html=True)
+
+                    equipes_pe_ie = []
+                    membros_selecionados_pe = []
+
+                    for i in range(st.session_state.num_equipes_pe_ie):
+                        if i > 0:
+                            st.markdown("<hr>", unsafe_allow_html=True)
+
+                        st.markdown(f"**Equipe {i+1}**")
+                        opcoes_equipe_pe = [nome for nome in lista_nomes_pe if nome not in membros_selecionados_pe]
+
+                        membros_pe_curtos = st.multiselect("Membros", options=opcoes_equipe_pe, key=f"pe_ie_membros_{i}")
+
+                        if membros_pe_curtos:
+                            membros_pe_completos = [nome_map_pe[nome] for nome in membros_pe_curtos]
+                            equipes_pe_ie.append({"membros": membros_pe_completos})
+                            membros_selecionados_pe.extend(membros_pe_curtos)
+
+                    if st.button("➕ Adicionar Equipe", key="add_equipe_pe_ie_button"):
+                        st.session_state.num_equipes_pe_ie += 1
+                        st.rerun()
+
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+                # Botão salvar boletim
+                if st.button("Salvar Boletim P.E / I.E", use_container_width=True, type="primary", key="save_boletim_pe_ie"):
+                    if imoveis_selecionados and equipes_pe_ie:
+                        boletim_pe_id = str(int(time.time() * 1000))
+                        boletim_pe_data = {
+                            "data": data_boletim_pe.strftime("%Y-%m-%d"),
+                            "imoveis_trabalhados": imoveis_selecionados,
+                            "equipes": equipes_pe_ie,
+                            "observacoes": observacoes_pe,
+                            "criado_por": st.session_state.get('username', ''),
+                            "data_criacao": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                        try:
+                            ref = db.reference(f'boletins_pe_ie/{boletim_pe_id}')
+                            ref.set(boletim_pe_data)
+
+                            log_atividade(
+                                st.session_state.get('username'),
+                                "Criou boletim P.E/I.E",
+                                f"Data: {data_boletim_pe.strftime('%d/%m/%Y')}, Imóveis: {len(imoveis_selecionados)}"
+                            )
+
+                            st.success(f"Boletim P.E/I.E para {data_boletim_pe.strftime('%d/%m/%Y')} salvo com sucesso!")
+                            st.session_state.num_equipes_pe_ie = 1
+                            st.cache_data.clear()
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao salvar o boletim: {e}")
+                    else:
+                        st.warning("Selecione pelo menos um imóvel e monte pelo menos uma equipe.")
+
+        # =============================================
+        # SUB-ABA 3: CADASTROS EXISTENTES
+        # =============================================
         with sub_tab_listar:
             st.subheader("Cadastros Existentes")
 
@@ -1405,13 +1486,6 @@ def modulo_boletim():
                                 st.markdown(f"**Coordenadas:** {cadastro.get('latitude', 'N/A')}, {cadastro.get('longitude', 'N/A')}")
                                 st.markdown(f"**Quarteirão:** {cadastro.get('quarteirao', 'N/A')}")
 
-                                equipes_cadastro = cadastro.get('equipes', [])
-                                if equipes_cadastro and isinstance(equipes_cadastro, list):
-                                    for eq_i, equipe in enumerate(equipes_cadastro):
-                                        if isinstance(equipe, dict):
-                                            membros_fmt = [formatar_nome(m) for m in equipe.get('membros', [])]
-                                            st.markdown(f"**Equipe {eq_i+1}:** {', '.join(membros_fmt) if membros_fmt else 'Nenhum membro'}")
-
                             with col_acoes:
                                 if st.button("🗑️ Deletar", key=f"del_pe_ie_{idx}", type="primary", use_container_width=True):
                                     db.reference(f'pe_ie_cadastros/{idx}').delete()
@@ -1421,6 +1495,51 @@ def modulo_boletim():
                                     st.rerun()
             else:
                 st.info("Nenhum P.E ou I.E cadastrado ainda. Use a aba 'Cadastrar P.E / I.E' para começar.")
+
+        # =============================================
+        # SUB-ABA 4: HISTÓRICO DE BOLETINS P.E / I.E
+        # =============================================
+        with sub_tab_historico:
+            st.subheader("Histórico de Boletins P.E / I.E")
+
+            if not df_boletins_pe_ie.empty:
+                df_boletins_pe_ie['data_dt'] = pd.to_datetime(df_boletins_pe_ie['data']).dt.date
+                df_boletins_pe_ie_sorted = df_boletins_pe_ie.sort_values(by='data_dt', ascending=False)
+
+                for idx_bol, boletim in df_boletins_pe_ie_sorted.iterrows():
+                    data_fmt = pd.to_datetime(boletim['data']).strftime('%d/%m/%Y')
+                    qtd_imoveis = len(boletim.get('imoveis_trabalhados', []))
+
+                    with st.expander(f"📅 **{data_fmt}** — {qtd_imoveis} imóvel(is) trabalhado(s)"):
+                        st.markdown(f"**Data:** {data_fmt}")
+                        st.markdown(f"**Criado por:** {boletim.get('criado_por', 'N/A')}")
+
+                        imoveis_list = boletim.get('imoveis_trabalhados', [])
+                        if imoveis_list and isinstance(imoveis_list, list):
+                            st.markdown("**Imóveis trabalhados:**")
+                            for im in imoveis_list:
+                                st.markdown(f"- {im}")
+
+                        equipes_bol = boletim.get('equipes', [])
+                        if equipes_bol and isinstance(equipes_bol, list):
+                            for eq_i, equipe in enumerate(equipes_bol):
+                                if isinstance(equipe, dict):
+                                    membros_fmt = [formatar_nome(m) for m in equipe.get('membros', [])]
+                                    st.markdown(f"**Equipe {eq_i+1}:** {', '.join(membros_fmt) if membros_fmt else 'Nenhum membro'}")
+
+                        obs = boletim.get('observacoes', '')
+                        if obs:
+                            st.markdown(f"**Observações:** {obs}")
+
+                        st.markdown("---")
+                        if st.button("🗑️ Deletar Boletim", key=f"del_bol_pe_{idx_bol}", type="primary"):
+                            db.reference(f'boletins_pe_ie/{idx_bol}').delete()
+                            log_atividade(st.session_state.get('username'), "Deletou boletim P.E/I.E", f"Data: {data_fmt}")
+                            st.success("Boletim deletado.")
+                            st.cache_data.clear()
+                            st.rerun()
+            else:
+                st.info("Nenhum boletim de P.E/I.E registrado ainda.")
 
     with tab2:
         st.subheader("Visualizar e Editar Boletim")
