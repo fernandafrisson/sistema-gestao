@@ -1119,8 +1119,10 @@ def modulo_boletim():
         st.session_state.num_equipes_manha = 1
     if 'num_equipes_tarde' not in st.session_state:
         st.session_state.num_equipes_tarde = 1
+    if 'num_equipes_pe_ie' not in st.session_state:
+        st.session_state.num_equipes_pe_ie = 1
 
-    tab1, tab2, tab3, tab4 = st.tabs(["🗓️ Criar Boletim", "🔍 Visualizar/Editar Boletim", "🗺️ Mapa de Atividades", "📊 Dashboard"])
+    tab1, tab_pe_ie, tab2, tab3, tab4 = st.tabs(["🗓️ Criar Boletim", "📍 P.E e I.E", "🔍 Visualizar/Editar Boletim", "🗺️ Mapa de Atividades", "📊 Dashboard"])
 
     with tab1:
         st.header("Novo Boletim de Programação")
@@ -1266,6 +1268,159 @@ def modulo_boletim():
             except Exception as e:
                 st.error(f"Erro ao salvar o boletim: {e}")
 
+
+    with tab_pe_ie:
+        st.header("Pontos Estratégicos (P.E) e Imóveis Especiais (I.E)")
+        st.caption("**P.E** = Ponto de Encontro (frequência quinzenal) · **I.E** = Imóvel Especial (frequência trimestral)")
+
+        df_pe_ie = carregar_dados_firebase('pe_ie_cadastros')
+
+        if isinstance(df_funcionarios, pd.DataFrame) and not df_funcionarios.empty:
+            nome_map_pe = {formatar_nome(nome): nome for nome in df_funcionarios['nome']}
+            lista_nomes_pe = sorted(list(nome_map_pe.keys()))
+        else:
+            nome_map_pe = {}
+            lista_nomes_pe = []
+
+        sub_tab_cadastrar, sub_tab_listar = st.tabs(["➕ Cadastrar P.E / I.E", "📋 Cadastros Existentes"])
+
+        with sub_tab_cadastrar:
+            st.subheader("Novo Cadastro")
+
+            col_form_pe, col_equipe_pe = st.columns(2)
+
+            with col_form_pe:
+                st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
+                st.markdown("<div class='card-header'>Dados do Imóvel</div>", unsafe_allow_html=True)
+
+                tipo_pe_ie = st.selectbox("Tipo", ["P.E - Ponto de Encontro", "I.E - Imóvel Especial"], key="tipo_pe_ie_cadastro")
+                numero_cadastro = st.text_input("Número de Cadastro", key="num_cadastro_pe")
+                endereco_pe = st.text_input("Endereço", key="endereco_pe")
+                nome_fantasia = st.text_input("Nome Fantasia do Imóvel", key="nome_fantasia_pe")
+
+                col_coord1, col_coord2 = st.columns(2)
+                with col_coord1:
+                    latitude_pe = st.text_input("Latitude", key="lat_pe", placeholder="-22.8136")
+                with col_coord2:
+                    longitude_pe = st.text_input("Longitude", key="lon_pe", placeholder="-45.1917")
+
+                quarteirao_pe = st.selectbox("Número de Quarteirão", options=[""] + lista_quarteiroes, key="quarteirao_pe")
+
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            with col_equipe_pe:
+                st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
+                st.markdown("<div class='card-header'>Equipe Responsável</div>", unsafe_allow_html=True)
+
+                equipes_pe_ie = []
+                membros_selecionados_pe = []
+
+                for i in range(st.session_state.num_equipes_pe_ie):
+                    if i > 0:
+                        st.markdown("<hr>", unsafe_allow_html=True)
+
+                    st.markdown(f"**Equipe {i+1}**")
+                    opcoes_equipe_pe = [nome for nome in lista_nomes_pe if nome not in membros_selecionados_pe]
+
+                    membros_pe_curtos = st.multiselect("Membros", options=opcoes_equipe_pe, key=f"pe_ie_membros_{i}")
+
+                    if membros_pe_curtos:
+                        membros_pe_completos = [nome_map_pe[nome] for nome in membros_pe_curtos]
+                        equipes_pe_ie.append({"membros": membros_pe_completos})
+                        membros_selecionados_pe.extend(membros_pe_curtos)
+
+                if st.button("➕ Adicionar Equipe", key="add_equipe_pe_ie_button"):
+                    st.session_state.num_equipes_pe_ie += 1
+                    st.rerun()
+
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            if st.button("Salvar Cadastro", use_container_width=True, type="primary", key="save_pe_ie_button"):
+                if numero_cadastro and endereco_pe and nome_fantasia:
+                    tipo_sigla = "P.E" if "P.E" in tipo_pe_ie else "I.E"
+                    frequencia = "Quinzenal" if tipo_sigla == "P.E" else "Trimestral"
+
+                    cadastro_id = str(int(time.time() * 1000))
+                    cadastro_data = {
+                        "tipo": tipo_sigla,
+                        "frequencia": frequencia,
+                        "numero_cadastro": numero_cadastro,
+                        "endereco": endereco_pe,
+                        "nome_fantasia": nome_fantasia,
+                        "latitude": latitude_pe,
+                        "longitude": longitude_pe,
+                        "quarteirao": quarteirao_pe,
+                        "equipes": equipes_pe_ie,
+                        "data_cadastro": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    try:
+                        ref = db.reference(f'pe_ie_cadastros/{cadastro_id}')
+                        ref.set(cadastro_data)
+
+                        log_atividade(st.session_state.get('username'), f"Cadastrou {tipo_sigla}", f"Nº Cadastro: {numero_cadastro}, Nome: {nome_fantasia}")
+
+                        st.success(f"{tipo_sigla} - {nome_fantasia} cadastrado com sucesso!")
+                        st.session_state.num_equipes_pe_ie = 1
+                        st.cache_data.clear()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao salvar o cadastro: {e}")
+                else:
+                    st.warning("Por favor, preencha os campos obrigatórios: Número de Cadastro, Endereço e Nome Fantasia.")
+
+        with sub_tab_listar:
+            st.subheader("Cadastros Existentes")
+
+            if not df_pe_ie.empty:
+                col_filtro1, col_filtro2 = st.columns(2)
+                with col_filtro1:
+                    filtro_tipo_pe = st.selectbox("Filtrar por Tipo", ["Todos", "P.E", "I.E"], key="filtro_tipo_pe_ie")
+                with col_filtro2:
+                    busca_nome = st.text_input("Buscar por nome fantasia", key="busca_nome_pe_ie")
+
+                df_pe_ie_display = df_pe_ie.copy()
+
+                if filtro_tipo_pe != "Todos":
+                    df_pe_ie_display = df_pe_ie_display[df_pe_ie_display['tipo'] == filtro_tipo_pe]
+
+                if busca_nome:
+                    df_pe_ie_display = df_pe_ie_display[df_pe_ie_display['nome_fantasia'].str.contains(busca_nome, case=False, na=False)]
+
+                if df_pe_ie_display.empty:
+                    st.info("Nenhum cadastro encontrado com os filtros aplicados.")
+                else:
+                    for idx, cadastro in df_pe_ie_display.iterrows():
+                        tipo_label = cadastro.get('tipo', 'N/A')
+                        freq_label = cadastro.get('frequencia', '')
+                        cor_badge = "🟢" if tipo_label == "P.E" else "🔵"
+
+                        with st.expander(f"{cor_badge} **{tipo_label}** - {cadastro.get('nome_fantasia', 'Sem nome')} (Nº {cadastro.get('numero_cadastro', 'N/A')})"):
+                            col_info, col_acoes = st.columns([3, 1])
+
+                            with col_info:
+                                st.markdown(f"**Tipo:** {tipo_label} ({freq_label})")
+                                st.markdown(f"**Nº Cadastro:** {cadastro.get('numero_cadastro', 'N/A')}")
+                                st.markdown(f"**Endereço:** {cadastro.get('endereco', 'N/A')}")
+                                st.markdown(f"**Nome Fantasia:** {cadastro.get('nome_fantasia', 'N/A')}")
+                                st.markdown(f"**Coordenadas:** {cadastro.get('latitude', 'N/A')}, {cadastro.get('longitude', 'N/A')}")
+                                st.markdown(f"**Quarteirão:** {cadastro.get('quarteirao', 'N/A')}")
+
+                                equipes_cadastro = cadastro.get('equipes', [])
+                                if equipes_cadastro and isinstance(equipes_cadastro, list):
+                                    for eq_i, equipe in enumerate(equipes_cadastro):
+                                        if isinstance(equipe, dict):
+                                            membros_fmt = [formatar_nome(m) for m in equipe.get('membros', [])]
+                                            st.markdown(f"**Equipe {eq_i+1}:** {', '.join(membros_fmt) if membros_fmt else 'Nenhum membro'}")
+
+                            with col_acoes:
+                                if st.button("🗑️ Deletar", key=f"del_pe_ie_{idx}", type="primary", use_container_width=True):
+                                    db.reference(f'pe_ie_cadastros/{idx}').delete()
+                                    log_atividade(st.session_state.get('username'), f"Deletou {tipo_label}", f"Nº Cadastro: {cadastro.get('numero_cadastro')}, Nome: {cadastro.get('nome_fantasia')}")
+                                    st.success(f"Cadastro '{cadastro.get('nome_fantasia')}' deletado.")
+                                    st.cache_data.clear()
+                                    st.rerun()
+            else:
+                st.info("Nenhum P.E ou I.E cadastrado ainda. Use a aba 'Cadastrar P.E / I.E' para começar.")
 
     with tab2:
         st.subheader("Visualizar e Editar Boletim")
