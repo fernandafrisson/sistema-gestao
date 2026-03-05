@@ -10,3 +10,4 @@ geopandas
 fiona
 streamlit-calendar
 pydeck
+reportlab
