@@ -1838,6 +1838,89 @@ def modulo_boletim():
 
                     st.markdown('</div>', unsafe_allow_html=True)
 
+                    # Card: Criadouro de Dengue
+                    st.markdown('<div class="sys-card"><div class="sys-card-title">🦟 Criadouro de Dengue</div>', unsafe_allow_html=True)
+
+                    encontrou_criadouro = st.checkbox("Foi encontrado criadouro?", key="criadouro_check_pe_ie")
+
+                    recipientes_selecionados = []
+                    if encontrou_criadouro:
+                        st.markdown("**Selecione os tipos de recipiente encontrados:**")
+
+                        recipientes_opcoes = {
+                            "A - Deposito Elevado": [
+                                "1 - Ligacao a rede",
+                                "2 - Nao ligado a rede",
+                            ],
+                            "B - Deposito Nao Elevado": [
+                                "3 - Ligado a rede",
+                                "4 - Nao ligado a rede",
+                            ],
+                            "C - Moveis": [
+                                "5 - Vaso de planta na agua",
+                                "6 - Vasos de planta (diversos)",
+                                "7 - Prato / Pingadeira",
+                                "8 - Consumo animal",
+                                "9 - Deposito p/ construcao",
+                                "10 - Deposito p/ horticultura",
+                                "11 - Pneus",
+                                "12 - Lata, frasco, plastico utilizaveis",
+                                "13 - Garrafas retornaveis",
+                                "14 - Balde / Regador",
+                                "15 - Bandeja geladeira / Ar cond.",
+                                "16 - Materiais de construcao",
+                                "17 - Outros",
+                            ],
+                            "D - Fixos": [
+                                "18 - Ralo interno",
+                                "19 - Ralo externo",
+                                "20 - Laje",
+                                "21 - Calha",
+                                "22 - Vaso sanitario / Cx. descarga",
+                                "23 - Piscina",
+                                "24 - Deposito p/ construcao",
+                                "25 - Deposito p/ horticultura",
+                                "26 - Consumo animal",
+                                "27 - Outros",
+                            ],
+                            "E - Pneus": [
+                                "28 - Pneu",
+                                "29 - Outros correlatos",
+                            ],
+                            "F - Passiveis Remocao / Alteracao": [
+                                "30 - Lata, frasco, plastico",
+                                "31 - Garrafa descartavel",
+                                "32 - Lona, encerado, plastico",
+                                "33 - Entulho de construcao",
+                                "34 - Pecas / Sucatas",
+                                "35 - Masseras",
+                                "36 - Barro",
+                                "37 - Outros",
+                            ],
+                            "G - Naturais": [
+                                "38 - Oco de arvore e bambu",
+                                "39 - Bromelias",
+                                "40 - Outros",
+                            ],
+                        }
+
+                        for grupo, itens in recipientes_opcoes.items():
+                            with st.expander(f"**{grupo}**"):
+                                selecionados_grupo = st.multiselect(
+                                    f"Recipientes - {grupo}",
+                                    options=itens,
+                                    key=f"recip_{grupo.replace(' ', '_').replace('/', '_')}",
+                                    label_visibility="collapsed"
+                                )
+                                recipientes_selecionados.extend(selecionados_grupo)
+
+                        if recipientes_selecionados:
+                            st.markdown(f"**Selecionados ({len(recipientes_selecionados)}):**")
+                            chips_html = "".join([f'<span class="sys-chip">{r}</span>' for r in recipientes_selecionados])
+                            st.markdown(f'<div style="margin-top:4px;">{chips_html}</div>', unsafe_allow_html=True)
+
+                    st.markdown('</div>', unsafe_allow_html=True)
+
                 with col_bol2:
                     st.markdown('<div class="sys-card"><div class="sys-card-title">👥 Equipes</div>', unsafe_allow_html=True)
 
@@ -1873,6 +1956,8 @@ def modulo_boletim():
                             "imoveis_trabalhados": imoveis_selecionados,
                             "equipes": equipes_pe_ie,
                             "observacoes": observacoes_pe,
+                            "criadouro_encontrado": encontrou_criadouro,
+                            "recipientes": recipientes_selecionados if encontrou_criadouro else [],
                             "criado_por": st.session_state.get('username', ''),
                             "data_criacao": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         }
@@ -2377,6 +2462,19 @@ def modulo_boletim():
                     obs = boletim.get('observacoes', '')
                     obs_html = f'<div style="margin-top:12px; padding:10px 14px; background:#FEF9E7; border-radius:8px; font-size:0.88rem; color:#7D6608;"><strong>Obs:</strong> {obs}</div>' if obs else ""
 
+                    # Criadouro de Dengue
+                    criadouro_html = ""
+                    if boletim.get('criadouro_encontrado', False):
+                        recipientes_bol = boletim.get('recipientes', [])
+                        if recipientes_bol and isinstance(recipientes_bol, list):
+                            recip_chips = "".join([f'<span class="sys-chip" style="background:#FDEDEC; border-color:#F5B7B1; color:#922B21;">{r}</span>' for r in recipientes_bol])
+                            criadouro_html = f"""
+                                <div style="margin-top:12px; padding:12px 14px; background:#FDEDEC; border-radius:8px; border:1px solid #F5B7B1;">
+                                    <span style="font-weight:600; font-size:0.85rem; color:#922B21;">🦟 CRIADOURO ENCONTRADO</span>
+                                    <div style="margin-top:6px;">{recip_chips}</div>
+                                </div>
+                            """
+
                     st.markdown(f"""
                         <div class="hist-card">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -2392,6 +2490,7 @@ def modulo_boletim():
                             <div>{imoveis_chips if imoveis_chips else '<span style="color:#85929E;">Nenhum</span>'}</div>
                             {equipes_html}
                             {obs_html}
+                            {criadouro_html}
                         </div>
                     """, unsafe_allow_html=True)
 
