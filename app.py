@@ -2494,6 +2494,54 @@ def modulo_boletim():
                         </div>
                     """, unsafe_allow_html=True)
 
+                    # Seção de tratamento — só aparece se houve criadouro
+                    if boletim.get('criadouro_encontrado', False):
+                        tratamento_atual = boletim.get('tratamento_realizado', False)
+                        data_tratamento_atual = boletim.get('data_tratamento', None)
+
+                        if tratamento_atual and data_tratamento_atual:
+                            data_trat_fmt = pd.to_datetime(data_tratamento_atual).strftime('%d/%m/%Y')
+                            st.markdown(f"""
+                                <div style="margin-top:4px; margin-bottom:8px; padding:10px 14px; background:#D5F5E3; border-radius:8px; border:1px solid #82E0AA; font-size:0.88rem; color:#1E8449;">
+                                    ✅ <strong>Tratamento realizado em {data_trat_fmt}</strong>
+                                </div>
+                            """, unsafe_allow_html=True)
+
+                        tratamento_check = st.checkbox(
+                            "Houve tratamento no imovel?",
+                            value=tratamento_atual,
+                            key=f"trat_check_{idx_bol}"
+                        )
+
+                        if tratamento_check:
+                            data_trat_val = pd.to_datetime(data_tratamento_atual).date() if data_tratamento_atual else date.today()
+                            data_tratamento_input = st.date_input(
+                                "Data do tratamento",
+                                value=data_trat_val,
+                                key=f"trat_data_{idx_bol}"
+                            )
+
+                            if st.button("💾 Salvar tratamento", key=f"save_trat_{idx_bol}", use_container_width=True):
+                                db.reference(f'boletins_pe_ie/{idx_bol}').update({
+                                    "tratamento_realizado": True,
+                                    "data_tratamento": data_tratamento_input.strftime("%Y-%m-%d")
+                                })
+                                log_atividade(st.session_state.get('username'), "Registrou tratamento P.E/I.E", f"Boletim: {data_fmt}, Data tratamento: {data_tratamento_input.strftime('%d/%m/%Y')}")
+                                st.success("Tratamento registrado com sucesso!")
+                                st.cache_data.clear()
+                                st.rerun()
+                        else:
+                            if tratamento_atual:
+                                if st.button("❌ Remover registro de tratamento", key=f"rem_trat_{idx_bol}"):
+                                    db.reference(f'boletins_pe_ie/{idx_bol}').update({
+                                        "tratamento_realizado": False,
+                                        "data_tratamento": None
+                                    })
+                                    log_atividade(st.session_state.get('username'), "Removeu tratamento P.E/I.E", f"Boletim: {data_fmt}")
+                                    st.success("Registro de tratamento removido.")
+                                    st.cache_data.clear()
+                                    st.rerun()
+
                     if st.button(f"🗑️ Deletar boletim de {data_fmt}", key=f"del_bol_pe_{idx_bol}"):
                         db.reference(f'boletins_pe_ie/{idx_bol}').delete()
                         log_atividade(st.session_state.get('username'), "Deletou boletim P.E/I.E", f"Data: {data_fmt}")
