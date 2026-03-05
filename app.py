@@ -2463,17 +2463,8 @@ def modulo_boletim():
                     obs_html = f'<div style="margin-top:12px; padding:10px 14px; background:#FEF9E7; border-radius:8px; font-size:0.88rem; color:#7D6608;"><strong>Obs:</strong> {obs}</div>' if obs else ""
 
                     # Criadouro de Dengue
-                    criadouro_html = ""
-                    if boletim.get('criadouro_encontrado', False):
-                        recipientes_bol = boletim.get('recipientes', [])
-                        if recipientes_bol and isinstance(recipientes_bol, list):
-                            recip_chips = "".join([f'<span class="sys-chip" style="background:#FDEDEC; border-color:#F5B7B1; color:#922B21;">{r}</span>' for r in recipientes_bol])
-                            criadouro_html = f"""
-                                <div style="margin-top:12px; padding:12px 14px; background:#FDEDEC; border-radius:8px; border:1px solid #F5B7B1;">
-                                    <span style="font-weight:600; font-size:0.85rem; color:#922B21;">🦟 CRIADOURO ENCONTRADO</span>
-                                    <div style="margin-top:6px;">{recip_chips}</div>
-                                </div>
-                            """
+                    tem_criadouro = boletim.get('criadouro_encontrado', False)
+                    recipientes_bol = boletim.get('recipientes', []) if tem_criadouro else []
 
                     st.markdown(f"""
                         <div class="hist-card">
@@ -2490,9 +2481,23 @@ def modulo_boletim():
                             <div>{imoveis_chips if imoveis_chips else '<span style="color:#85929E;">Nenhum</span>'}</div>
                             {equipes_html}
                             {obs_html}
-                            {criadouro_html}
                         </div>
                     """, unsafe_allow_html=True)
+
+                    # Criadouro em bloco separado para evitar conflito de aspas
+                    if tem_criadouro and recipientes_bol and isinstance(recipientes_bol, list):
+                        recip_chips = "".join([
+                            '<span class="sys-chip" style="background:#FDEDEC;border-color:#F5B7B1;color:#922B21;">'
+                            + str(r) + '</span>'
+                            for r in recipientes_bol
+                        ])
+                        st.markdown(
+                            '<div style="margin-top:4px;margin-bottom:8px;padding:12px 14px;background:#FDEDEC;border-radius:8px;border:1px solid #F5B7B1;">'
+                            '<span style="font-weight:600;font-size:0.85rem;color:#922B21;">🦟 CRIADOURO ENCONTRADO</span>'
+                            '<div style="margin-top:6px;">' + recip_chips + '</div>'
+                            '</div>',
+                            unsafe_allow_html=True
+                        )
 
                     # Seção de tratamento — só aparece se houve criadouro
                     if boletim.get('criadouro_encontrado', False):
