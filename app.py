@@ -17,6 +17,12 @@ import geopandas as gpd
 from streamlit_calendar import calendar
 import pydeck as pdk
 import calendar as cal_mod
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib import colors
+from reportlab.lib.units import mm, cm
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide", page_title="Sistema de Gestao - CCZ", page_icon="🏥")
@@ -1407,6 +1413,107 @@ def modulo_denuncias():
             st.info("Nenhuma denúncia registrada.")
 
 # --- MÓDULO DO BOLETIM (LAYOUT CORRIGIDO) ---
+def gerar_pdf_pe_ie(df_cadastros, tipo_filtro):
+    """Gera um PDF com tabelas de P.E e/ou I.E separadas por tipo, com colunas para preenchimento em campo."""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=15*mm, bottomMargin=15*mm, leftMargin=15*mm, rightMargin=15*mm)
+
+    styles = getSampleStyleSheet()
+    style_title = ParagraphStyle('TitlePE', parent=styles['Title'], fontSize=14, spaceAfter=4*mm, textColor=colors.HexColor('#1B4F72'), alignment=TA_CENTER)
+    style_subtitle = ParagraphStyle('SubtitlePE', parent=styles['Normal'], fontSize=10, spaceAfter=6*mm, textColor=colors.HexColor('#566573'), alignment=TA_CENTER)
+    style_cell = ParagraphStyle('CellPE', parent=styles['Normal'], fontSize=9, leading=12)
+    style_header = ParagraphStyle('HeaderPE', parent=styles['Normal'], fontSize=9, leading=12, textColor=colors.white, alignment=TA_CENTER)
+
+    hoje = date.today()
+    meses_pt = ["Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+    nome_mes = meses_pt[hoje.month - 1]
+    quinzena_num = "1a" if hoje.day <= 15 else "2a"
+
+    story = []
+
+    tipos_para_gerar = []
+    if tipo_filtro == "Todos":
+        tipos_para_gerar = ["P.E", "I.E"]
+    elif tipo_filtro == "P.E":
+        tipos_para_gerar = ["P.E"]
+    else:
+        tipos_para_gerar = ["I.E"]
+
+    for i, tipo in enumerate(tipos_para_gerar):
+        if i > 0:
+            story.append(PageBreak())
+
+        df_tipo = df_cadastros[df_cadastros['tipo'] == tipo].copy() if 'tipo' in df_cadastros.columns else pd.DataFrame()
+
+        if df_tipo.empty:
+            continue
+
+        df_tipo = df_tipo.sort_values(by='numero_cadastro', key=lambda x: x.astype(str))
+
+        if tipo == "P.E":
+            titulo_texto = f"Ponto de Encontro (P.E) — {quinzena_num} Quinzena de {nome_mes}"
+            subtitulo_texto = f"Frequencia: Quinzenal | Periodo: {quinzena_num} quinzena de {nome_mes} de {hoje.year}"
+        else:
+            trimestre_num = (hoje.month - 1) // 3 + 1
+            titulo_texto = f"Imovel Especial (I.E) — {trimestre_num}o Trimestre de {hoje.year}"
+            subtitulo_texto = f"Frequencia: Trimestral | {trimestre_num}o Trimestre de {hoje.year}"
+
+        story.append(Paragraph(titulo_texto, style_title))
+        story.append(Paragraph(subtitulo_texto, style_subtitle))
+
+        # Cabeçalho da tabela
+        header_row = [
+            Paragraph("<b>No Cadastro</b>", style_header),
+            Paragraph("<b>Nome Fantasia</b>", style_header),
+            Paragraph("<b>Data</b>", style_header),
+            Paragraph("<b>Amostras</b>", style_header),
+            Paragraph("<b>Positivo</b>", style_header),
+            Paragraph("<b>Data do Tratamento</b>", style_header),
+        ]
+
+        table_data = [header_row]
+
+        for _, row in df_tipo.iterrows():
+            table_data.append([
+                Paragraph(str(row.get('numero_cadastro', '')), style_cell),
+                Paragraph(str(row.get('nome_fantasia', '')), style_cell),
+                "",  # Data - vazio para preencher
+                "",  # Amostras - vazio
+                "",  # Positivo - vazio
+                "",  # Data do Tratamento - vazio
+            ])
+
+        col_widths = [55*mm, 80*mm, 35*mm, 30*mm, 30*mm, 50*mm]
+
+        table = Table(table_data, colWidths=col_widths, repeatRows=1)
+        table.setStyle(TableStyle([
+            # Cabeçalho
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1B4F72')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            # Linhas do corpo
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#AEB6BF')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            # Altura mínima das linhas de dados para escrever à mão
+            ('ROWHEIGHT', (0, 1), (-1, -1), 28),
+        ]))
+
+        story.append(table)
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
 def modulo_boletim():
     """Renderiza a pagina do modulo de Boletim de Programacao Diaria com um layout melhorado."""
     st.markdown("""
@@ -2055,6 +2162,47 @@ def modulo_boletim():
                 st.session_state.pe_ie_editando_id = None
 
             if not df_pe_ie.empty:
+                # --- Botões de exportar PDF ---
+                st.markdown('<div class="sys-card"><div class="sys-card-title">📥 Exportar Planilhas para Impressao</div>', unsafe_allow_html=True)
+                st.caption("Gera PDF com tabela de P.E e/ou I.E com colunas para preenchimento em campo.")
+                st.markdown('</div>', unsafe_allow_html=True)
+
+                col_exp1, col_exp2, col_exp3 = st.columns(3)
+                with col_exp1:
+                    pdf_pe = gerar_pdf_pe_ie(df_pe_ie, "P.E")
+                    hoje_str = date.today().strftime('%d-%m-%Y')
+                    st.download_button(
+                        label="🟢 Baixar PDF — P.E",
+                        data=pdf_pe,
+                        file_name=f"Planilha_PE_{hoje_str}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key="download_pdf_pe"
+                    )
+                with col_exp2:
+                    pdf_ie = gerar_pdf_pe_ie(df_pe_ie, "I.E")
+                    st.download_button(
+                        label="🔵 Baixar PDF — I.E",
+                        data=pdf_ie,
+                        file_name=f"Planilha_IE_{hoje_str}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key="download_pdf_ie"
+                    )
+                with col_exp3:
+                    pdf_todos = gerar_pdf_pe_ie(df_pe_ie, "Todos")
+                    st.download_button(
+                        label="📄 Baixar PDF — Todos",
+                        data=pdf_todos,
+                        file_name=f"Planilha_PE_IE_{hoje_str}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key="download_pdf_todos"
+                    )
+
+                st.markdown('<div class="sys-divider"></div>', unsafe_allow_html=True)
+
+                # --- Filtros ---
                 col_filtro1, col_filtro2 = st.columns(2)
                 with col_filtro1:
                     filtro_tipo_pe = st.selectbox("Filtrar por tipo", ["Todos", "P.E", "I.E"], key="filtro_tipo_pe_ie")
