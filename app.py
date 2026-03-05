@@ -1516,6 +1516,149 @@ def gerar_pdf_pe_ie(df_cadastros, tipo_filtro):
     return buffer.getvalue()
 
 
+def gerar_pdf_historico_boletins(df_boletins, quinzena, mes, ano):
+    """Gera um PDF com o historico de boletins P.E/I.E de uma quinzena/mes especifico."""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=15*mm, bottomMargin=15*mm, leftMargin=12*mm, rightMargin=12*mm)
+
+    styles = getSampleStyleSheet()
+    style_title = ParagraphStyle('TitleHist', parent=styles['Title'], fontSize=14, spaceAfter=4*mm, textColor=colors.HexColor('#1B4F72'), alignment=TA_CENTER)
+    style_subtitle = ParagraphStyle('SubHist', parent=styles['Normal'], fontSize=10, spaceAfter=6*mm, textColor=colors.HexColor('#566573'), alignment=TA_CENTER)
+    style_cell = ParagraphStyle('CellHist', parent=styles['Normal'], fontSize=8, leading=10)
+    style_cell_center = ParagraphStyle('CellHistC', parent=styles['Normal'], fontSize=8, leading=10, alignment=TA_CENTER)
+    style_header = ParagraphStyle('HeaderHist', parent=styles['Normal'], fontSize=8, leading=10, textColor=colors.white, alignment=TA_CENTER)
+
+    meses_pt = ["Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+    nome_mes = meses_pt[mes - 1]
+    quinzena_label = f"{quinzena}a Quinzena de {nome_mes} de {ano}"
+
+    # Filtrar boletins pelo periodo
+    if quinzena == 1:
+        dia_inicio = date(ano, mes, 1)
+        dia_fim = date(ano, mes, 15)
+    else:
+        dia_inicio = date(ano, mes, 16)
+        ultimo_dia = cal_mod.monthrange(ano, mes)[1]
+        dia_fim = date(ano, mes, ultimo_dia)
+
+    df_filtrado = df_boletins.copy()
+    df_filtrado['data_dt'] = pd.to_datetime(df_filtrado['data']).dt.date
+    df_filtrado = df_filtrado[(df_filtrado['data_dt'] >= dia_inicio) & (df_filtrado['data_dt'] <= dia_fim)]
+    df_filtrado = df_filtrado.sort_values(by='data_dt')
+
+    story = []
+
+    story.append(Paragraph(f"Historico de Boletins P.E / I.E", style_title))
+    story.append(Paragraph(f"Periodo: {quinzena_label} ({dia_inicio.strftime('%d/%m/%Y')} a {dia_fim.strftime('%d/%m/%Y')})", style_subtitle))
+
+    if df_filtrado.empty:
+        story.append(Paragraph("Nenhum boletim registrado neste periodo.", style_cell))
+        doc.build(story)
+        buffer.seek(0)
+        return buffer.getvalue()
+
+    # Cabecalho
+    header_row = [
+        Paragraph("<b>Data</b>", style_header),
+        Paragraph("<b>Imoveis Trabalhados</b>", style_header),
+        Paragraph("<b>Equipe</b>", style_header),
+        Paragraph("<b>Criadouro</b>", style_header),
+        Paragraph("<b>Recipientes</b>", style_header),
+        Paragraph("<b>Tratamento</b>", style_header),
+        Paragraph("<b>Observacoes</b>", style_header),
+    ]
+
+    table_data = [header_row]
+
+    for _, bol in df_filtrado.iterrows():
+        data_str = pd.to_datetime(bol['data']).strftime('%d/%m/%Y')
+
+        # Imoveis
+        imoveis = bol.get('imoveis_trabalhados', [])
+        if isinstance(imoveis, list):
+            imoveis_txt = "\n".join([str(im) for im in imoveis])
+        else:
+            imoveis_txt = str(imoveis) if imoveis else ""
+
+        # Equipes
+        equipes = bol.get('equipes', [])
+        equipes_txt = ""
+        if isinstance(equipes, list):
+            for eq_i, eq in enumerate(equipes):
+                if isinstance(eq, dict):
+                    membros = [formatar_nome(m) for m in eq.get('membros', [])]
+                    equipes_txt += f"Eq{eq_i+1}: {', '.join(membros)}\n"
+
+        # Criadouro
+        tem_criad = bol.get('criadouro_encontrado', False)
+        criad_txt = "Sim" if tem_criad else "Nao"
+
+        # Recipientes
+        recips = bol.get('recipientes', [])
+        if isinstance(recips, list) and recips:
+            recips_txt = "\n".join([str(r) for r in recips])
+        else:
+            recips_txt = "-"
+
+        # Tratamento
+        trat = bol.get('tratamento_realizado', False)
+        data_trat = bol.get('data_tratamento', None)
+        if trat and data_trat:
+            trat_txt = f"Sim - {pd.to_datetime(data_trat).strftime('%d/%m/%Y')}"
+        elif trat:
+            trat_txt = "Sim"
+        else:
+            trat_txt = "Nao" if tem_criad else "-"
+
+        # Obs
+        obs_txt = str(bol.get('observacoes', '')) if bol.get('observacoes') else "-"
+
+        table_data.append([
+            Paragraph(data_str, style_cell_center),
+            Paragraph(imoveis_txt.replace("\n", "<br/>"), style_cell),
+            Paragraph(equipes_txt.replace("\n", "<br/>"), style_cell),
+            Paragraph(criad_txt, style_cell_center),
+            Paragraph(recips_txt.replace("\n", "<br/>"), style_cell),
+            Paragraph(trat_txt, style_cell_center),
+            Paragraph(obs_txt, style_cell),
+        ])
+
+    col_widths = [28*mm, 62*mm, 55*mm, 22*mm, 45*mm, 32*mm, 36*mm]
+
+    table = Table(table_data, colWidths=col_widths, repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1B4F72')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 8),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#AEB6BF')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+    ]))
+
+    story.append(table)
+
+    # Resumo no rodape
+    story.append(Spacer(1, 8*mm))
+    total = len(df_filtrado)
+    com_criadouro = len(df_filtrado[df_filtrado.apply(lambda r: r.get('criadouro_encontrado', False), axis=1)])
+    com_tratamento = len(df_filtrado[df_filtrado.apply(lambda r: r.get('tratamento_realizado', False), axis=1)])
+    resumo_txt = f"Total de boletins: {total}  |  Com criadouro: {com_criadouro}  |  Com tratamento: {com_tratamento}"
+    style_resumo = ParagraphStyle('Resumo', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor('#566573'), alignment=TA_CENTER)
+    story.append(Paragraph(resumo_txt, style_resumo))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
 def modulo_boletim():
     """Renderiza a pagina do modulo de Boletim de Programacao Diaria com um layout melhorado."""
     st.markdown("""
@@ -2436,6 +2579,37 @@ def modulo_boletim():
         with sub_tab_historico:
 
             if not df_boletins_pe_ie.empty:
+
+                # Card de exportação
+                st.markdown('<div class="sys-card"><div class="sys-card-title">📥 Exportar Historico em PDF</div>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+                meses_nomes = ["Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+                hoje = date.today()
+
+                col_q, col_m, col_a, col_btn = st.columns([1, 1, 1, 1])
+                with col_q:
+                    quinzena_exp = st.selectbox("Quinzena", [1, 2], format_func=lambda x: f"{x}a Quinzena", key="exp_quinzena")
+                with col_m:
+                    mes_exp = st.selectbox("Mes", list(range(1, 13)), index=hoje.month - 1, format_func=lambda x: meses_nomes[x - 1], key="exp_mes")
+                with col_a:
+                    ano_exp = st.selectbox("Ano", list(range(hoje.year - 2, hoje.year + 1)), index=2, key="exp_ano")
+                with col_btn:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    pdf_hist = gerar_pdf_historico_boletins(df_boletins_pe_ie, quinzena_exp, mes_exp, ano_exp)
+                    label_pdf = f"{quinzena_exp}a_Quinzena_{meses_nomes[mes_exp-1]}_{ano_exp}"
+                    st.download_button(
+                        label="📄 Baixar PDF",
+                        data=pdf_hist,
+                        file_name=f"Historico_PE_IE_{label_pdf}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key="download_hist_pdf"
+                    )
+
+                st.markdown('<div class="sys-divider"></div>', unsafe_allow_html=True)
+
+                # Listagem dos boletins
                 df_boletins_pe_ie['data_dt'] = pd.to_datetime(df_boletins_pe_ie['data']).dt.date
                 df_boletins_pe_ie_sorted = df_boletins_pe_ie.sort_values(by='data_dt', ascending=False)
 
