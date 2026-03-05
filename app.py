@@ -1448,7 +1448,9 @@ def gerar_pdf_pe_ie(df_cadastros, tipo_filtro):
         if df_tipo.empty:
             continue
 
-        df_tipo = df_tipo.sort_values(by='numero_cadastro', key=lambda x: x.astype(str))
+        df_tipo = df_tipo.copy()
+        df_tipo['_sort_key'] = pd.to_numeric(df_tipo['numero_cadastro'], errors='coerce').fillna(999999)
+        df_tipo = df_tipo.sort_values(by='_sort_key').drop(columns=['_sort_key'])
 
         if tipo == "P.E":
             titulo_texto = f"Ponto de Encontro (P.E) — {quinzena_num} Quinzena de {nome_mes}"
