@@ -1270,8 +1270,190 @@ def modulo_boletim():
 
 
     with tab_pe_ie:
-        st.header("Pontos Estratégicos (P.E) e Imóveis Especiais (I.E)")
-        st.caption("**P.E** = Ponto de Encontro (frequência quinzenal) · **I.E** = Imóvel Especial (frequência trimestral)")
+        # CSS específico para a aba P.E / I.E
+        st.markdown("""
+            <style>
+                .pe-header {
+                    background: linear-gradient(135deg, #1B4F72 0%, #2E86C1 100%);
+                    border-radius: 16px;
+                    padding: 28px 32px;
+                    margin-bottom: 28px;
+                    color: white;
+                }
+                .pe-header h2 {
+                    margin: 0 0 6px 0;
+                    font-size: 1.6rem;
+                    font-weight: 700;
+                    color: white !important;
+                    letter-spacing: -0.3px;
+                }
+                .pe-header p {
+                    margin: 0;
+                    font-size: 0.92rem;
+                    opacity: 0.85;
+                    color: #D6EAF8;
+                }
+                .pe-card {
+                    background: #ffffff;
+                    border: 1px solid #E5E8EB;
+                    border-radius: 14px;
+                    padding: 24px 28px;
+                    margin-bottom: 20px;
+                    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+                    transition: box-shadow 0.2s ease;
+                }
+                .pe-card:hover {
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+                }
+                .pe-card-title {
+                    font-size: 1.1rem;
+                    font-weight: 600;
+                    color: #1B4F72;
+                    margin-bottom: 16px;
+                    padding-bottom: 10px;
+                    border-bottom: 2px solid #D4E6F1;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+                .pe-badge {
+                    display: inline-block;
+                    padding: 4px 14px;
+                    border-radius: 20px;
+                    font-size: 0.78rem;
+                    font-weight: 600;
+                    letter-spacing: 0.5px;
+                    text-transform: uppercase;
+                }
+                .pe-badge-pe {
+                    background: #D5F5E3;
+                    color: #1E8449;
+                }
+                .pe-badge-ie {
+                    background: #D4E6F1;
+                    color: #1B4F72;
+                }
+                .pe-badge-freq {
+                    background: #FDEBD0;
+                    color: #B9770E;
+                }
+                .pe-info-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 10px 24px;
+                    margin-top: 12px;
+                }
+                .pe-info-item {
+                    padding: 8px 0;
+                }
+                .pe-info-label {
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                    color: #85929E;
+                    text-transform: uppercase;
+                    letter-spacing: 0.6px;
+                    margin-bottom: 2px;
+                }
+                .pe-info-value {
+                    font-size: 0.95rem;
+                    color: #2C3E50;
+                    font-weight: 500;
+                }
+                .pe-equipe-tag {
+                    display: inline-block;
+                    background: #EBF5FB;
+                    color: #2471A3;
+                    padding: 5px 12px;
+                    border-radius: 8px;
+                    font-size: 0.85rem;
+                    margin: 3px 4px 3px 0;
+                    font-weight: 500;
+                }
+                .pe-divider {
+                    height: 1px;
+                    background: linear-gradient(90deg, transparent, #D4E6F1, transparent);
+                    margin: 16px 0;
+                    border: none;
+                }
+                .pe-hist-card {
+                    background: #FAFBFC;
+                    border: 1px solid #E5E8EB;
+                    border-left: 4px solid #2E86C1;
+                    border-radius: 10px;
+                    padding: 20px 24px;
+                    margin-bottom: 14px;
+                }
+                .pe-hist-date {
+                    font-size: 1.05rem;
+                    font-weight: 600;
+                    color: #1B4F72;
+                }
+                .pe-hist-meta {
+                    font-size: 0.82rem;
+                    color: #85929E;
+                    margin-top: 2px;
+                }
+                .pe-imovel-chip {
+                    display: inline-block;
+                    background: #EAF2F8;
+                    border: 1px solid #AED6F1;
+                    color: #1A5276;
+                    padding: 5px 14px;
+                    border-radius: 20px;
+                    font-size: 0.83rem;
+                    margin: 4px 6px 4px 0;
+                    font-weight: 500;
+                }
+                .pe-empty-state {
+                    text-align: center;
+                    padding: 48px 24px;
+                    color: #85929E;
+                }
+                .pe-empty-state .icon {
+                    font-size: 3rem;
+                    margin-bottom: 12px;
+                    opacity: 0.5;
+                }
+                .pe-empty-state p {
+                    font-size: 1rem;
+                    margin: 0;
+                }
+                .pe-metric-row {
+                    display: flex;
+                    gap: 16px;
+                    margin-bottom: 20px;
+                }
+                .pe-metric {
+                    flex: 1;
+                    background: #F8F9FA;
+                    border: 1px solid #E5E8EB;
+                    border-radius: 12px;
+                    padding: 16px 20px;
+                    text-align: center;
+                }
+                .pe-metric-number {
+                    font-size: 1.8rem;
+                    font-weight: 700;
+                    color: #1B4F72;
+                    line-height: 1;
+                }
+                .pe-metric-label {
+                    font-size: 0.78rem;
+                    color: #85929E;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    margin-top: 4px;
+                }
+            </style>
+        """, unsafe_allow_html=True)
+
+        # Header
+        st.markdown("""
+            <div class="pe-header">
+                <h2>Pontos Estrategicos e Imoveis Especiais</h2>
+                <p>P.E = Ponto de Encontro (quinzenal) &nbsp;&middot;&nbsp; I.E = Imovel Especial (trimestral)</p>
+            </div>
+        """, unsafe_allow_html=True)
 
         df_pe_ie = carregar_dados_firebase('pe_ie_cadastros')
         df_boletins_pe_ie = carregar_dados_firebase('boletins_pe_ie')
@@ -1283,47 +1465,70 @@ def modulo_boletim():
             nome_map_pe = {}
             lista_nomes_pe = []
 
-        # Monta lista de P.E/I.E cadastrados para usar no boletim
         lista_pe_ie_opcoes = []
         if not df_pe_ie.empty:
             for idx_pe, row_pe in df_pe_ie.iterrows():
-                label = f"{row_pe.get('tipo', '')} - {row_pe.get('nome_fantasia', '')} (Nº {row_pe.get('numero_cadastro', '')})"
+                label = f"{row_pe.get('tipo', '')} - {row_pe.get('nome_fantasia', '')} (No {row_pe.get('numero_cadastro', '')})"
                 lista_pe_ie_opcoes.append({"id": idx_pe, "label": label, "tipo": row_pe.get('tipo', ''), "dados": row_pe})
 
+        # Metricas resumo
+        total_pe = len(df_pe_ie[df_pe_ie['tipo'] == 'P.E']) if not df_pe_ie.empty and 'tipo' in df_pe_ie.columns else 0
+        total_ie = len(df_pe_ie[df_pe_ie['tipo'] == 'I.E']) if not df_pe_ie.empty and 'tipo' in df_pe_ie.columns else 0
+        total_boletins = len(df_boletins_pe_ie) if not df_boletins_pe_ie.empty else 0
+
+        st.markdown(f"""
+            <div class="pe-metric-row">
+                <div class="pe-metric">
+                    <div class="pe-metric-number">{total_pe}</div>
+                    <div class="pe-metric-label">Pontos de Encontro</div>
+                </div>
+                <div class="pe-metric">
+                    <div class="pe-metric-number">{total_ie}</div>
+                    <div class="pe-metric-label">Imoveis Especiais</div>
+                </div>
+                <div class="pe-metric">
+                    <div class="pe-metric-number">{total_pe + total_ie}</div>
+                    <div class="pe-metric-label">Total Cadastrados</div>
+                </div>
+                <div class="pe-metric">
+                    <div class="pe-metric-number">{total_boletins}</div>
+                    <div class="pe-metric-label">Boletins Registrados</div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
         sub_tab_cadastrar, sub_tab_boletim, sub_tab_listar, sub_tab_historico = st.tabs([
-            "📝 Cadastrar P.E / I.E",
-            "🗓️ Criar Boletim P.E / I.E",
-            "📋 Cadastros Existentes",
-            "🔍 Histórico de Boletins"
+            "📝 Cadastrar Imovel",
+            "🗓️ Criar Boletim",
+            "📋 Imoveis Cadastrados",
+            "🔍 Historico de Boletins"
         ])
 
         # =============================================
         # SUB-ABA 1: CADASTRAR P.E / I.E
         # =============================================
         with sub_tab_cadastrar:
-            st.subheader("Novo Cadastro de Imóvel")
 
-            st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
-            st.markdown("<div class='card-header'>Dados do Imóvel</div>", unsafe_allow_html=True)
+            st.markdown('<div class="pe-card"><div class="pe-card-title">📋 Dados do Novo Imovel</div>', unsafe_allow_html=True)
 
-            tipo_pe_ie = st.selectbox("Tipo", ["P.E - Ponto de Encontro", "I.E - Imóvel Especial"], key="tipo_pe_ie_cadastro")
-            
+            tipo_pe_ie = st.selectbox("Tipo do Imovel", ["P.E - Ponto de Encontro", "I.E - Imovel Especial"], key="tipo_pe_ie_cadastro")
+
             col_cad1, col_cad2 = st.columns(2)
             with col_cad1:
-                numero_cadastro = st.text_input("Número de Cadastro", key="num_cadastro_pe")
-                endereco_pe = st.text_input("Endereço", key="endereco_pe")
-                nome_fantasia = st.text_input("Nome Fantasia do Imóvel", key="nome_fantasia_pe")
+                numero_cadastro = st.text_input("Numero de Cadastro", key="num_cadastro_pe")
+                nome_fantasia = st.text_input("Nome Fantasia do Imovel", key="nome_fantasia_pe")
+                endereco_pe = st.text_input("Endereco Completo", key="endereco_pe")
             with col_cad2:
+                quarteirao_pe = st.selectbox("Numero de Quarteirao", options=[""] + lista_quarteiroes, key="quarteirao_pe")
                 col_coord1, col_coord2 = st.columns(2)
                 with col_coord1:
                     latitude_pe = st.text_input("Latitude", key="lat_pe", placeholder="-22.8136")
                 with col_coord2:
                     longitude_pe = st.text_input("Longitude", key="lon_pe", placeholder="-45.1917")
-                quarteirao_pe = st.selectbox("Número de Quarteirão", options=[""] + lista_quarteiroes, key="quarteirao_pe")
 
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            if st.button("Salvar Cadastro", use_container_width=True, type="primary", key="save_pe_ie_button"):
+            if st.button("✅ Salvar Cadastro", use_container_width=True, type="primary", key="save_pe_ie_button"):
                 if numero_cadastro and endereco_pe and nome_fantasia:
                     tipo_sigla = "P.E" if "P.E" in tipo_pe_ie else "I.E"
                     frequencia = "Quinzenal" if tipo_sigla == "P.E" else "Trimestral"
@@ -1344,59 +1549,59 @@ def modulo_boletim():
                         ref = db.reference(f'pe_ie_cadastros/{cadastro_id}')
                         ref.set(cadastro_data)
 
-                        log_atividade(st.session_state.get('username'), f"Cadastrou {tipo_sigla}", f"Nº Cadastro: {numero_cadastro}, Nome: {nome_fantasia}")
+                        log_atividade(st.session_state.get('username'), f"Cadastrou {tipo_sigla}", f"No Cadastro: {numero_cadastro}, Nome: {nome_fantasia}")
 
-                        st.success(f"{tipo_sigla} - {nome_fantasia} cadastrado com sucesso!")
+                        st.success(f"{tipo_sigla} — {nome_fantasia} cadastrado com sucesso!")
                         st.cache_data.clear()
                         st.rerun()
                     except Exception as e:
                         st.error(f"Erro ao salvar o cadastro: {e}")
                 else:
-                    st.warning("Por favor, preencha os campos obrigatórios: Número de Cadastro, Endereço e Nome Fantasia.")
+                    st.warning("Preencha os campos obrigatorios: Numero de Cadastro, Endereco e Nome Fantasia.")
 
         # =============================================
         # SUB-ABA 2: CRIAR BOLETIM DE P.E / I.E
         # =============================================
         with sub_tab_boletim:
-            st.subheader("Novo Boletim de P.E / I.E")
 
             if not lista_pe_ie_opcoes:
-                st.warning("Nenhum P.E ou I.E cadastrado. Cadastre primeiro na aba 'Cadastrar P.E / I.E'.")
+                st.markdown("""
+                    <div class="pe-empty-state">
+                        <div class="icon">📭</div>
+                        <p>Nenhum P.E ou I.E cadastrado ainda.<br>Cadastre imoveis na aba <strong>"Cadastrar Imovel"</strong> para criar boletins.</p>
+                    </div>
+                """, unsafe_allow_html=True)
             else:
                 col_bol1, col_bol2 = st.columns(2)
 
                 with col_bol1:
-                    # Card: Dados do Boletim
-                    st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
-                    st.markdown("<div class='card-header'>Dados do Boletim</div>", unsafe_allow_html=True)
+                    st.markdown('<div class="pe-card"><div class="pe-card-title">📄 Dados do Boletim</div>', unsafe_allow_html=True)
 
                     data_boletim_pe = st.date_input("Data do Trabalho", date.today(), key="data_boletim_pe_ie")
 
-                    filtro_tipo_boletim = st.selectbox("Filtrar imóveis por tipo", ["Todos", "P.E", "I.E"], key="filtro_tipo_boletim_pe")
+                    filtro_tipo_boletim = st.selectbox("Filtrar imoveis por tipo", ["Todos", "P.E", "I.E"], key="filtro_tipo_boletim_pe")
 
                     opcoes_imoveis = [item["label"] for item in lista_pe_ie_opcoes if filtro_tipo_boletim == "Todos" or item["tipo"] == filtro_tipo_boletim]
 
                     imoveis_selecionados = st.multiselect(
-                        "Selecione os P.E / I.E trabalhados",
+                        "Selecione os imoveis trabalhados",
                         options=opcoes_imoveis,
                         key="imoveis_selecionados_pe_ie"
                     )
 
-                    observacoes_pe = st.text_area("Observações gerais", key="obs_boletim_pe_ie")
+                    observacoes_pe = st.text_area("Observacoes gerais", key="obs_boletim_pe_ie", height=100)
 
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
 
                 with col_bol2:
-                    # Card: Equipes
-                    st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
-                    st.markdown("<div class='card-header'>Equipes</div>", unsafe_allow_html=True)
+                    st.markdown('<div class="pe-card"><div class="pe-card-title">👥 Equipes</div>', unsafe_allow_html=True)
 
                     equipes_pe_ie = []
                     membros_selecionados_pe = []
 
                     for i in range(st.session_state.num_equipes_pe_ie):
                         if i > 0:
-                            st.markdown("<hr>", unsafe_allow_html=True)
+                            st.markdown('<div class="pe-divider"></div>', unsafe_allow_html=True)
 
                         st.markdown(f"**Equipe {i+1}**")
                         opcoes_equipe_pe = [nome for nome in lista_nomes_pe if nome not in membros_selecionados_pe]
@@ -1412,10 +1617,10 @@ def modulo_boletim():
                         st.session_state.num_equipes_pe_ie += 1
                         st.rerun()
 
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
 
-                # Botão salvar boletim
-                if st.button("Salvar Boletim P.E / I.E", use_container_width=True, type="primary", key="save_boletim_pe_ie"):
+                st.markdown("")
+                if st.button("✅ Salvar Boletim P.E / I.E", use_container_width=True, type="primary", key="save_boletim_pe_ie"):
                     if imoveis_selecionados and equipes_pe_ie:
                         boletim_pe_id = str(int(time.time() * 1000))
                         boletim_pe_data = {
@@ -1433,7 +1638,7 @@ def modulo_boletim():
                             log_atividade(
                                 st.session_state.get('username'),
                                 "Criou boletim P.E/I.E",
-                                f"Data: {data_boletim_pe.strftime('%d/%m/%Y')}, Imóveis: {len(imoveis_selecionados)}"
+                                f"Data: {data_boletim_pe.strftime('%d/%m/%Y')}, Imoveis: {len(imoveis_selecionados)}"
                             )
 
                             st.success(f"Boletim P.E/I.E para {data_boletim_pe.strftime('%d/%m/%Y')} salvo com sucesso!")
@@ -1444,20 +1649,19 @@ def modulo_boletim():
                         except Exception as e:
                             st.error(f"Erro ao salvar o boletim: {e}")
                     else:
-                        st.warning("Selecione pelo menos um imóvel e monte pelo menos uma equipe.")
+                        st.warning("Selecione pelo menos um imovel e monte pelo menos uma equipe.")
 
         # =============================================
         # SUB-ABA 3: CADASTROS EXISTENTES
         # =============================================
         with sub_tab_listar:
-            st.subheader("Cadastros Existentes")
 
             if not df_pe_ie.empty:
                 col_filtro1, col_filtro2 = st.columns(2)
                 with col_filtro1:
-                    filtro_tipo_pe = st.selectbox("Filtrar por Tipo", ["Todos", "P.E", "I.E"], key="filtro_tipo_pe_ie")
+                    filtro_tipo_pe = st.selectbox("Filtrar por tipo", ["Todos", "P.E", "I.E"], key="filtro_tipo_pe_ie")
                 with col_filtro2:
-                    busca_nome = st.text_input("Buscar por nome fantasia", key="busca_nome_pe_ie")
+                    busca_nome = st.text_input("🔍 Buscar por nome fantasia", key="busca_nome_pe_ie")
 
                 df_pe_ie_display = df_pe_ie.copy()
 
@@ -1473,34 +1677,64 @@ def modulo_boletim():
                     for idx, cadastro in df_pe_ie_display.iterrows():
                         tipo_label = cadastro.get('tipo', 'N/A')
                         freq_label = cadastro.get('frequencia', '')
-                        cor_badge = "🟢" if tipo_label == "P.E" else "🔵"
+                        badge_class = "pe-badge-pe" if tipo_label == "P.E" else "pe-badge-ie"
+                        nome_fan = cadastro.get('nome_fantasia', 'Sem nome')
+                        num_cad = cadastro.get('numero_cadastro', 'N/A')
+                        endereco_cad = cadastro.get('endereco', 'N/A')
+                        lat_cad = cadastro.get('latitude', 'N/A')
+                        lon_cad = cadastro.get('longitude', 'N/A')
+                        quart_cad = cadastro.get('quarteirao', 'N/A')
 
-                        with st.expander(f"{cor_badge} **{tipo_label}** - {cadastro.get('nome_fantasia', 'Sem nome')} (Nº {cadastro.get('numero_cadastro', 'N/A')})"):
-                            col_info, col_acoes = st.columns([3, 1])
+                        st.markdown(f"""
+                            <div class="pe-card">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <span class="pe-badge {badge_class}">{tipo_label}</span>
+                                        <span class="pe-badge pe-badge-freq">{freq_label}</span>
+                                        <span style="font-size: 1.1rem; font-weight: 600; color: #2C3E50;">{nome_fan}</span>
+                                    </div>
+                                    <span style="font-size: 0.85rem; color: #85929E;">No {num_cad}</span>
+                                </div>
+                                <div class="pe-info-grid">
+                                    <div class="pe-info-item">
+                                        <div class="pe-info-label">Endereco</div>
+                                        <div class="pe-info-value">{endereco_cad}</div>
+                                    </div>
+                                    <div class="pe-info-item">
+                                        <div class="pe-info-label">Quarteirao</div>
+                                        <div class="pe-info-value">{quart_cad}</div>
+                                    </div>
+                                    <div class="pe-info-item">
+                                        <div class="pe-info-label">Latitude</div>
+                                        <div class="pe-info-value">{lat_cad}</div>
+                                    </div>
+                                    <div class="pe-info-item">
+                                        <div class="pe-info-label">Longitude</div>
+                                        <div class="pe-info-value">{lon_cad}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
 
-                            with col_info:
-                                st.markdown(f"**Tipo:** {tipo_label} ({freq_label})")
-                                st.markdown(f"**Nº Cadastro:** {cadastro.get('numero_cadastro', 'N/A')}")
-                                st.markdown(f"**Endereço:** {cadastro.get('endereco', 'N/A')}")
-                                st.markdown(f"**Nome Fantasia:** {cadastro.get('nome_fantasia', 'N/A')}")
-                                st.markdown(f"**Coordenadas:** {cadastro.get('latitude', 'N/A')}, {cadastro.get('longitude', 'N/A')}")
-                                st.markdown(f"**Quarteirão:** {cadastro.get('quarteirao', 'N/A')}")
+                        if st.button(f"🗑️ Deletar  —  {nome_fan}", key=f"del_pe_ie_{idx}"):
+                            db.reference(f'pe_ie_cadastros/{idx}').delete()
+                            log_atividade(st.session_state.get('username'), f"Deletou {tipo_label}", f"No Cadastro: {num_cad}, Nome: {nome_fan}")
+                            st.success(f"Cadastro '{nome_fan}' deletado com sucesso.")
+                            st.cache_data.clear()
+                            st.rerun()
 
-                            with col_acoes:
-                                if st.button("🗑️ Deletar", key=f"del_pe_ie_{idx}", type="primary", use_container_width=True):
-                                    db.reference(f'pe_ie_cadastros/{idx}').delete()
-                                    log_atividade(st.session_state.get('username'), f"Deletou {tipo_label}", f"Nº Cadastro: {cadastro.get('numero_cadastro')}, Nome: {cadastro.get('nome_fantasia')}")
-                                    st.success(f"Cadastro '{cadastro.get('nome_fantasia')}' deletado.")
-                                    st.cache_data.clear()
-                                    st.rerun()
             else:
-                st.info("Nenhum P.E ou I.E cadastrado ainda. Use a aba 'Cadastrar P.E / I.E' para começar.")
+                st.markdown("""
+                    <div class="pe-empty-state">
+                        <div class="icon">🏗️</div>
+                        <p>Nenhum P.E ou I.E cadastrado ainda.<br>Use a aba <strong>"Cadastrar Imovel"</strong> para comecar.</p>
+                    </div>
+                """, unsafe_allow_html=True)
 
         # =============================================
-        # SUB-ABA 4: HISTÓRICO DE BOLETINS P.E / I.E
+        # SUB-ABA 4: HISTORICO DE BOLETINS P.E / I.E
         # =============================================
         with sub_tab_historico:
-            st.subheader("Histórico de Boletins P.E / I.E")
 
             if not df_boletins_pe_ie.empty:
                 df_boletins_pe_ie['data_dt'] = pd.to_datetime(df_boletins_pe_ie['data']).dt.date
@@ -1509,37 +1743,58 @@ def modulo_boletim():
                 for idx_bol, boletim in df_boletins_pe_ie_sorted.iterrows():
                     data_fmt = pd.to_datetime(boletim['data']).strftime('%d/%m/%Y')
                     qtd_imoveis = len(boletim.get('imoveis_trabalhados', []))
+                    criado_por = boletim.get('criado_por', 'N/A')
 
-                    with st.expander(f"📅 **{data_fmt}** — {qtd_imoveis} imóvel(is) trabalhado(s)"):
-                        st.markdown(f"**Data:** {data_fmt}")
-                        st.markdown(f"**Criado por:** {boletim.get('criado_por', 'N/A')}")
+                    imoveis_list = boletim.get('imoveis_trabalhados', [])
+                    imoveis_chips = ""
+                    if imoveis_list and isinstance(imoveis_list, list):
+                        for im in imoveis_list:
+                            imoveis_chips += f'<span class="pe-imovel-chip">{im}</span>'
 
-                        imoveis_list = boletim.get('imoveis_trabalhados', [])
-                        if imoveis_list and isinstance(imoveis_list, list):
-                            st.markdown("**Imóveis trabalhados:**")
-                            for im in imoveis_list:
-                                st.markdown(f"- {im}")
+                    equipes_bol = boletim.get('equipes', [])
+                    equipes_html = ""
+                    if equipes_bol and isinstance(equipes_bol, list):
+                        for eq_i, equipe in enumerate(equipes_bol):
+                            if isinstance(equipe, dict):
+                                membros_fmt = [formatar_nome(m) for m in equipe.get('membros', [])]
+                                membros_tags = "".join([f'<span class="pe-equipe-tag">{m}</span>' for m in membros_fmt])
+                                equipes_html += f'<div style="margin-top: 8px;"><span style="font-weight:600; color:#1B4F72; font-size:0.85rem;">Equipe {eq_i+1}:</span> {membros_tags}</div>'
 
-                        equipes_bol = boletim.get('equipes', [])
-                        if equipes_bol and isinstance(equipes_bol, list):
-                            for eq_i, equipe in enumerate(equipes_bol):
-                                if isinstance(equipe, dict):
-                                    membros_fmt = [formatar_nome(m) for m in equipe.get('membros', [])]
-                                    st.markdown(f"**Equipe {eq_i+1}:** {', '.join(membros_fmt) if membros_fmt else 'Nenhum membro'}")
+                    obs = boletim.get('observacoes', '')
+                    obs_html = f'<div style="margin-top:12px; padding:10px 14px; background:#FEF9E7; border-radius:8px; font-size:0.88rem; color:#7D6608;"><strong>Obs:</strong> {obs}</div>' if obs else ""
 
-                        obs = boletim.get('observacoes', '')
-                        if obs:
-                            st.markdown(f"**Observações:** {obs}")
+                    st.markdown(f"""
+                        <div class="pe-hist-card">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <div class="pe-hist-date">📅 {data_fmt}</div>
+                                    <div class="pe-hist-meta">{qtd_imoveis} imovel(is) &middot; Criado por: {criado_por}</div>
+                                </div>
+                            </div>
+                            <div class="pe-divider"></div>
+                            <div style="margin-bottom:8px;">
+                                <span style="font-weight:600; font-size:0.85rem; color:#566573;">IMOVEIS TRABALHADOS</span>
+                            </div>
+                            <div>{imoveis_chips if imoveis_chips else '<span style="color:#85929E;">Nenhum</span>'}</div>
+                            {equipes_html}
+                            {obs_html}
+                        </div>
+                    """, unsafe_allow_html=True)
 
-                        st.markdown("---")
-                        if st.button("🗑️ Deletar Boletim", key=f"del_bol_pe_{idx_bol}", type="primary"):
-                            db.reference(f'boletins_pe_ie/{idx_bol}').delete()
-                            log_atividade(st.session_state.get('username'), "Deletou boletim P.E/I.E", f"Data: {data_fmt}")
-                            st.success("Boletim deletado.")
-                            st.cache_data.clear()
-                            st.rerun()
+                    if st.button(f"🗑️ Deletar boletim de {data_fmt}", key=f"del_bol_pe_{idx_bol}"):
+                        db.reference(f'boletins_pe_ie/{idx_bol}').delete()
+                        log_atividade(st.session_state.get('username'), "Deletou boletim P.E/I.E", f"Data: {data_fmt}")
+                        st.success("Boletim deletado com sucesso.")
+                        st.cache_data.clear()
+                        st.rerun()
+
             else:
-                st.info("Nenhum boletim de P.E/I.E registrado ainda.")
+                st.markdown("""
+                    <div class="pe-empty-state">
+                        <div class="icon">📭</div>
+                        <p>Nenhum boletim de P.E/I.E registrado ainda.<br>Use a aba <strong>"Criar Boletim"</strong> para comecar.</p>
+                    </div>
+                """, unsafe_allow_html=True)
 
     with tab2:
         st.subheader("Visualizar e Editar Boletim")
