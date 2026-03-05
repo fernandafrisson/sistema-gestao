@@ -16,6 +16,7 @@ from collections import Counter, defaultdict
 import geopandas as gpd
 from streamlit_calendar import calendar
 import pydeck as pdk
+import calendar as cal_mod
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide", page_title="Sistema de Gestao - CCZ", page_icon="🏥")
@@ -1631,9 +1632,10 @@ def modulo_boletim():
             </div>
         """, unsafe_allow_html=True)
 
-        sub_tab_cadastrar, sub_tab_boletim, sub_tab_listar, sub_tab_historico = st.tabs([
+        sub_tab_cadastrar, sub_tab_boletim, sub_tab_controle, sub_tab_listar, sub_tab_historico = st.tabs([
             "📝 Cadastrar Imovel",
             "🗓️ Criar Boletim",
+            "📊 Controle",
             "📋 Imoveis Cadastrados",
             "🔍 Historico de Boletins"
         ])
@@ -1786,7 +1788,265 @@ def modulo_boletim():
                         st.warning("Selecione pelo menos um imovel e monte pelo menos uma equipe.")
 
         # =============================================
-        # SUB-ABA 3: CADASTROS EXISTENTES
+        # SUB-ABA 3: CONTROLE DE P.E / I.E
+        # =============================================
+        with sub_tab_controle:
+
+            if df_pe_ie.empty:
+                st.markdown("""
+                    <div class="empty-state">
+                        <div class="icon">📭</div>
+                        <p>Nenhum P.E ou I.E cadastrado ainda.<br>Cadastre imoveis na aba <strong>"Cadastrar Imovel"</strong> primeiro.</p>
+                    </div>
+                """, unsafe_allow_html=True)
+            else:
+                hoje = date.today()
+
+                # Determinar quinzena atual
+                if hoje.day <= 15:
+                    inicio_quinzena = hoje.replace(day=1)
+                    fim_quinzena = hoje.replace(day=15)
+                    quinzena_label = f"1a Quinzena ({inicio_quinzena.strftime('%d/%m')} a {fim_quinzena.strftime('%d/%m/%Y')})"
+                else:
+                    ultimo_dia = cal_mod.monthrange(hoje.year, hoje.month)[1]
+                    inicio_quinzena = hoje.replace(day=16)
+                    fim_quinzena = hoje.replace(day=ultimo_dia)
+                    quinzena_label = f"2a Quinzena ({inicio_quinzena.strftime('%d/%m')} a {fim_quinzena.strftime('%d/%m/%Y')})"
+
+                # Determinar trimestre atual
+                mes_atual = hoje.month
+                trimestre_num = (mes_atual - 1) // 3 + 1
+                inicio_trimestre = date(hoje.year, (trimestre_num - 1) * 3 + 1, 1)
+                ultimo_mes_trim = trimestre_num * 3
+                ultimo_dia_trim = cal_mod.monthrange(hoje.year, ultimo_mes_trim)[1]
+                fim_trimestre = date(hoje.year, ultimo_mes_trim, ultimo_dia_trim)
+                trimestre_label = f"{trimestre_num}o Trimestre ({inicio_trimestre.strftime('%d/%m')} a {fim_trimestre.strftime('%d/%m/%Y')})"
+
+                # Coletar todos os imóveis trabalhados nos boletins dentro dos períodos
+                imoveis_feitos_quinzena = set()
+                imoveis_feitos_trimestre = set()
+
+                if not df_boletins_pe_ie.empty:
+                    for _, bol in df_boletins_pe_ie.iterrows():
+                        data_bol = pd.to_datetime(bol['data']).date()
+                        imoveis_bol = bol.get('imoveis_trabalhados', [])
+                        if not isinstance(imoveis_bol, list):
+                            imoveis_bol = []
+
+                        # Checa se cai na quinzena
+                        if inicio_quinzena <= data_bol <= fim_quinzena:
+                            for im in imoveis_bol:
+                                imoveis_feitos_quinzena.add(im)
+
+                        # Checa se cai no trimestre
+                        if inicio_trimestre <= data_bol <= fim_trimestre:
+                            for im in imoveis_bol:
+                                imoveis_feitos_trimestre.add(im)
+
+                # Separar cadastros por tipo
+                df_pe = df_pe_ie[df_pe_ie['tipo'] == 'P.E'] if 'tipo' in df_pe_ie.columns else pd.DataFrame()
+                df_ie = df_pe_ie[df_pe_ie['tipo'] == 'I.E'] if 'tipo' in df_pe_ie.columns else pd.DataFrame()
+
+                # --- CONTROLE P.E (Quinzenal) ---
+                st.markdown(f"""
+                    <div class="sys-card">
+                        <div class="sys-card-title">🟢 Controle de P.E — Quinzenal</div>
+                        <div style="font-size:0.9rem; color:#566573; margin-bottom:16px;">
+                            Periodo atual: <strong>{quinzena_label}</strong> &nbsp;·&nbsp;
+                            Dias restantes: <strong>{(fim_quinzena - hoje).days}</strong>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                if not df_pe.empty:
+                    pe_pendentes = []
+                    pe_realizados = []
+
+                    for idx_pe, row_pe in df_pe.iterrows():
+                        label_pe = f"P.E - {row_pe.get('nome_fantasia', '')} (No {row_pe.get('numero_cadastro', '')})"
+                        foi_feito = any(label_pe in item for item in imoveis_feitos_quinzena)
+
+                        dados_pe = {
+                            "id": idx_pe,
+                            "label": label_pe,
+                            "nome_fantasia": row_pe.get('nome_fantasia', ''),
+                            "numero_cadastro": row_pe.get('numero_cadastro', ''),
+                            "endereco": row_pe.get('endereco', ''),
+                            "quarteirao": row_pe.get('quarteirao', ''),
+                        }
+                        if foi_feito:
+                            pe_realizados.append(dados_pe)
+                        else:
+                            pe_pendentes.append(dados_pe)
+
+                    total_pe_ctrl = len(pe_pendentes) + len(pe_realizados)
+                    pct_pe = int((len(pe_realizados) / total_pe_ctrl) * 100) if total_pe_ctrl > 0 else 0
+
+                    st.markdown(f"""
+                        <div class="metric-row">
+                            <div class="metric-box">
+                                <div class="metric-number" style="color:#C0392B;">{len(pe_pendentes)}</div>
+                                <div class="metric-label">Pendentes</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="metric-number" style="color:#1E8449;">{len(pe_realizados)}</div>
+                                <div class="metric-label">Realizados</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="metric-number">{total_pe_ctrl}</div>
+                                <div class="metric-label">Total P.E</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="metric-number">{pct_pe}%</div>
+                                <div class="metric-label">Concluido</div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                    st.progress(pct_pe / 100)
+
+                    if pe_pendentes:
+                        st.markdown(f"**⚠️ P.E pendentes nesta quinzena ({len(pe_pendentes)}):**")
+                        for p in pe_pendentes:
+                            st.markdown(f"""
+                                <div class="hist-card" style="border-left-color: #E74C3C;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                                        <div>
+                                            <span class="sys-badge badge-red">PENDENTE</span>
+                                            <span style="font-weight:600; color:#2C3E50; margin-left:8px;">{p['nome_fantasia']}</span>
+                                            <span style="color:#85929E; font-size:0.85rem;"> — No {p['numero_cadastro']}</span>
+                                        </div>
+                                    </div>
+                                    <div class="info-grid" style="margin-top:8px;">
+                                        <div class="info-item">
+                                            <div class="info-label">Endereco</div>
+                                            <div class="info-value">{p['endereco']}</div>
+                                        </div>
+                                        <div class="info-item">
+                                            <div class="info-label">Quarteirao</div>
+                                            <div class="info-value">{p['quarteirao']}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.success("Todos os P.E foram realizados nesta quinzena!")
+
+                    if pe_realizados:
+                        with st.expander(f"✅ P.E realizados nesta quinzena ({len(pe_realizados)})"):
+                            for r in pe_realizados:
+                                st.markdown(f"""
+                                    <div style="display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid #F0F3F8;">
+                                        <span class="sys-badge badge-green">FEITO</span>
+                                        <span style="font-weight:500; color:#2C3E50;">{r['nome_fantasia']}</span>
+                                        <span style="color:#85929E; font-size:0.85rem;">— No {r['numero_cadastro']}</span>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                else:
+                    st.info("Nenhum P.E cadastrado.")
+
+                st.markdown('<div class="sys-divider"></div>', unsafe_allow_html=True)
+
+                # --- CONTROLE I.E (Trimestral) ---
+                st.markdown(f"""
+                    <div class="sys-card">
+                        <div class="sys-card-title">🔵 Controle de I.E — Trimestral</div>
+                        <div style="font-size:0.9rem; color:#566573; margin-bottom:16px;">
+                            Periodo atual: <strong>{trimestre_label}</strong> &nbsp;·&nbsp;
+                            Dias restantes: <strong>{(fim_trimestre - hoje).days}</strong>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                if not df_ie.empty:
+                    ie_pendentes = []
+                    ie_realizados = []
+
+                    for idx_ie, row_ie in df_ie.iterrows():
+                        label_ie = f"I.E - {row_ie.get('nome_fantasia', '')} (No {row_ie.get('numero_cadastro', '')})"
+                        foi_feito = any(label_ie in item for item in imoveis_feitos_trimestre)
+
+                        dados_ie = {
+                            "id": idx_ie,
+                            "label": label_ie,
+                            "nome_fantasia": row_ie.get('nome_fantasia', ''),
+                            "numero_cadastro": row_ie.get('numero_cadastro', ''),
+                            "endereco": row_ie.get('endereco', ''),
+                            "quarteirao": row_ie.get('quarteirao', ''),
+                        }
+                        if foi_feito:
+                            ie_realizados.append(dados_ie)
+                        else:
+                            ie_pendentes.append(dados_ie)
+
+                    total_ie_ctrl = len(ie_pendentes) + len(ie_realizados)
+                    pct_ie = int((len(ie_realizados) / total_ie_ctrl) * 100) if total_ie_ctrl > 0 else 0
+
+                    st.markdown(f"""
+                        <div class="metric-row">
+                            <div class="metric-box">
+                                <div class="metric-number" style="color:#C0392B;">{len(ie_pendentes)}</div>
+                                <div class="metric-label">Pendentes</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="metric-number" style="color:#1E8449;">{len(ie_realizados)}</div>
+                                <div class="metric-label">Realizados</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="metric-number">{total_ie_ctrl}</div>
+                                <div class="metric-label">Total I.E</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="metric-number">{pct_ie}%</div>
+                                <div class="metric-label">Concluido</div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                    st.progress(pct_ie / 100)
+
+                    if ie_pendentes:
+                        st.markdown(f"**⚠️ I.E pendentes neste trimestre ({len(ie_pendentes)}):**")
+                        for p in ie_pendentes:
+                            st.markdown(f"""
+                                <div class="hist-card" style="border-left-color: #E74C3C;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                                        <div>
+                                            <span class="sys-badge badge-red">PENDENTE</span>
+                                            <span style="font-weight:600; color:#2C3E50; margin-left:8px;">{p['nome_fantasia']}</span>
+                                            <span style="color:#85929E; font-size:0.85rem;"> — No {p['numero_cadastro']}</span>
+                                        </div>
+                                    </div>
+                                    <div class="info-grid" style="margin-top:8px;">
+                                        <div class="info-item">
+                                            <div class="info-label">Endereco</div>
+                                            <div class="info-value">{p['endereco']}</div>
+                                        </div>
+                                        <div class="info-item">
+                                            <div class="info-label">Quarteirao</div>
+                                            <div class="info-value">{p['quarteirao']}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.success("Todos os I.E foram realizados neste trimestre!")
+
+                    if ie_realizados:
+                        with st.expander(f"✅ I.E realizados neste trimestre ({len(ie_realizados)})"):
+                            for r in ie_realizados:
+                                st.markdown(f"""
+                                    <div style="display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid #F0F3F8;">
+                                        <span class="sys-badge badge-green">FEITO</span>
+                                        <span style="font-weight:500; color:#2C3E50;">{r['nome_fantasia']}</span>
+                                        <span style="color:#85929E; font-size:0.85rem;">— No {r['numero_cadastro']}</span>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                else:
+                    st.info("Nenhum I.E cadastrado.")
+
+        # =============================================
+        # SUB-ABA 4: CADASTROS EXISTENTES
         # =============================================
         with sub_tab_listar:
 
