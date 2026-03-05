@@ -2050,6 +2050,10 @@ def modulo_boletim():
         # =============================================
         with sub_tab_listar:
 
+            # Estado para controlar qual imóvel está sendo editado
+            if 'pe_ie_editando_id' not in st.session_state:
+                st.session_state.pe_ie_editando_id = None
+
             if not df_pe_ie.empty:
                 col_filtro1, col_filtro2 = st.columns(2)
                 with col_filtro1:
@@ -2079,43 +2083,109 @@ def modulo_boletim():
                         lon_cad = cadastro.get('longitude', 'N/A')
                         quart_cad = cadastro.get('quarteirao', 'N/A')
 
-                        st.markdown(f"""
-                            <div class="sys-card">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-                                    <div style="display: flex; align-items: center; gap: 10px;">
-                                        <span class="sys-badge {badge_class}">{tipo_label}</span>
-                                        <span class="sys-badge badge-orange">{freq_label}</span>
-                                        <span style="font-size: 1.1rem; font-weight: 600; color: #2C3E50;">{nome_fan}</span>
-                                    </div>
-                                    <span style="font-size: 0.85rem; color: #85929E;">No {num_cad}</span>
+                        # Se este imóvel está sendo editado, mostra o formulário
+                        if st.session_state.pe_ie_editando_id == idx:
+                            st.markdown(f"""
+                                <div class="sys-card" style="border: 2px solid #2E86C1;">
+                                    <div class="sys-card-title">✏️ Editando: {nome_fan}</div>
                                 </div>
-                                <div class="info-grid">
-                                    <div class="info-item">
-                                        <div class="info-label">Endereco</div>
-                                        <div class="info-value">{endereco_cad}</div>
-                                    </div>
-                                    <div class="info-item">
-                                        <div class="info-label">Quarteirao</div>
-                                        <div class="info-value">{quart_cad}</div>
-                                    </div>
-                                    <div class="info-item">
-                                        <div class="info-label">Latitude</div>
-                                        <div class="info-value">{lat_cad}</div>
-                                    </div>
-                                    <div class="info-item">
-                                        <div class="info-label">Longitude</div>
-                                        <div class="info-value">{lon_cad}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
+                            """, unsafe_allow_html=True)
 
-                        if st.button(f"🗑️ Deletar  —  {nome_fan}", key=f"del_pe_ie_{idx}"):
-                            db.reference(f'pe_ie_cadastros/{idx}').delete()
-                            log_atividade(st.session_state.get('username'), f"Deletou {tipo_label}", f"No Cadastro: {num_cad}, Nome: {nome_fan}")
-                            st.success(f"Cadastro '{nome_fan}' deletado com sucesso.")
-                            st.cache_data.clear()
-                            st.rerun()
+                            with st.form(f"edit_pe_ie_{idx}"):
+                                tipos_opcoes = ["P.E - Ponto de Encontro", "I.E - Imovel Especial"]
+                                tipo_idx = 0 if tipo_label == "P.E" else 1
+                                tipo_edit = st.selectbox("Tipo do Imovel", tipos_opcoes, index=tipo_idx, key=f"edit_tipo_{idx}")
+
+                                col_e1, col_e2 = st.columns(2)
+                                with col_e1:
+                                    num_cad_edit = st.text_input("Numero de Cadastro", value=str(num_cad), key=f"edit_num_{idx}")
+                                    nome_fan_edit = st.text_input("Nome Fantasia", value=str(nome_fan), key=f"edit_nome_{idx}")
+                                    endereco_edit = st.text_input("Endereco", value=str(endereco_cad), key=f"edit_end_{idx}")
+                                with col_e2:
+                                    quart_opcoes = [""] + lista_quarteiroes
+                                    quart_idx = quart_opcoes.index(str(quart_cad)) if str(quart_cad) in quart_opcoes else 0
+                                    quarteirao_edit = st.selectbox("Quarteirao", options=quart_opcoes, index=quart_idx, key=f"edit_quart_{idx}")
+                                    col_c1, col_c2 = st.columns(2)
+                                    with col_c1:
+                                        lat_edit = st.text_input("Latitude", value=str(lat_cad), key=f"edit_lat_{idx}")
+                                    with col_c2:
+                                        lon_edit = st.text_input("Longitude", value=str(lon_cad), key=f"edit_lon_{idx}")
+
+                                col_btn1, col_btn2 = st.columns(2)
+                                with col_btn1:
+                                    salvar = st.form_submit_button("✅ Salvar Alteracoes", use_container_width=True)
+                                with col_btn2:
+                                    cancelar = st.form_submit_button("Cancelar", use_container_width=True)
+
+                                if salvar:
+                                    tipo_sigla_edit = "P.E" if "P.E" in tipo_edit else "I.E"
+                                    freq_edit = "Quinzenal" if tipo_sigla_edit == "P.E" else "Trimestral"
+                                    dados_atualizados = {
+                                        "tipo": tipo_sigla_edit,
+                                        "frequencia": freq_edit,
+                                        "numero_cadastro": num_cad_edit,
+                                        "nome_fantasia": nome_fan_edit,
+                                        "endereco": endereco_edit,
+                                        "quarteirao": quarteirao_edit,
+                                        "latitude": lat_edit,
+                                        "longitude": lon_edit,
+                                    }
+                                    db.reference(f'pe_ie_cadastros/{idx}').update(dados_atualizados)
+                                    log_atividade(st.session_state.get('username'), f"Editou {tipo_sigla_edit}", f"No Cadastro: {num_cad_edit}, Nome: {nome_fan_edit}")
+                                    st.success(f"Cadastro '{nome_fan_edit}' atualizado com sucesso!")
+                                    st.session_state.pe_ie_editando_id = None
+                                    st.cache_data.clear()
+                                    st.rerun()
+
+                                if cancelar:
+                                    st.session_state.pe_ie_editando_id = None
+                                    st.rerun()
+
+                        else:
+                            # Exibição normal do card
+                            st.markdown(f"""
+                                <div class="sys-card">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                            <span class="sys-badge {badge_class}">{tipo_label}</span>
+                                            <span class="sys-badge badge-orange">{freq_label}</span>
+                                            <span style="font-size: 1.1rem; font-weight: 600; color: #2C3E50;">{nome_fan}</span>
+                                        </div>
+                                        <span style="font-size: 0.85rem; color: #85929E;">No {num_cad}</span>
+                                    </div>
+                                    <div class="info-grid">
+                                        <div class="info-item">
+                                            <div class="info-label">Endereco</div>
+                                            <div class="info-value">{endereco_cad}</div>
+                                        </div>
+                                        <div class="info-item">
+                                            <div class="info-label">Quarteirao</div>
+                                            <div class="info-value">{quart_cad}</div>
+                                        </div>
+                                        <div class="info-item">
+                                            <div class="info-label">Latitude</div>
+                                            <div class="info-value">{lat_cad}</div>
+                                        </div>
+                                        <div class="info-item">
+                                            <div class="info-label">Longitude</div>
+                                            <div class="info-value">{lon_cad}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
+
+                            col_act1, col_act2, col_act3 = st.columns([1, 1, 3])
+                            with col_act1:
+                                if st.button("✏️ Editar", key=f"edit_pe_ie_{idx}", use_container_width=True):
+                                    st.session_state.pe_ie_editando_id = idx
+                                    st.rerun()
+                            with col_act2:
+                                if st.button("🗑️ Deletar", key=f"del_pe_ie_{idx}", use_container_width=True):
+                                    db.reference(f'pe_ie_cadastros/{idx}').delete()
+                                    log_atividade(st.session_state.get('username'), f"Deletou {tipo_label}", f"No Cadastro: {num_cad}, Nome: {nome_fan}")
+                                    st.success(f"Cadastro '{nome_fan}' deletado com sucesso.")
+                                    st.cache_data.clear()
+                                    st.rerun()
 
             else:
                 st.markdown("""
