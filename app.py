@@ -18,7 +18,346 @@ from streamlit_calendar import calendar
 import pydeck as pdk
 
 # --- INTERFACE PRINCIPAL ---
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide", page_title="Sistema de Gestao - CCZ", page_icon="🏥")
+
+# --- CSS GLOBAL DO SISTEMA ---
+st.markdown("""
+<style>
+    /* === RESET & BASE === */
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'DM Sans', sans-serif;
+    }
+    
+    /* === SIDEBAR === */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #0F2940 0%, #1B4F72 100%);
+    }
+    [data-testid="stSidebar"] * {
+        color: #D6EAF8 !important;
+    }
+    [data-testid="stSidebar"] .stButton > button {
+        background: rgba(255,255,255,0.1) !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        color: white !important;
+        border-radius: 10px !important;
+        transition: all 0.2s ease !important;
+    }
+    [data-testid="stSidebar"] .stButton > button:hover {
+        background: rgba(255,255,255,0.2) !important;
+        border-color: rgba(255,255,255,0.4) !important;
+    }
+
+    /* === TABS GLOBAIS === */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background: #F0F3F8;
+        padding: 6px;
+        border-radius: 14px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 10px;
+        padding: 10px 20px;
+        background: transparent;
+        font-weight: 500;
+        font-size: 0.9rem;
+        color: #566573;
+    }
+    .stTabs [aria-selected="true"] {
+        background: #1B4F72 !important;
+        color: white !important;
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(27,79,114,0.3);
+    }
+
+    /* === CARDS === */
+    .sys-card {
+        background: #ffffff;
+        border: 1px solid #E5E8EB;
+        border-radius: 14px;
+        padding: 24px 28px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+        transition: box-shadow 0.2s ease;
+    }
+    .sys-card:hover {
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .sys-card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1B4F72;
+        margin-bottom: 16px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #D4E6F1;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    /* === HEADERS DE MODULO === */
+    .mod-header {
+        background: linear-gradient(135deg, #1B4F72 0%, #2E86C1 100%);
+        border-radius: 16px;
+        padding: 28px 32px;
+        margin-bottom: 28px;
+        color: white;
+    }
+    .mod-header h2 {
+        margin: 0 0 6px 0;
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: white !important;
+        letter-spacing: -0.3px;
+    }
+    .mod-header p {
+        margin: 0;
+        font-size: 0.92rem;
+        opacity: 0.85;
+        color: #D6EAF8;
+    }
+
+    /* === METRICAS === */
+    .metric-row {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    .metric-box {
+        flex: 1;
+        background: #F8F9FA;
+        border: 1px solid #E5E8EB;
+        border-radius: 12px;
+        padding: 18px 20px;
+        text-align: center;
+    }
+    .metric-number {
+        font-size: 1.9rem;
+        font-weight: 700;
+        color: #1B4F72;
+        line-height: 1;
+    }
+    .metric-label {
+        font-size: 0.78rem;
+        color: #85929E;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 4px;
+    }
+
+    /* === BADGES === */
+    .sys-badge {
+        display: inline-block;
+        padding: 4px 14px;
+        border-radius: 20px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+    }
+    .badge-green { background: #D5F5E3; color: #1E8449; }
+    .badge-blue { background: #D4E6F1; color: #1B4F72; }
+    .badge-orange { background: #FDEBD0; color: #B9770E; }
+    .badge-red { background: #FADBD8; color: #C0392B; }
+    .badge-purple { background: #E8DAEF; color: #6C3483; }
+    .badge-gray { background: #EAECEE; color: #566573; }
+
+    /* === INFO GRID === */
+    .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px 24px;
+        margin-top: 12px;
+    }
+    .info-item { padding: 8px 0; }
+    .info-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #85929E;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        margin-bottom: 2px;
+    }
+    .info-value {
+        font-size: 0.95rem;
+        color: #2C3E50;
+        font-weight: 500;
+    }
+
+    /* === TAGS/CHIPS === */
+    .sys-tag {
+        display: inline-block;
+        background: #EBF5FB;
+        color: #2471A3;
+        padding: 5px 12px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        margin: 3px 4px 3px 0;
+        font-weight: 500;
+    }
+    .sys-chip {
+        display: inline-block;
+        background: #EAF2F8;
+        border: 1px solid #AED6F1;
+        color: #1A5276;
+        padding: 5px 14px;
+        border-radius: 20px;
+        font-size: 0.83rem;
+        margin: 4px 6px 4px 0;
+        font-weight: 500;
+    }
+
+    /* === DIVIDER === */
+    .sys-divider {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, #D4E6F1, transparent);
+        margin: 16px 0;
+        border: none;
+    }
+
+    /* === TIMELINE/HIST CARDS === */
+    .hist-card {
+        background: #FAFBFC;
+        border: 1px solid #E5E8EB;
+        border-left: 4px solid #2E86C1;
+        border-radius: 10px;
+        padding: 20px 24px;
+        margin-bottom: 14px;
+    }
+
+    /* === EMPTY STATE === */
+    .empty-state {
+        text-align: center;
+        padding: 48px 24px;
+        color: #85929E;
+    }
+    .empty-state .icon {
+        font-size: 3rem;
+        margin-bottom: 12px;
+        opacity: 0.5;
+    }
+    .empty-state p {
+        font-size: 1rem;
+        margin: 0;
+    }
+
+    /* === LOGIN === */
+    .login-container {
+        max-width: 420px;
+        margin: 60px auto;
+        text-align: center;
+    }
+    .login-logo {
+        font-size: 3.5rem;
+        margin-bottom: 8px;
+    }
+    .login-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #1B4F72;
+        margin-bottom: 4px;
+    }
+    .login-subtitle {
+        font-size: 0.95rem;
+        color: #85929E;
+        margin-bottom: 32px;
+    }
+
+    /* === PAINEL CARDS DE MODULO === */
+    .module-card {
+        background: #ffffff;
+        border: 1px solid #E5E8EB;
+        border-radius: 16px;
+        padding: 28px 24px;
+        text-align: center;
+        transition: all 0.25s ease;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .module-card:hover {
+        box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+        border-color: #2E86C1;
+    }
+    .module-card .icon { font-size: 2.4rem; margin-bottom: 10px; }
+    .module-card .title { font-size: 1rem; font-weight: 600; color: #2C3E50; }
+    .module-card .desc { font-size: 0.82rem; color: #85929E; margin-top: 4px; }
+
+    /* === FICHA FUNCIONARIO === */
+    .ficha-card {
+        background: #ffffff;
+        border: 1px solid #E5E8EB;
+        border-radius: 14px;
+        padding: 24px;
+        text-align: center;
+    }
+    .ficha-avatar {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #1B4F72, #2E86C1);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0 auto 14px;
+    }
+    .ficha-name {
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: #2C3E50;
+        margin-bottom: 4px;
+    }
+    .ficha-role {
+        font-size: 0.88rem;
+        color: #85929E;
+        margin-bottom: 16px;
+    }
+    .ficha-detail {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #F0F3F8;
+        font-size: 0.88rem;
+    }
+    .ficha-detail-label {
+        color: #85929E;
+        font-weight: 500;
+    }
+    .ficha-detail-value {
+        color: #2C3E50;
+        font-weight: 600;
+    }
+
+    /* === NOTES/OBS BOX === */
+    .obs-box {
+        margin-top: 12px;
+        padding: 10px 14px;
+        background: #FEF9E7;
+        border-radius: 8px;
+        font-size: 0.88rem;
+        color: #7D6608;
+    }
+
+    /* === BOTOES GLOBAIS === */
+    .stButton > button[kind="primary"] {
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+    }
+    .stButton > button {
+        border-radius: 10px !important;
+    }
+
+    /* === DATAFRAME === */
+    .stDataFrame {
+        border-radius: 12px;
+        overflow: hidden;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # --- USUÁRIOS PARA LOGIN (Exemplo) ---
 USERS = {
@@ -434,8 +773,13 @@ def get_ultimas_ferias(employee_id, all_folgas_df):
 # --- MÓDULOS DA APLICAÇÃO ---
 
 def modulo_rh():
-    """Renderiza a página do módulo de Recursos Humanos."""
-    st.title("Recursos Humanos")
+    """Renderiza a pagina do modulo de Recursos Humanos."""
+    st.markdown("""
+        <div class="mod-header">
+            <h2>👥 Recursos Humanos</h2>
+            <p>Gestao de equipe, ferias, abonadas e cadastro de funcionarios</p>
+        </div>
+    """, unsafe_allow_html=True)
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_folgas = carregar_dados_firebase('folgas_ferias')
 
@@ -787,8 +1131,13 @@ def modulo_rh():
                         st.error(f"Ocorreu um erro ao deletar: {e}")
 
 def modulo_denuncias():
-    """Renderiza a página do módulo de Denúncias."""
-    st.title("Denúncias")
+    """Renderiza a pagina do modulo de Denuncias."""
+    st.markdown("""
+        <div class="mod-header">
+            <h2>🚨 Denuncias</h2>
+            <p>Registro, gerenciamento e acompanhamento de denuncias zoossanitarias</p>
+        </div>
+    """, unsafe_allow_html=True)
 
     # Lista fixa de motivos para padronização
     lista_motivos_denuncia = [
@@ -1058,54 +1407,15 @@ def modulo_denuncias():
 
 # --- MÓDULO DO BOLETIM (LAYOUT CORRIGIDO) ---
 def modulo_boletim():
-    """Renderiza a página do módulo de Boletim de Programação Diária com um layout melhorado."""
-    st.title("Boletim de Programação Diária")
-
-    # Injeta CSS personalizado para o layout de cartões
+    """Renderiza a pagina do modulo de Boletim de Programacao Diaria com um layout melhorado."""
     st.markdown("""
-        <style>
-            .card-layout {
-                background-color: white;
-                border-radius: 12px;
-                padding: 24px;
-                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
-                margin-bottom: 24px;
-            }
-            .card-header {
-                font-size: 1.5rem;
-                font-weight: 600;
-                margin-bottom: 16px;
-                color: #333;
-            }
-            .stTabs [data-baseweb="tab-list"] {
-                gap: 24px;
-            }
-            .stTabs [data-baseweb="tab"] {
-                border-radius: 100px;
-                padding: 10px 20px;
-                background-color: #f0f2f6;
-            }
-            .stTabs [aria-selected="true"] {
-                background-color: #007bff;
-                color: white;
-            }
-            /* Style for the sidebar to match the layout */
-            [data-testid="stSidebar"] {
-                background-color: #f0f2f6;
-            }
-            .css-1d391kg {
-                padding-top: 2rem;
-                padding-right: 1rem;
-                padding-bottom: 1.5rem;
-                padding-left: 1rem;
-            }
-            hr {
-                margin-top: 1rem;
-                margin-bottom: 1rem;
-                border-top: 1px solid rgba(0, 0, 0, 0.1);
-            }
-        </style>
+        <div class="mod-header">
+            <h2>🗓️ Boletim de Programacao Diaria</h2>
+            <p>Programacao de equipes, atividades e mapa de campo</p>
+        </div>
     """, unsafe_allow_html=True)
+
+    # CSS antigo removido - agora usa CSS global
 
 
     # Carregamento dos dados necessários
@@ -1131,8 +1441,8 @@ def modulo_boletim():
 
         with col1:
             # Card: Dados do Boletim
-            st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
-            st.markdown("<div class='card-header'>Dados do Boletim</div>", unsafe_allow_html=True)
+            st.markdown("<div class='sys-card'>", unsafe_allow_html=True)
+            st.markdown("<div class='sys-card-title'>Dados do Boletim</div>", unsafe_allow_html=True)
 
             data_boletim = st.date_input("Data do Trabalho", date.today())
             bairros = st.text_area("Bairros a serem trabalhados")
@@ -1151,8 +1461,8 @@ def modulo_boletim():
             st.markdown("</div>", unsafe_allow_html=True) # Fim do card
 
             # Card: Equipes
-            st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
-            st.markdown("<div class='card-header'>Equipes</div>", unsafe_allow_html=True)
+            st.markdown("<div class='sys-card'>", unsafe_allow_html=True)
+            st.markdown("<div class='sys-card-title'>Equipes</div>", unsafe_allow_html=True)
             
             col_equipe_manhã, col_equipe_tarde = st.columns(2)
             
@@ -1224,8 +1534,8 @@ def modulo_boletim():
 
         with col2:
             # Card: Ausências do Dia
-            st.markdown("<div class='card-layout'>", unsafe_allow_html=True)
-            st.markdown("<div class='card-header'>Ausências do Dia</div>", unsafe_allow_html=True)
+            st.markdown("<div class='sys-card'>", unsafe_allow_html=True)
+            st.markdown("<div class='sys-card-title'>Ausências do Dia</div>", unsafe_allow_html=True)
             
             ausencias_col1, ausencias_col2 = st.columns(2)
             with ausencias_col1:
@@ -1270,186 +1580,10 @@ def modulo_boletim():
 
 
     with tab_pe_ie:
-        # CSS específico para a aba P.E / I.E
-        st.markdown("""
-            <style>
-                .pe-header {
-                    background: linear-gradient(135deg, #1B4F72 0%, #2E86C1 100%);
-                    border-radius: 16px;
-                    padding: 28px 32px;
-                    margin-bottom: 28px;
-                    color: white;
-                }
-                .pe-header h2 {
-                    margin: 0 0 6px 0;
-                    font-size: 1.6rem;
-                    font-weight: 700;
-                    color: white !important;
-                    letter-spacing: -0.3px;
-                }
-                .pe-header p {
-                    margin: 0;
-                    font-size: 0.92rem;
-                    opacity: 0.85;
-                    color: #D6EAF8;
-                }
-                .pe-card {
-                    background: #ffffff;
-                    border: 1px solid #E5E8EB;
-                    border-radius: 14px;
-                    padding: 24px 28px;
-                    margin-bottom: 20px;
-                    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
-                    transition: box-shadow 0.2s ease;
-                }
-                .pe-card:hover {
-                    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-                }
-                .pe-card-title {
-                    font-size: 1.1rem;
-                    font-weight: 600;
-                    color: #1B4F72;
-                    margin-bottom: 16px;
-                    padding-bottom: 10px;
-                    border-bottom: 2px solid #D4E6F1;
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                }
-                .pe-badge {
-                    display: inline-block;
-                    padding: 4px 14px;
-                    border-radius: 20px;
-                    font-size: 0.78rem;
-                    font-weight: 600;
-                    letter-spacing: 0.5px;
-                    text-transform: uppercase;
-                }
-                .pe-badge-pe {
-                    background: #D5F5E3;
-                    color: #1E8449;
-                }
-                .pe-badge-ie {
-                    background: #D4E6F1;
-                    color: #1B4F72;
-                }
-                .pe-badge-freq {
-                    background: #FDEBD0;
-                    color: #B9770E;
-                }
-                .pe-info-grid {
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: 10px 24px;
-                    margin-top: 12px;
-                }
-                .pe-info-item {
-                    padding: 8px 0;
-                }
-                .pe-info-label {
-                    font-size: 0.75rem;
-                    font-weight: 600;
-                    color: #85929E;
-                    text-transform: uppercase;
-                    letter-spacing: 0.6px;
-                    margin-bottom: 2px;
-                }
-                .pe-info-value {
-                    font-size: 0.95rem;
-                    color: #2C3E50;
-                    font-weight: 500;
-                }
-                .pe-equipe-tag {
-                    display: inline-block;
-                    background: #EBF5FB;
-                    color: #2471A3;
-                    padding: 5px 12px;
-                    border-radius: 8px;
-                    font-size: 0.85rem;
-                    margin: 3px 4px 3px 0;
-                    font-weight: 500;
-                }
-                .pe-divider {
-                    height: 1px;
-                    background: linear-gradient(90deg, transparent, #D4E6F1, transparent);
-                    margin: 16px 0;
-                    border: none;
-                }
-                .pe-hist-card {
-                    background: #FAFBFC;
-                    border: 1px solid #E5E8EB;
-                    border-left: 4px solid #2E86C1;
-                    border-radius: 10px;
-                    padding: 20px 24px;
-                    margin-bottom: 14px;
-                }
-                .pe-hist-date {
-                    font-size: 1.05rem;
-                    font-weight: 600;
-                    color: #1B4F72;
-                }
-                .pe-hist-meta {
-                    font-size: 0.82rem;
-                    color: #85929E;
-                    margin-top: 2px;
-                }
-                .pe-imovel-chip {
-                    display: inline-block;
-                    background: #EAF2F8;
-                    border: 1px solid #AED6F1;
-                    color: #1A5276;
-                    padding: 5px 14px;
-                    border-radius: 20px;
-                    font-size: 0.83rem;
-                    margin: 4px 6px 4px 0;
-                    font-weight: 500;
-                }
-                .pe-empty-state {
-                    text-align: center;
-                    padding: 48px 24px;
-                    color: #85929E;
-                }
-                .pe-empty-state .icon {
-                    font-size: 3rem;
-                    margin-bottom: 12px;
-                    opacity: 0.5;
-                }
-                .pe-empty-state p {
-                    font-size: 1rem;
-                    margin: 0;
-                }
-                .pe-metric-row {
-                    display: flex;
-                    gap: 16px;
-                    margin-bottom: 20px;
-                }
-                .pe-metric {
-                    flex: 1;
-                    background: #F8F9FA;
-                    border: 1px solid #E5E8EB;
-                    border-radius: 12px;
-                    padding: 16px 20px;
-                    text-align: center;
-                }
-                .pe-metric-number {
-                    font-size: 1.8rem;
-                    font-weight: 700;
-                    color: #1B4F72;
-                    line-height: 1;
-                }
-                .pe-metric-label {
-                    font-size: 0.78rem;
-                    color: #85929E;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                    margin-top: 4px;
-                }
-            </style>
-        """, unsafe_allow_html=True)
 
         # Header
         st.markdown("""
-            <div class="pe-header">
+            <div class="mod-header">
                 <h2>Pontos Estrategicos e Imoveis Especiais</h2>
                 <p>P.E = Ponto de Encontro (quinzenal) &nbsp;&middot;&nbsp; I.E = Imovel Especial (trimestral)</p>
             </div>
@@ -1477,22 +1611,22 @@ def modulo_boletim():
         total_boletins = len(df_boletins_pe_ie) if not df_boletins_pe_ie.empty else 0
 
         st.markdown(f"""
-            <div class="pe-metric-row">
-                <div class="pe-metric">
-                    <div class="pe-metric-number">{total_pe}</div>
-                    <div class="pe-metric-label">Pontos de Encontro</div>
+            <div class="metric-row">
+                <div class="metric-box">
+                    <div class="metric-number">{total_pe}</div>
+                    <div class="metric-label">Pontos de Encontro</div>
                 </div>
-                <div class="pe-metric">
-                    <div class="pe-metric-number">{total_ie}</div>
-                    <div class="pe-metric-label">Imoveis Especiais</div>
+                <div class="metric-box">
+                    <div class="metric-number">{total_ie}</div>
+                    <div class="metric-label">Imoveis Especiais</div>
                 </div>
-                <div class="pe-metric">
-                    <div class="pe-metric-number">{total_pe + total_ie}</div>
-                    <div class="pe-metric-label">Total Cadastrados</div>
+                <div class="metric-box">
+                    <div class="metric-number">{total_pe + total_ie}</div>
+                    <div class="metric-label">Total Cadastrados</div>
                 </div>
-                <div class="pe-metric">
-                    <div class="pe-metric-number">{total_boletins}</div>
-                    <div class="pe-metric-label">Boletins Registrados</div>
+                <div class="metric-box">
+                    <div class="metric-number">{total_boletins}</div>
+                    <div class="metric-label">Boletins Registrados</div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -1509,7 +1643,7 @@ def modulo_boletim():
         # =============================================
         with sub_tab_cadastrar:
 
-            st.markdown('<div class="pe-card"><div class="pe-card-title">📋 Dados do Novo Imovel</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sys-card"><div class="sys-card-title">📋 Dados do Novo Imovel</div>', unsafe_allow_html=True)
 
             tipo_pe_ie = st.selectbox("Tipo do Imovel", ["P.E - Ponto de Encontro", "I.E - Imovel Especial"], key="tipo_pe_ie_cadastro")
 
@@ -1566,7 +1700,7 @@ def modulo_boletim():
 
             if not lista_pe_ie_opcoes:
                 st.markdown("""
-                    <div class="pe-empty-state">
+                    <div class="empty-state">
                         <div class="icon">📭</div>
                         <p>Nenhum P.E ou I.E cadastrado ainda.<br>Cadastre imoveis na aba <strong>"Cadastrar Imovel"</strong> para criar boletins.</p>
                     </div>
@@ -1575,7 +1709,7 @@ def modulo_boletim():
                 col_bol1, col_bol2 = st.columns(2)
 
                 with col_bol1:
-                    st.markdown('<div class="pe-card"><div class="pe-card-title">📄 Dados do Boletim</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="sys-card"><div class="sys-card-title">📄 Dados do Boletim</div>', unsafe_allow_html=True)
 
                     data_boletim_pe = st.date_input("Data do Trabalho", date.today(), key="data_boletim_pe_ie")
 
@@ -1594,14 +1728,14 @@ def modulo_boletim():
                     st.markdown('</div>', unsafe_allow_html=True)
 
                 with col_bol2:
-                    st.markdown('<div class="pe-card"><div class="pe-card-title">👥 Equipes</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="sys-card"><div class="sys-card-title">👥 Equipes</div>', unsafe_allow_html=True)
 
                     equipes_pe_ie = []
                     membros_selecionados_pe = []
 
                     for i in range(st.session_state.num_equipes_pe_ie):
                         if i > 0:
-                            st.markdown('<div class="pe-divider"></div>', unsafe_allow_html=True)
+                            st.markdown('<div class="sys-divider"></div>', unsafe_allow_html=True)
 
                         st.markdown(f"**Equipe {i+1}**")
                         opcoes_equipe_pe = [nome for nome in lista_nomes_pe if nome not in membros_selecionados_pe]
@@ -1677,7 +1811,7 @@ def modulo_boletim():
                     for idx, cadastro in df_pe_ie_display.iterrows():
                         tipo_label = cadastro.get('tipo', 'N/A')
                         freq_label = cadastro.get('frequencia', '')
-                        badge_class = "pe-badge-pe" if tipo_label == "P.E" else "pe-badge-ie"
+                        badge_class = "badge-green" if tipo_label == "P.E" else "badge-blue"
                         nome_fan = cadastro.get('nome_fantasia', 'Sem nome')
                         num_cad = cadastro.get('numero_cadastro', 'N/A')
                         endereco_cad = cadastro.get('endereco', 'N/A')
@@ -1686,31 +1820,31 @@ def modulo_boletim():
                         quart_cad = cadastro.get('quarteirao', 'N/A')
 
                         st.markdown(f"""
-                            <div class="pe-card">
+                            <div class="sys-card">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
                                     <div style="display: flex; align-items: center; gap: 10px;">
-                                        <span class="pe-badge {badge_class}">{tipo_label}</span>
-                                        <span class="pe-badge pe-badge-freq">{freq_label}</span>
+                                        <span class="sys-badge {badge_class}">{tipo_label}</span>
+                                        <span class="sys-badge badge-orange">{freq_label}</span>
                                         <span style="font-size: 1.1rem; font-weight: 600; color: #2C3E50;">{nome_fan}</span>
                                     </div>
                                     <span style="font-size: 0.85rem; color: #85929E;">No {num_cad}</span>
                                 </div>
-                                <div class="pe-info-grid">
-                                    <div class="pe-info-item">
-                                        <div class="pe-info-label">Endereco</div>
-                                        <div class="pe-info-value">{endereco_cad}</div>
+                                <div class="info-grid">
+                                    <div class="info-item">
+                                        <div class="info-label">Endereco</div>
+                                        <div class="info-value">{endereco_cad}</div>
                                     </div>
-                                    <div class="pe-info-item">
-                                        <div class="pe-info-label">Quarteirao</div>
-                                        <div class="pe-info-value">{quart_cad}</div>
+                                    <div class="info-item">
+                                        <div class="info-label">Quarteirao</div>
+                                        <div class="info-value">{quart_cad}</div>
                                     </div>
-                                    <div class="pe-info-item">
-                                        <div class="pe-info-label">Latitude</div>
-                                        <div class="pe-info-value">{lat_cad}</div>
+                                    <div class="info-item">
+                                        <div class="info-label">Latitude</div>
+                                        <div class="info-value">{lat_cad}</div>
                                     </div>
-                                    <div class="pe-info-item">
-                                        <div class="pe-info-label">Longitude</div>
-                                        <div class="pe-info-value">{lon_cad}</div>
+                                    <div class="info-item">
+                                        <div class="info-label">Longitude</div>
+                                        <div class="info-value">{lon_cad}</div>
                                     </div>
                                 </div>
                             </div>
@@ -1725,7 +1859,7 @@ def modulo_boletim():
 
             else:
                 st.markdown("""
-                    <div class="pe-empty-state">
+                    <div class="empty-state">
                         <div class="icon">🏗️</div>
                         <p>Nenhum P.E ou I.E cadastrado ainda.<br>Use a aba <strong>"Cadastrar Imovel"</strong> para comecar.</p>
                     </div>
@@ -1749,7 +1883,7 @@ def modulo_boletim():
                     imoveis_chips = ""
                     if imoveis_list and isinstance(imoveis_list, list):
                         for im in imoveis_list:
-                            imoveis_chips += f'<span class="pe-imovel-chip">{im}</span>'
+                            imoveis_chips += f'<span class="sys-chip">{im}</span>'
 
                     equipes_bol = boletim.get('equipes', [])
                     equipes_html = ""
@@ -1757,21 +1891,21 @@ def modulo_boletim():
                         for eq_i, equipe in enumerate(equipes_bol):
                             if isinstance(equipe, dict):
                                 membros_fmt = [formatar_nome(m) for m in equipe.get('membros', [])]
-                                membros_tags = "".join([f'<span class="pe-equipe-tag">{m}</span>' for m in membros_fmt])
+                                membros_tags = "".join([f'<span class="sys-tag">{m}</span>' for m in membros_fmt])
                                 equipes_html += f'<div style="margin-top: 8px;"><span style="font-weight:600; color:#1B4F72; font-size:0.85rem;">Equipe {eq_i+1}:</span> {membros_tags}</div>'
 
                     obs = boletim.get('observacoes', '')
                     obs_html = f'<div style="margin-top:12px; padding:10px 14px; background:#FEF9E7; border-radius:8px; font-size:0.88rem; color:#7D6608;"><strong>Obs:</strong> {obs}</div>' if obs else ""
 
                     st.markdown(f"""
-                        <div class="pe-hist-card">
+                        <div class="hist-card">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div>
-                                    <div class="pe-hist-date">📅 {data_fmt}</div>
-                                    <div class="pe-hist-meta">{qtd_imoveis} imovel(is) &middot; Criado por: {criado_por}</div>
+                                    <div class="info-value" style="font-size:1.05rem;font-weight:600;color:#1B4F72">📅 {data_fmt}</div>
+                                    <div class="info-label">{qtd_imoveis} imovel(is) &middot; Criado por: {criado_por}</div>
                                 </div>
                             </div>
-                            <div class="pe-divider"></div>
+                            <div class="sys-divider"></div>
                             <div style="margin-bottom:8px;">
                                 <span style="font-weight:600; font-size:0.85rem; color:#566573;">IMOVEIS TRABALHADOS</span>
                             </div>
@@ -1790,7 +1924,7 @@ def modulo_boletim():
 
             else:
                 st.markdown("""
-                    <div class="pe-empty-state">
+                    <div class="empty-state">
                         <div class="icon">📭</div>
                         <p>Nenhum boletim de P.E/I.E registrado ainda.<br>Use a aba <strong>"Criar Boletim"</strong> para comecar.</p>
                     </div>
@@ -2042,8 +2176,13 @@ def modulo_boletim():
 
 # ### NOVO MÓDULO DE LOGS ###
 def modulo_logs():
-    """Renderiza a página para visualizar os logs de atividade."""
-    st.title("Logs de Atividade")
+    """Renderiza a pagina para visualizar os logs de atividade."""
+    st.markdown("""
+        <div class="mod-header">
+            <h2>📄 Logs de Atividade</h2>
+            <p>Historico completo de acoes realizadas no sistema</p>
+        </div>
+    """, unsafe_allow_html=True)
 
     df_logs = carregar_dados_firebase('logs_de_atividade')
 
@@ -2083,19 +2222,29 @@ def modulo_logs():
 
 def login_screen():
     """Renderiza a tela de login."""
-    st.title("Sistema Integrado de Gestão")
-    with st.form("login_form"):
-        st.header("Login do Sistema")
-        username = st.text_input("Usuário", key="login_username")
-        password = st.text_input("Senha", type="password", key="login_password")
-        submit_button = st.form_submit_button("Entrar")
-        if submit_button:
-            if username in USERS and USERS[username] == password:
-                st.session_state['logged_in'] = True
-                st.session_state['username'] = username
-                st.rerun()
-            else:
-                st.error("Usuário ou senha inválidos.")
+    st.markdown("""
+        <div class="login-container">
+            <div class="login-logo">🏥</div>
+            <div class="login-title">Sistema de Gestao</div>
+            <div class="login-subtitle">Vigilancia Epidemiologica — Guaratingueta/SP</div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    col_spacer1, col_login, col_spacer2 = st.columns([1.2, 1, 1.2])
+    with col_login:
+        with st.form("login_form"):
+            st.markdown('<div class="sys-card">', unsafe_allow_html=True)
+            username = st.text_input("Usuario", key="login_username")
+            password = st.text_input("Senha", type="password", key="login_password")
+            submit_button = st.form_submit_button("Entrar", use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+            if submit_button:
+                if username in USERS and USERS[username] == password:
+                    st.session_state['logged_in'] = True
+                    st.session_state['username'] = username
+                    st.rerun()
+                else:
+                    st.error("Usuario ou senha invalidos.")
 
 def main_app():
     """Controla a navegação e a exibição dos módulos após o login."""
@@ -2128,28 +2277,60 @@ def main_app():
             modulo_logs()
 
     else:
-        st.title("Painel de Controle")
-        st.header(f"Bem-vindo(a), {st.session_state['username']}!")
+        st.markdown("""
+            <div class="mod-header">
+                <h2>🏥 Painel de Controle</h2>
+                <p>Bem-vindo(a), """ + st.session_state['username'] + """! Selecione um modulo abaixo para comecar.</p>
+            </div>
+        """, unsafe_allow_html=True)
         
-        st.write("Selecione o módulo que deseja acessar:")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            if st.button("🚨 Denúncias", use_container_width=True):
+            st.markdown("""
+                <div class="module-card">
+                    <div class="icon">🚨</div>
+                    <div class="title">Denuncias</div>
+                    <div class="desc">Registrar e gerenciar</div>
+                </div>
+            """, unsafe_allow_html=True)
+            if st.button("Acessar Denuncias", use_container_width=True, key="btn_den"):
                 st.session_state['module_choice'] = "Denúncias"
                 st.rerun()
         with col2:
-            if st.button("👥 Recursos Humanos", use_container_width=True):
+            st.markdown("""
+                <div class="module-card">
+                    <div class="icon">👥</div>
+                    <div class="title">Recursos Humanos</div>
+                    <div class="desc">Equipe e ferias</div>
+                </div>
+            """, unsafe_allow_html=True)
+            if st.button("Acessar RH", use_container_width=True, key="btn_rh"):
                 st.session_state['module_choice'] = "Recursos Humanos"
                 st.rerun()
         with col3:
-            if st.button("🗓️ Boletim Diário", use_container_width=True):
+            st.markdown("""
+                <div class="module-card">
+                    <div class="icon">🗓️</div>
+                    <div class="title">Boletim Diario</div>
+                    <div class="desc">Programacao e equipes</div>
+                </div>
+            """, unsafe_allow_html=True)
+            if st.button("Acessar Boletim", use_container_width=True, key="btn_bol"):
                 st.session_state['module_choice'] = "Boletim"
                 st.rerun()
         with col4:
-            if st.button("📄 Logs de Atividade", use_container_width=True):
+            st.markdown("""
+                <div class="module-card">
+                    <div class="icon">📄</div>
+                    <div class="title">Logs de Atividade</div>
+                    <div class="desc">Historico de acoes</div>
+                </div>
+            """, unsafe_allow_html=True)
+            if st.button("Acessar Logs", use_container_width=True, key="btn_log"):
                 st.session_state['module_choice'] = "Logs"
                 st.rerun()
-        st.divider()
+        
+        st.markdown('<div class="sys-divider"></div>', unsafe_allow_html=True)
 
         col_form, col_cal = st.columns([1, 1.5])
 
