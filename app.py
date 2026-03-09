@@ -366,12 +366,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- USUÁRIOS PARA LOGIN (Exemplo) ---
-USERS = {
-    "admin": "admin123",
-    "taylan": "taylan123",
-    "fernanda": "fernanda123"
-}
+# --- USUÁRIOS ---
+ADMIN_USERNAME = "admin"
+ADMIN_DEFAULT_PASSWORD = "admin123"
 
 # --- CONFIGURAÇÃO DO FIREBASE ---
 try:
@@ -389,10 +386,53 @@ except Exception as e:
     st.error(f"Erro ao inicializar o Firebase: {e}. Verifique as suas credenciais.")
 
 
-# --- FUNÇÕES GLOBAIS DE DADOS E UTILITÁRIAS ---
+# --- FUNÇÕES DE GERENCIAMENTO DE USUÁRIOS ---
+def carregar_usuarios():
+    """Carrega os usuarios do Firebase. Cria o admin padrao se nao existir."""
+    try:
+        ref = db.reference('usuarios')
+        users_data = ref.get()
+        if users_data is None:
+            users_data = {}
+        if ADMIN_USERNAME not in users_data:
+            ref.child(ADMIN_USERNAME).set({
+                "senha": ADMIN_DEFAULT_PASSWORD,
+                "role": "admin",
+                "criado_por": "sistema",
+                "data_criacao": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+            users_data[ADMIN_USERNAME] = {"senha": ADMIN_DEFAULT_PASSWORD, "role": "admin"}
+        usuarios_legado = {"taylan": "taylan123", "fernanda": "fernanda123"}
+        for user, senha in usuarios_legado.items():
+            if user not in users_data:
+                ref.child(user).set({
+                    "senha": senha,
+                    "role": "usuario",
+                    "criado_por": "migrado",
+                    "data_criacao": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+                users_data[user] = {"senha": senha, "role": "usuario"}
+        return users_data
+    except Exception as e:
+        st.error(f"Erro ao carregar usuarios: {e}")
+        return {ADMIN_USERNAME: {"senha": ADMIN_DEFAULT_PASSWORD, "role": "admin"}}
 
+
+def validar_login(username, password):
+    users = carregar_usuarios()
+    if username in users:
+        user_data = users[username]
+        senha_salva = user_data.get('senha', '') if isinstance(user_data, dict) else str(user_data)
+        return senha_salva == password
+    return False
+
+
+def is_admin():
+    return st.session_state.get('username') == ADMIN_USERNAME
+
+
+# --- FUNÇÕES GLOBAIS DE DADOS E UTILITÁRIAS ---
 def formatar_nome(nome_completo):
-    """Retorna o primeiro e o segundo nome de um nome completo."""
     if not isinstance(nome_completo, str):
         return ""
     partes = nome_completo.split()
@@ -400,16 +440,11 @@ def formatar_nome(nome_completo):
         return f"{partes[0]} {partes[1]}"
     return partes[0] if partes else ""
 
-# ### NOVA FUNÇÃO DE LOG DE ATIVIDADE ###
 def log_atividade(usuario, acao, detalhes=""):
-    """
-    Registra uma ação do usuário no banco de dados.
-    """
     try:
         ref = db.reference('logs_de_atividade')
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_id = str(int(time.time() * 1000))
-        
         ref.child(log_id).set({
             "usuario": usuario,
             "acao": acao,
@@ -422,7 +457,6 @@ def log_atividade(usuario, acao, detalhes=""):
 
 @st.cache_data
 def carregar_dados_firebase(node):
-    """Carrega dados de um nó do Firebase e retorna como DataFrame."""
     try:
         ref = db.reference(f'/{node}')
         data = ref.get()
@@ -442,7 +476,6 @@ def carregar_dados_firebase(node):
 
 @st.cache_data
 def carregar_quarteiroes_csv():
-    """Carrega lista de quarteirões de um CSV no GitHub."""
     url_csv = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quarteirao.csv'
     try:
         df_quarteiroes = pd.read_csv(url_csv, header=None, encoding='latin-1')
@@ -454,7 +487,6 @@ def carregar_quarteiroes_csv():
 
 @st.cache_data
 def carregar_geo_kml():
-    """Carrega dados de geolocalização de um arquivo KML no GitHub."""
     url_kml = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quadras%20de%20Guar%C3%A1.kml'
     try:
         gdf = gpd.read_file(url_kml, driver='KML')
@@ -476,9 +508,7 @@ def carregar_geo_kml():
         return pd.DataFrame()
 
 # --- FUNÇÕES DE GERAÇÃO DE RELATÓRIOS .DOCX ---
-
 def create_abonada_word_report(data):
-    """Gera um relatório de Falta Abonada em formato .docx."""
     def format_date_pt(dt):
         months = ("Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro")
         return f"{dt.day} de {months[dt.month - 1]} de {dt.year}"
@@ -539,7 +569,6 @@ def create_abonada_word_report(data):
     return buffer.getvalue()
 
 def create_word_report(data):
-    """Gera um relatório de Inspeção Zoossanitária em formato .docx."""
     document = Document()
     style = document.styles['Normal']; font = style.font; font.name = 'Calibri'; font.size = Pt(11)
     titulo = document.add_heading('RELATÓRIO DE INSPEÇÃO ZOOSSANITÁRIA', level=1); titulo.alignment = 1
@@ -568,7 +597,6 @@ def create_word_report(data):
     return buffer.getvalue()
 
 def create_boletim_word_report(data_boletim):
-    """Gera um relatório do boletim diário em formato .docx."""
     document = Document()
     style = document.styles['Normal']
     font = style.font
@@ -647,9 +675,7 @@ def create_boletim_word_report(data_boletim):
     return buffer.getvalue()
 
 # --- FUNÇÕES ESPECÍFICAS DO MÓDULO RH ---
-
 def calcular_status_ferias_saldo(employee_row, all_folgas_df):
-    """Calcula o status de férias de um funcionário."""
     try:
         today = date.today()
         if 'data_admissao' not in employee_row or pd.isna(employee_row['data_admissao']):
@@ -733,7 +759,6 @@ def calcular_status_ferias_saldo(employee_row, all_folgas_df):
         return "Erro de Cálculo", f"Erro: {e}", "ERROR"
 
 def get_abonadas_ano(employee_id, all_folgas_df):
-    """Retorna o número de faltas abonadas no ano corrente para um funcionário."""
     try:
         current_year = date.today().year
         if all_folgas_df.empty or 'id_funcionario' not in all_folgas_df.columns:
@@ -744,7 +769,6 @@ def get_abonadas_ano(employee_id, all_folgas_df):
         return 0
 
 def get_datas_abonadas_ano(employee_id, all_folgas_df):
-    """Retorna as datas das faltas abonadas no ano corrente."""
     try:
         current_year = date.today().year
         if all_folgas_df.empty or 'id_funcionario' not in all_folgas_df.columns:
@@ -764,7 +788,6 @@ def get_datas_abonadas_ano(employee_id, all_folgas_df):
         return []
 
 def get_ultimas_ferias(employee_id, all_folgas_df):
-    """Retorna a data de início do último período de férias registrado."""
     try:
         if all_folgas_df.empty or 'id_funcionario' not in all_folgas_df.columns:
             return "Nenhum registro"
@@ -780,7 +803,6 @@ def get_ultimas_ferias(employee_id, all_folgas_df):
 # --- MÓDULOS DA APLICAÇÃO ---
 
 def modulo_rh():
-    """Renderiza a pagina do modulo de Recursos Humanos."""
     st.markdown("""
         <div class="mod-header">
             <h2>👥 Recursos Humanos</h2>
@@ -857,13 +879,13 @@ def modulo_rh():
             st.info("Nenhum funcionário cadastrado.")
         st.divider()
 
-        st.subheader("Editar Registro de Férias ou Abonada")
+        st.subheader("Editar ou Apagar Registro de Férias ou Abonada")
         if not df_folgas.empty:
             df_folgas['label'] = df_folgas.apply(lambda row: f"{row['tipo']} - {formatar_nome(row['nome_funcionario'])} ({pd.to_datetime(row['data_inicio']).strftime('%d/%m/%Y')})", axis=1)
-            lista_eventos = ["Selecione um registro para editar..."] + df_folgas.sort_values(by='data_inicio', ascending=False)['label'].tolist()
+            lista_eventos = ["Selecione um registro para editar ou apagar..."] + df_folgas.sort_values(by='data_inicio', ascending=False)['label'].tolist()
             evento_label_selecionado = st.selectbox("Selecione o Registro", options=lista_eventos)
 
-            if evento_label_selecionado != "Selecione um registro para editar...":
+            if evento_label_selecionado != "Selecione um registro para editar ou apagar...":
                 evento_selecionado_df = df_folgas[df_folgas['label'] == evento_label_selecionado]
                 if not evento_selecionado_df.empty:
                     dados_evento = evento_selecionado_df.iloc[0]
@@ -902,6 +924,21 @@ def modulo_rh():
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Erro ao atualizar o registro: {e}")
+
+                    # --- DELETAR REGISTRO ---
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    with st.expander("🚨 Apagar este registro"):
+                        st.warning("Tem certeza que deseja apagar este registro? Esta ação é irreversível.")
+                        if st.button("Confirmar Deleção", key=f"del_folga_{evento_id}", type="primary"):
+                            try:
+                                db.reference(f'folgas_ferias/{evento_id}').delete()
+                                log_atividade(st.session_state.get('username'), "Deletou ausência", f"Registro apagado: {dados_evento['label']}")
+                                st.success("Registro apagado com sucesso!")
+                                st.cache_data.clear()
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Ocorreu um erro ao apagar: {e}")
                 else:
                     st.warning("Registro não encontrado. Por favor, atualize a página.")
         else:
@@ -1138,7 +1175,6 @@ def modulo_rh():
                         st.error(f"Ocorreu um erro ao deletar: {e}")
 
 def modulo_denuncias():
-    """Renderiza a pagina do modulo de Denuncias."""
     st.markdown("""
         <div class="mod-header">
             <h2>🚨 Denuncias</h2>
@@ -1146,7 +1182,6 @@ def modulo_denuncias():
         </div>
     """, unsafe_allow_html=True)
 
-    # Lista fixa de motivos para padronização
     lista_motivos_denuncia = [
         "Acúmulo de lixo/entulho",
         "Maus tratos a animais",
@@ -1157,7 +1192,6 @@ def modulo_denuncias():
         "Outros"
     ]
 
-    # Carrega funcionários para usar na lista de responsáveis
     df_funcionarios = carregar_dados_firebase('funcionarios')
     if not df_funcionarios.empty:
         lista_responsaveis = sorted([formatar_nome(nome) for nome in df_funcionarios['nome']])
@@ -1181,7 +1215,7 @@ def modulo_denuncias():
                 else:
                     latitudes.append(None)
                     longitudes.append(None)
-                time.sleep(1) # Para evitar sobrecarregar o serviço de geocodificação
+                time.sleep(1)
             except Exception as e:
                 latitudes.append(None)
                 longitudes.append(None)
@@ -1206,7 +1240,6 @@ def modulo_denuncias():
                     dados.setdefault('protocolo_auto_imposicao_penalidade', '')
                     dados.setdefault('responsavel_atendimento', '')
                     dados.setdefault('relatorio_atendimento', '')
-                    # Adiciona os novos campos com valores padrão para evitar erros
                     dados.setdefault('data_atendimento', None)
                     dados.setdefault('responsavel_imovel', '')
                     dados.setdefault('rg_responsavel', '')
@@ -1230,7 +1263,6 @@ def modulo_denuncias():
         st.subheader("Registrar Nova Denúncia")
         with st.form("nova_denuncia_form", clear_on_submit=True):
             data_denuncia = st.date_input("Data da Denúncia", datetime.now())
-            # Campo de motivo alterado para selectbox
             motivo_denuncia = st.selectbox("Motivo da Denúncia", options=lista_motivos_denuncia)
             
             bairro = st.text_input("Bairro")
@@ -1289,14 +1321,11 @@ def modulo_denuncias():
                     
                     status = st.selectbox("Status", options=["Não atendida", "Atendida", "Arquivada"], index=["Não atendida", "Atendida", "Arquivada"].index(dados_denuncia.get('status', 'Não atendida')))
                     
-                    # Responsável pelo atendimento como lista
                     responsavel_atendimento = st.selectbox("Responsável pelo Atendimento", options=[""] + lista_responsaveis, index=lista_responsaveis.index(dados_denuncia.get('responsavel_atendimento')) + 1 if dados_denuncia.get('responsavel_atendimento') in lista_responsaveis else 0)
 
-                    # Data do atendimento
                     data_atendimento_val = pd.to_datetime(dados_denuncia.get('data_atendimento')).date() if dados_denuncia.get('data_atendimento') else None
                     data_atendimento = st.date_input("Data do Atendimento", value=data_atendimento_val)
 
-                    # Cálculo e exibição da data de retorno
                     if data_atendimento:
                         data_retorno = data_atendimento + timedelta(days=14)
                         st.info(f"ℹ️ Data de Retorno: {data_retorno.strftime('%d/%m/%Y')}")
@@ -1414,7 +1443,6 @@ def modulo_denuncias():
 
 # --- MÓDULO DO BOLETIM (LAYOUT CORRIGIDO) ---
 def gerar_pdf_pe_ie(df_cadastros, tipo_filtro):
-    """Gera um PDF com tabelas de P.E e/ou I.E separadas por tipo, com colunas para preenchimento em campo."""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=15*mm, bottomMargin=15*mm, leftMargin=15*mm, rightMargin=15*mm)
 
@@ -1463,7 +1491,6 @@ def gerar_pdf_pe_ie(df_cadastros, tipo_filtro):
         story.append(Paragraph(titulo_texto, style_title))
         story.append(Paragraph(subtitulo_texto, style_subtitle))
 
-        # Cabeçalho da tabela
         header_row = [
             Paragraph("<b>No Cadastro</b>", style_header),
             Paragraph("<b>Nome Fantasia</b>", style_header),
@@ -1479,24 +1506,22 @@ def gerar_pdf_pe_ie(df_cadastros, tipo_filtro):
             table_data.append([
                 Paragraph(str(row.get('numero_cadastro', '')), style_cell),
                 Paragraph(str(row.get('nome_fantasia', '')), style_cell),
-                "",  # Data - vazio para preencher
-                "",  # Amostras - vazio
-                "",  # Positivo - vazio
-                "",  # Data do Tratamento - vazio
+                "",  
+                "",  
+                "",  
+                "",  
             ])
 
         col_widths = [55*mm, 80*mm, 35*mm, 30*mm, 30*mm, 50*mm]
 
         table = Table(table_data, colWidths=col_widths, repeatRows=1)
         table.setStyle(TableStyle([
-            # Cabeçalho
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1B4F72')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 9),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            # Linhas do corpo
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 1), (-1, -1), 9),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#AEB6BF')),
@@ -1505,7 +1530,6 @@ def gerar_pdf_pe_ie(df_cadastros, tipo_filtro):
             ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
             ('LEFTPADDING', (0, 0), (-1, -1), 6),
             ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-            # Altura mínima das linhas de dados para escrever à mão
             ('ROWHEIGHT', (0, 1), (-1, -1), 28),
         ]))
 
@@ -1517,7 +1541,6 @@ def gerar_pdf_pe_ie(df_cadastros, tipo_filtro):
 
 
 def gerar_pdf_historico_boletins(df_boletins, quinzena, mes, ano):
-    """Gera um PDF com o historico de boletins P.E/I.E de uma quinzena/mes especifico."""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=15*mm, bottomMargin=15*mm, leftMargin=12*mm, rightMargin=12*mm)
 
@@ -1532,7 +1555,6 @@ def gerar_pdf_historico_boletins(df_boletins, quinzena, mes, ano):
     nome_mes = meses_pt[mes - 1]
     quinzena_label = f"{quinzena}a Quinzena de {nome_mes} de {ano}"
 
-    # Filtrar boletins pelo periodo
     if quinzena == 1:
         dia_inicio = date(ano, mes, 1)
         dia_fim = date(ano, mes, 15)
@@ -1557,7 +1579,6 @@ def gerar_pdf_historico_boletins(df_boletins, quinzena, mes, ano):
         buffer.seek(0)
         return buffer.getvalue()
 
-    # Cabecalho
     header_row = [
         Paragraph("<b>Data</b>", style_header),
         Paragraph("<b>Imoveis Trabalhados</b>", style_header),
@@ -1573,14 +1594,12 @@ def gerar_pdf_historico_boletins(df_boletins, quinzena, mes, ano):
     for _, bol in df_filtrado.iterrows():
         data_str = pd.to_datetime(bol['data']).strftime('%d/%m/%Y')
 
-        # Imoveis
         imoveis = bol.get('imoveis_trabalhados', [])
         if isinstance(imoveis, list):
             imoveis_txt = "\n".join([str(im) for im in imoveis])
         else:
             imoveis_txt = str(imoveis) if imoveis else ""
 
-        # Equipes
         equipes = bol.get('equipes', [])
         equipes_txt = ""
         if isinstance(equipes, list):
@@ -1589,18 +1608,15 @@ def gerar_pdf_historico_boletins(df_boletins, quinzena, mes, ano):
                     membros = [formatar_nome(m) for m in eq.get('membros', [])]
                     equipes_txt += f"Eq{eq_i+1}: {', '.join(membros)}\n"
 
-        # Criadouro
         tem_criad = bol.get('criadouro_encontrado', False)
         criad_txt = "Sim" if tem_criad else "Nao"
 
-        # Recipientes
         recips = bol.get('recipientes', [])
         if isinstance(recips, list) and recips:
             recips_txt = "\n".join([str(r) for r in recips])
         else:
             recips_txt = "-"
 
-        # Tratamento
         trat = bol.get('tratamento_realizado', False)
         data_trat = bol.get('data_tratamento', None)
         if trat and data_trat:
@@ -1610,7 +1626,6 @@ def gerar_pdf_historico_boletins(df_boletins, quinzena, mes, ano):
         else:
             trat_txt = "Nao" if tem_criad else "-"
 
-        # Obs
         obs_txt = str(bol.get('observacoes', '')) if bol.get('observacoes') else "-"
 
         table_data.append([
@@ -1645,7 +1660,6 @@ def gerar_pdf_historico_boletins(df_boletins, quinzena, mes, ano):
 
     story.append(table)
 
-    # Resumo no rodape
     story.append(Spacer(1, 8*mm))
     total = len(df_filtrado)
     com_criadouro = len(df_filtrado[df_filtrado.apply(lambda r: r.get('criadouro_encontrado', False), axis=1)])
@@ -1660,7 +1674,6 @@ def gerar_pdf_historico_boletins(df_boletins, quinzena, mes, ano):
 
 
 def modulo_boletim():
-    """Renderiza a pagina do modulo de Boletim de Programacao Diaria com um layout melhorado."""
     st.markdown("""
         <div class="mod-header">
             <h2>🗓️ Boletim de Programacao Diaria</h2>
@@ -1668,16 +1681,11 @@ def modulo_boletim():
         </div>
     """, unsafe_allow_html=True)
 
-    # CSS antigo removido - agora usa CSS global
-
-
-    # Carregamento dos dados necessários
     df_funcionarios = carregar_dados_firebase('funcionarios')
     df_boletins = carregar_dados_firebase('boletins')
     lista_quarteiroes = carregar_quarteiroes_csv()
     df_geo_quarteiroes = carregar_geo_kml()
 
-    # Controle do estado para equipes dinâmicas
     if 'num_equipes_manha' not in st.session_state:
         st.session_state.num_equipes_manha = 1
     if 'num_equipes_tarde' not in st.session_state:
@@ -1693,7 +1701,6 @@ def modulo_boletim():
         col1, col2 = st.columns(2)
 
         with col1:
-            # Card: Dados do Boletim
             st.markdown("<div class='sys-card'>", unsafe_allow_html=True)
             st.markdown("<div class='sys-card-title'>Dados do Boletim</div>", unsafe_allow_html=True)
 
@@ -1711,9 +1718,8 @@ def modulo_boletim():
                 st.warning("Não há funcionários cadastrados para criar um boletim.")
 
             motoristas_curtos = st.multiselect("Motorista(s)", options=lista_nomes_curtos_full)
-            st.markdown("</div>", unsafe_allow_html=True) # Fim do card
+            st.markdown("</div>", unsafe_allow_html=True) 
 
-            # Card: Equipes
             st.markdown("<div class='sys-card'>", unsafe_allow_html=True)
             st.markdown("<div class='sys-card-title'>Equipes</div>", unsafe_allow_html=True)
             
@@ -1725,7 +1731,6 @@ def modulo_boletim():
                 membros_selecionados_manha = []
                 nomes_disponiveis_manha = [nome for nome in lista_nomes_curtos_full]
                 
-                # Removendo ausentes e motoristas da lista
                 if 'faltas_manha_curtos' in st.session_state and st.session_state.faltas_manha_curtos is not None:
                     nomes_disponiveis_manha = [nome for nome in nomes_disponiveis_manha if nome not in st.session_state.faltas_manha_curtos]
                 if motoristas_curtos:
@@ -1757,7 +1762,6 @@ def modulo_boletim():
                 membros_selecionados_tarde = []
                 nomes_disponiveis_tarde = [nome for nome in lista_nomes_curtos_full]
                 
-                # Removendo ausentes e motoristas da lista
                 if 'faltas_tarde_curtos' in st.session_state and st.session_state.faltas_tarde_curtos is not None:
                     nomes_disponiveis_tarde = [nome for nome in nomes_disponiveis_tarde if nome not in st.session_state.faltas_tarde_curtos]
                 if motoristas_curtos:
@@ -1783,10 +1787,9 @@ def modulo_boletim():
                     st.session_state.num_equipes_tarde += 1
                     st.rerun()
 
-            st.markdown("</div>", unsafe_allow_html=True) # Fim do card
+            st.markdown("</div>", unsafe_allow_html=True)
 
         with col2:
-            # Card: Ausências do Dia
             st.markdown("<div class='sys-card'>", unsafe_allow_html=True)
             st.markdown("<div class='sys-card-title'>Ausências do Dia</div>", unsafe_allow_html=True)
             
@@ -1800,9 +1803,8 @@ def modulo_boletim():
                 faltas_tarde_curtos = st.multiselect("Ausentes", options=lista_nomes_curtos_full, key="faltas_tarde_curtos")
                 motivo_falta_tarde = st.text_input("Motivo", key="motivo_falta_tarde")
             
-            st.markdown("</div>", unsafe_allow_html=True) # Fim do card
+            st.markdown("</div>", unsafe_allow_html=True) 
             
-        # Botão de salvar no final
         if st.button("Salvar Boletim", use_container_width=True, type="primary", key="save_boletim_button"):
             motoristas_completos = [nome_map[nome] for nome in motoristas_curtos]
             faltas_manha_completos = [nome_map[nome] for nome in faltas_manha_curtos]
@@ -1833,8 +1835,6 @@ def modulo_boletim():
 
 
     with tab_pe_ie:
-
-        # Header
         st.markdown("""
             <div class="mod-header">
                 <h2>Pontos Estrategicos e Imoveis Especiais</h2>
@@ -1858,7 +1858,6 @@ def modulo_boletim():
                 label = f"{row_pe.get('tipo', '')} - {row_pe.get('nome_fantasia', '')} (No {row_pe.get('numero_cadastro', '')})"
                 lista_pe_ie_opcoes.append({"id": idx_pe, "label": label, "tipo": row_pe.get('tipo', ''), "dados": row_pe})
 
-        # Metricas resumo
         total_pe = len(df_pe_ie[df_pe_ie['tipo'] == 'P.E']) if not df_pe_ie.empty and 'tipo' in df_pe_ie.columns else 0
         total_ie = len(df_pe_ie[df_pe_ie['tipo'] == 'I.E']) if not df_pe_ie.empty and 'tipo' in df_pe_ie.columns else 0
         total_boletins = len(df_boletins_pe_ie) if not df_boletins_pe_ie.empty else 0
@@ -1892,11 +1891,7 @@ def modulo_boletim():
             "🔍 Historico de Boletins"
         ])
 
-        # =============================================
-        # SUB-ABA 1: CADASTRAR P.E / I.E
-        # =============================================
         with sub_tab_cadastrar:
-
             st.markdown('<div class="sys-card"><div class="sys-card-title">📋 Dados do Novo Imovel</div>', unsafe_allow_html=True)
 
             tipo_pe_ie = st.selectbox("Tipo do Imovel", ["P.E - Ponto de Encontro", "I.E - Imovel Especial"], key="tipo_pe_ie_cadastro")
@@ -1947,11 +1942,7 @@ def modulo_boletim():
                 else:
                     st.warning("Preencha os campos obrigatorios: Numero de Cadastro, Endereco e Nome Fantasia.")
 
-        # =============================================
-        # SUB-ABA 2: CRIAR BOLETIM DE P.E / I.E
-        # =============================================
         with sub_tab_boletim:
-
             if not lista_pe_ie_opcoes:
                 st.markdown("""
                     <div class="empty-state">
@@ -1981,7 +1972,6 @@ def modulo_boletim():
 
                     st.markdown('</div>', unsafe_allow_html=True)
 
-                    # Card: Criadouro de Dengue
                     st.markdown('<div class="sys-card"><div class="sys-card-title">🦟 Criadouro de Dengue</div>', unsafe_allow_html=True)
 
                     encontrou_criadouro = st.checkbox("Foi encontrado criadouro?", key="criadouro_check_pe_ie")
@@ -2124,11 +2114,7 @@ def modulo_boletim():
                     else:
                         st.warning("Selecione pelo menos um imovel e monte pelo menos uma equipe.")
 
-        # =============================================
-        # SUB-ABA 3: CONTROLE DE P.E / I.E
-        # =============================================
         with sub_tab_controle:
-
             if df_pe_ie.empty:
                 st.markdown("""
                     <div class="empty-state">
@@ -2139,7 +2125,6 @@ def modulo_boletim():
             else:
                 hoje = date.today()
 
-                # Determinar quinzena atual
                 if hoje.day <= 15:
                     inicio_quinzena = hoje.replace(day=1)
                     fim_quinzena = hoje.replace(day=15)
@@ -2150,7 +2135,6 @@ def modulo_boletim():
                     fim_quinzena = hoje.replace(day=ultimo_dia)
                     quinzena_label = f"2a Quinzena ({inicio_quinzena.strftime('%d/%m')} a {fim_quinzena.strftime('%d/%m/%Y')})"
 
-                # Determinar trimestre atual
                 mes_atual = hoje.month
                 trimestre_num = (mes_atual - 1) // 3 + 1
                 inicio_trimestre = date(hoje.year, (trimestre_num - 1) * 3 + 1, 1)
@@ -2159,7 +2143,6 @@ def modulo_boletim():
                 fim_trimestre = date(hoje.year, ultimo_mes_trim, ultimo_dia_trim)
                 trimestre_label = f"{trimestre_num}o Trimestre ({inicio_trimestre.strftime('%d/%m')} a {fim_trimestre.strftime('%d/%m/%Y')})"
 
-                # Coletar todos os imóveis trabalhados nos boletins dentro dos períodos
                 imoveis_feitos_quinzena = set()
                 imoveis_feitos_trimestre = set()
 
@@ -2170,21 +2153,17 @@ def modulo_boletim():
                         if not isinstance(imoveis_bol, list):
                             imoveis_bol = []
 
-                        # Checa se cai na quinzena
                         if inicio_quinzena <= data_bol <= fim_quinzena:
                             for im in imoveis_bol:
                                 imoveis_feitos_quinzena.add(im)
 
-                        # Checa se cai no trimestre
                         if inicio_trimestre <= data_bol <= fim_trimestre:
                             for im in imoveis_bol:
                                 imoveis_feitos_trimestre.add(im)
 
-                # Separar cadastros por tipo
                 df_pe = df_pe_ie[df_pe_ie['tipo'] == 'P.E'] if 'tipo' in df_pe_ie.columns else pd.DataFrame()
                 df_ie = df_pe_ie[df_pe_ie['tipo'] == 'I.E'] if 'tipo' in df_pe_ie.columns else pd.DataFrame()
 
-                # --- CONTROLE P.E (Quinzenal) ---
                 st.markdown(f"""
                     <div class="sys-card">
                         <div class="sys-card-title">🟢 Controle de P.E — Quinzenal</div>
@@ -2284,7 +2263,6 @@ def modulo_boletim():
 
                 st.markdown('<div class="sys-divider"></div>', unsafe_allow_html=True)
 
-                # --- CONTROLE I.E (Trimestral) ---
                 st.markdown(f"""
                     <div class="sys-card">
                         <div class="sys-card-title">🔵 Controle de I.E — Trimestral</div>
@@ -2382,17 +2360,11 @@ def modulo_boletim():
                 else:
                     st.info("Nenhum I.E cadastrado.")
 
-        # =============================================
-        # SUB-ABA 4: CADASTROS EXISTENTES
-        # =============================================
         with sub_tab_listar:
-
-            # Estado para controlar qual imóvel está sendo editado
             if 'pe_ie_editando_id' not in st.session_state:
                 st.session_state.pe_ie_editando_id = None
 
             if not df_pe_ie.empty:
-                # --- Botões de exportar PDF ---
                 st.markdown('<div class="sys-card"><div class="sys-card-title">📥 Exportar Planilhas para Impressao</div>', unsafe_allow_html=True)
                 st.caption("Gera PDF com tabela de P.E e/ou I.E com colunas para preenchimento em campo.")
                 st.markdown('</div>', unsafe_allow_html=True)
@@ -2432,7 +2404,6 @@ def modulo_boletim():
 
                 st.markdown('<div class="sys-divider"></div>', unsafe_allow_html=True)
 
-                # --- Filtros ---
                 col_filtro1, col_filtro2 = st.columns(2)
                 with col_filtro1:
                     filtro_tipo_pe = st.selectbox("Filtrar por tipo", ["Todos", "P.E", "I.E"], key="filtro_tipo_pe_ie")
@@ -2461,7 +2432,6 @@ def modulo_boletim():
                         lon_cad = cadastro.get('longitude', 'N/A')
                         quart_cad = cadastro.get('quarteirao', 'N/A')
 
-                        # Se este imóvel está sendo editado, mostra o formulário
                         if st.session_state.pe_ie_editando_id == idx:
                             st.markdown(f"""
                                 <div class="sys-card" style="border: 2px solid #2E86C1;">
@@ -2520,7 +2490,6 @@ def modulo_boletim():
                                     st.rerun()
 
                         else:
-                            # Exibição normal do card
                             st.markdown(f"""
                                 <div class="sys-card">
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
@@ -2573,14 +2542,8 @@ def modulo_boletim():
                     </div>
                 """, unsafe_allow_html=True)
 
-        # =============================================
-        # SUB-ABA 4: HISTORICO DE BOLETINS P.E / I.E
-        # =============================================
         with sub_tab_historico:
-
             if not df_boletins_pe_ie.empty:
-
-                # Card de exportação
                 st.markdown('<div class="sys-card"><div class="sys-card-title">📥 Exportar Historico em PDF</div>', unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -2609,7 +2572,6 @@ def modulo_boletim():
 
                 st.markdown('<div class="sys-divider"></div>', unsafe_allow_html=True)
 
-                # Listagem dos boletins
                 df_boletins_pe_ie['data_dt'] = pd.to_datetime(df_boletins_pe_ie['data']).dt.date
                 df_boletins_pe_ie_sorted = df_boletins_pe_ie.sort_values(by='data_dt', ascending=False)
 
@@ -2636,7 +2598,6 @@ def modulo_boletim():
                     obs = boletim.get('observacoes', '')
                     obs_html = f'<div style="margin-top:12px; padding:10px 14px; background:#FEF9E7; border-radius:8px; font-size:0.88rem; color:#7D6608;"><strong>Obs:</strong> {obs}</div>' if obs else ""
 
-                    # Criadouro de Dengue
                     tem_criadouro = boletim.get('criadouro_encontrado', False)
                     recipientes_bol = boletim.get('recipientes', []) if tem_criadouro else []
 
@@ -2658,7 +2619,6 @@ def modulo_boletim():
                         </div>
                     """, unsafe_allow_html=True)
 
-                    # Criadouro em bloco separado para evitar conflito de aspas
                     if tem_criadouro and recipientes_bol and isinstance(recipientes_bol, list):
                         recip_chips = "".join([
                             '<span class="sys-chip" style="background:#FDEDEC;border-color:#F5B7B1;color:#922B21;">'
@@ -2673,7 +2633,6 @@ def modulo_boletim():
                             unsafe_allow_html=True
                         )
 
-                    # Seção de tratamento — só aparece se houve criadouro
                     if boletim.get('criadouro_encontrado', False):
                         tratamento_atual = boletim.get('tratamento_realizado', False)
                         data_tratamento_atual = boletim.get('data_tratamento', None)
@@ -2980,9 +2939,8 @@ def modulo_boletim():
                         else:
                             st.info("Nenhum dado de participação no período.")
 
-# ### MÓDULO DE ESTOQUE ###
+
 def modulo_estoque():
-    """Renderiza a pagina do modulo de Estoque."""
     st.markdown("""
         <div class="mod-header">
             <h2>📦 Estoque</h2>
@@ -3001,11 +2959,9 @@ def modulo_estoque():
         nome_map_est = {}
         lista_nomes_est = []
 
-    # Metricas
     total_produtos = len(df_estoque) if not df_estoque.empty else 0
     total_entregas = len(df_entregas) if not df_entregas.empty else 0
 
-    # Calcular itens com estoque baixo (quantidade <= 5)
     estoque_baixo = 0
     if not df_estoque.empty and 'quantidade' in df_estoque.columns:
         df_estoque['quantidade_num'] = pd.to_numeric(df_estoque['quantidade'], errors='coerce').fillna(0)
@@ -3035,11 +2991,7 @@ def modulo_estoque():
         "📜 Historico de Entregas"
     ])
 
-    # =============================================
-    # ABA 1: CADASTRAR PRODUTO
-    # =============================================
     with tab_est1:
-
         st.markdown('<div class="sys-card"><div class="sys-card-title">📦 Novo Produto</div>', unsafe_allow_html=True)
 
         tipos_produto = ["EPI", "Uniforme", "Material de Escritorio", "Material de Campo", "Limpeza", "Outros"]
@@ -3079,11 +3031,7 @@ def modulo_estoque():
             except Exception as e:
                 st.error(f"Erro ao cadastrar produto: {e}")
 
-    # =============================================
-    # ABA 2: PRODUTOS EM ESTOQUE
-    # =============================================
     with tab_est2:
-
         if 'est_editando_id' not in st.session_state:
             st.session_state.est_editando_id = None
 
@@ -3112,7 +3060,6 @@ def modulo_estoque():
                     p_marca = produto.get('marca', '')
                     p_qtd = produto.get('quantidade', 0)
 
-                    # Badge de tipo
                     tipo_badges = {
                         "EPI": "badge-red", "Uniforme": "badge-blue",
                         "Material de Escritorio": "badge-purple", "Material de Campo": "badge-green",
@@ -3120,7 +3067,6 @@ def modulo_estoque():
                     }
                     badge_cls = tipo_badges.get(p_tipo, "badge-gray")
 
-                    # Badge de quantidade
                     qtd_num = int(p_qtd) if str(p_qtd).isdigit() else 0
                     qtd_color = "#C0392B" if qtd_num <= 5 else "#1E8449" if qtd_num > 20 else "#B9770E"
 
@@ -3158,7 +3104,6 @@ def modulo_estoque():
                                     st.session_state.est_editando_id = None
                                     st.rerun()
                     else:
-                        # Info grid com campos preenchidos
                         infos_html = ""
                         if p_tam:
                             infos_html += f'<div class="info-item"><div class="info-label">Tamanho</div><div class="info-value">{p_tam}</div></div>'
@@ -3205,11 +3150,7 @@ def modulo_estoque():
                 </div>
             """, unsafe_allow_html=True)
 
-    # =============================================
-    # ABA 3: REGISTRAR ENTREGA
-    # =============================================
     with tab_est3:
-
         if df_estoque.empty:
             st.markdown("""
                 <div class="empty-state">
@@ -3220,7 +3161,6 @@ def modulo_estoque():
         else:
             st.markdown('<div class="sys-card"><div class="sys-card-title">🤝 Nova Entrega</div>', unsafe_allow_html=True)
 
-            # Destinatario
             tipo_destinatario = st.radio("Destinatario", ["Funcionario cadastrado", "Outro (externo)"], horizontal=True, key="est_tipo_dest")
 
             if tipo_destinatario == "Funcionario cadastrado":
@@ -3235,7 +3175,6 @@ def modulo_estoque():
 
             st.markdown('<div class="sys-divider"></div>', unsafe_allow_html=True)
 
-            # Produto
             lista_produtos = []
             for idx_p, row_p in df_estoque.iterrows():
                 qtd_disp = row_p.get('quantidade', 0)
@@ -3256,7 +3195,6 @@ def modulo_estoque():
 
             if st.button("✅ Registrar Entrega", use_container_width=True, type="primary", key="save_entrega"):
                 if dest_nome and produto_selecionado:
-                    # Encontrar produto
                     prod_match = [p for p in lista_produtos if p["label"] == produto_selecionado]
                     if prod_match:
                         prod_info = prod_match[0]
@@ -3267,7 +3205,6 @@ def modulo_estoque():
                         if qtd_entrega > estoque_atual:
                             st.error(f"Quantidade insuficiente em estoque. Disponivel: {estoque_atual}")
                         else:
-                            # Registrar entrega
                             entrega_id = str(int(time.time() * 1000))
                             entrega_data = {
                                 "data": datetime.now().strftime("%Y-%m-%d"),
@@ -3285,10 +3222,8 @@ def modulo_estoque():
                             }
 
                             try:
-                                # Salvar entrega
                                 db.reference(f'estoque_entregas/{entrega_id}').set(entrega_data)
 
-                                # Atualizar estoque
                                 novo_estoque = estoque_atual - qtd_entrega
                                 db.reference(f'estoque_produtos/{prod_id}').update({"quantidade": novo_estoque})
 
@@ -3302,13 +3237,8 @@ def modulo_estoque():
                 else:
                     st.warning("Selecione o destinatario e o produto.")
 
-    # =============================================
-    # ABA 4: HISTORICO DE ENTREGAS
-    # =============================================
     with tab_est4:
-
         if not df_entregas.empty:
-            # Filtros
             col_hf1, col_hf2, col_hf3 = st.columns(3)
             with col_hf1:
                 filtro_dest = st.text_input("🔍 Buscar por destinatario", key="filtro_dest_hist")
@@ -3376,6 +3306,31 @@ def modulo_estoque():
                             {obs_line}
                         </div>
                     """, unsafe_allow_html=True)
+                    
+                    if st.button(f"🗑️ Deletar Registro de Entrega", key=f"del_entrega_{idx_ent}"):
+                        try:
+                            prod_id = entrega.get('produto_id')
+                            qtd_devolvida = int(e_qtd)
+                            
+                            if prod_id:
+                                prod_ref = db.reference(f'estoque_produtos/{prod_id}').get()
+                                if prod_ref:
+                                    estoque_atual = int(prod_ref.get('quantidade', 0))
+                                    db.reference(f'estoque_produtos/{prod_id}').update({
+                                        'quantidade': estoque_atual + qtd_devolvida
+                                    })
+                            
+                            db.reference(f'estoque_entregas/{idx_ent}').delete()
+                            
+                            log_atividade(st.session_state.get('username'), "Deletou entrega e restaurou estoque", f"Produto: {e_prod}, Qtd: {qtd_devolvida}, Destinatário: {e_dest}")
+                            
+                            st.success(f"Registro apagado. A quantidade de {qtd_devolvida} {e_prod} retornou ao estoque.")
+                            st.cache_data.clear()
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao apagar o registro: {e}")
+
         else:
             st.markdown("""
                 <div class="empty-state">
@@ -3385,9 +3340,7 @@ def modulo_estoque():
             """, unsafe_allow_html=True)
 
 
-# ### NOVO MÓDULO DE LOGS ###
 def modulo_logs():
-    """Renderiza a pagina para visualizar os logs de atividade."""
     st.markdown("""
         <div class="mod-header">
             <h2>📄 Logs de Atividade</h2>
@@ -3401,7 +3354,6 @@ def modulo_logs():
         df_logs['timestamp_dt'] = pd.to_datetime(df_logs['timestamp'])
         df_logs_display = df_logs.sort_values(by='timestamp_dt', ascending=False).copy()
         
-        # Opcional: Filtros para facilitar a busca
         st.sidebar.markdown("---")
         st.sidebar.subheader("Filtrar Logs")
         usuarios_logados = sorted(df_logs_display['usuario'].unique().tolist())
@@ -3416,7 +3368,6 @@ def modulo_logs():
         if filtro_acao:
             df_logs_display = df_logs_display[df_logs_display['acao'].isin(filtro_acao)]
 
-        # Exibe os dados filtrados
         cols_to_display = ['timestamp', 'usuario', 'acao', 'detalhes']
         st.dataframe(
             df_logs_display[cols_to_display].rename(
@@ -3429,10 +3380,112 @@ def modulo_logs():
         st.info("Nenhum log de atividade encontrado.")
 
 
-# --- ESTRUTURA PRINCIPAL DA APLICAÇÃO (LOGIN E NAVEGAÇÃO) ---
+def modulo_contas():
+    st.markdown("""
+        <div class="mod-header">
+            <h2>👤 Gerenciamento de Contas</h2>
+            <p>Criar, visualizar e gerenciar contas de acesso ao sistema</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    users_data = carregar_usuarios()
+
+    tab_c1, tab_c2 = st.tabs(["➕ Criar Conta", "📋 Contas Existentes"])
+
+    with tab_c1:
+        st.markdown('<div class="sys-card"><div class="sys-card-title">➕ Nova Conta de Usuario</div>', unsafe_allow_html=True)
+
+        novo_username = st.text_input("Nome de usuario (login)", key="cc_username", placeholder="Ex: joao.silva")
+        novo_senha = st.text_input("Senha inicial", type="password", key="cc_senha")
+        confirmar_nova = st.text_input("Confirmar senha", type="password", key="cc_confirmar")
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        if st.button("✅ Criar Conta", use_container_width=True, type="primary", key="cc_btn_criar"):
+            if not novo_username or not novo_senha:
+                st.warning("Preencha o nome de usuario e a senha.")
+            elif novo_senha != confirmar_nova:
+                st.error("As senhas nao coincidem.")
+            elif len(novo_senha) < 4:
+                st.error("A senha deve ter pelo menos 4 caracteres.")
+            elif novo_username in users_data:
+                st.error(f"O usuario '{novo_username}' ja existe.")
+            elif " " in novo_username:
+                st.error("O nome de usuario nao pode conter espacos.")
+            else:
+                try:
+                    db.reference(f'usuarios/{novo_username}').set({
+                        "senha": novo_senha,
+                        "role": "usuario",
+                        "criado_por": st.session_state.get('username', 'admin'),
+                        "data_criacao": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    })
+                    log_atividade(st.session_state.get('username'), "Criou conta de usuario", f"Usuario: {novo_username}")
+                    st.success(f"Conta '{novo_username}' criada com sucesso!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao criar conta: {e}")
+
+    with tab_c2:
+        if not users_data:
+            st.info("Nenhuma conta cadastrada.")
+        else:
+            st.markdown(f"""
+                <div class="metric-row">
+                    <div class="metric-box">
+                        <div class="metric-number">{len(users_data)}</div>
+                        <div class="metric-label">Total de Contas</div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+            for username, dados in sorted(users_data.items()):
+                if not isinstance(dados, dict):
+                    dados = {"senha": str(dados), "role": "usuario"}
+
+                role = dados.get('role', 'usuario')
+                criado_por = dados.get('criado_por', 'N/A')
+                data_criacao = dados.get('data_criacao', 'N/A')
+                is_admin_user = (role == "admin")
+
+                role_badge = "badge-red" if is_admin_user else "badge-blue"
+                role_label = "Admin" if is_admin_user else "Usuario"
+
+                st.markdown(f"""
+                    <div class="sys-card">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <span class="sys-badge {role_badge}">{role_label}</span>
+                                <span style="font-size:1.1rem;font-weight:600;color:#2C3E50;">{username}</span>
+                            </div>
+                            <span style="font-size:0.82rem;color:#85929E;">Criado por: {criado_por} | {data_criacao}</span>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                if not is_admin_user:
+                    col_r1, col_r2, col_r3 = st.columns([1, 1, 3])
+                    with col_r1:
+                        if st.button("🔑 Resetar Senha", key=f"reset_{username}", use_container_width=True):
+                            try:
+                                nova_senha_reset = f"{username}123"
+                                db.reference(f'usuarios/{username}/senha').set(nova_senha_reset)
+                                log_atividade(st.session_state.get('username'), "Resetou senha", f"Usuario: {username}")
+                                st.success(f"Senha de '{username}' resetada para: **{nova_senha_reset}**")
+                            except Exception as e:
+                                st.error(f"Erro: {e}")
+                    with col_r2:
+                        if st.button("🗑️ Deletar", key=f"del_user_{username}", use_container_width=True):
+                            try:
+                                db.reference(f'usuarios/{username}').delete()
+                                log_atividade(st.session_state.get('username'), "Deletou conta", f"Usuario: {username}")
+                                st.success(f"Conta '{username}' deletada.")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro: {e}")
+
 
 def login_screen():
-    """Renderiza a tela de login."""
     st.markdown("""
         <div class="login-container">
             <div class="login-logo">🏥</div>
@@ -3450,7 +3503,7 @@ def login_screen():
             submit_button = st.form_submit_button("Entrar", use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
             if submit_button:
-                if username in USERS and USERS[username] == password:
+                if validar_login(username, password):
                     st.session_state['logged_in'] = True
                     st.session_state['username'] = username
                     st.rerun()
@@ -3458,22 +3511,51 @@ def login_screen():
                     st.error("Usuario ou senha invalidos.")
 
 def main_app():
-    """Controla a navegação e a exibição dos módulos após o login."""
     if 'evento_para_editar_id' not in st.session_state:
         st.session_state.evento_para_editar_id = None
 
     if st.session_state.get('module_choice'):
         with st.sidebar:
-            st.title("Navegação")
-            st.write(f"Usuário: **{st.session_state['username']}**")
+            st.title("Navegacao")
+            st.write(f"Usuario: **{st.session_state['username']}**")
+            if is_admin():
+                st.markdown('<span class="sys-badge badge-red" style="font-size:0.7rem;">ADMIN</span>', unsafe_allow_html=True)
             st.divider()
             if st.button("⬅️ Voltar ao Painel de Controle"):
                 st.session_state.evento_para_editar_id = None
                 st.session_state['module_choice'] = None
                 st.rerun()
             st.divider()
+
+            with st.expander("🔑 Trocar Senha"):
+                senha_atual = st.text_input("Senha atual", type="password", key="sb_senha_atual")
+                nova_senha = st.text_input("Nova senha", type="password", key="sb_nova_senha")
+                confirmar_senha = st.text_input("Confirmar nova senha", type="password", key="sb_confirmar_senha")
+                if st.button("Alterar Senha", key="sb_btn_trocar_senha", use_container_width=True):
+                    if not senha_atual or not nova_senha or not confirmar_senha:
+                        st.warning("Preencha todos os campos.")
+                    elif nova_senha != confirmar_senha:
+                        st.error("As senhas nao coincidem.")
+                    elif len(nova_senha) < 4:
+                        st.error("A senha deve ter pelo menos 4 caracteres.")
+                    elif not validar_login(st.session_state['username'], senha_atual):
+                        st.error("Senha atual incorreta.")
+                    else:
+                        try:
+                            db.reference(f"usuarios/{st.session_state['username']}/senha").set(nova_senha)
+                            log_atividade(st.session_state['username'], "Alterou senha", "")
+                            st.success("Senha alterada com sucesso!")
+                        except Exception as e:
+                            st.error(f"Erro: {e}")
+
+            if is_admin():
+                if st.button("👤 Gerenciar Contas", use_container_width=True, key="sb_btn_contas"):
+                    st.session_state['module_choice'] = "Contas"
+                    st.rerun()
+
+            st.divider()
             if st.button("Logout"):
-                log_atividade(st.session_state.get('username'), "Logout", "Usuário encerrou a sessão.")
+                log_atividade(st.session_state.get('username'), "Logout", "Usuario encerrou a sessao.")
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
                 st.rerun()
@@ -3488,6 +3570,13 @@ def main_app():
             modulo_logs()
         elif st.session_state['module_choice'] == "Estoque":
             modulo_estoque()
+        elif st.session_state['module_choice'] == "Contas":
+            if is_admin():
+                modulo_contas()
+            else:
+                st.error("Acesso negado. Apenas o administrador pode acessar esta pagina.")
+                st.session_state['module_choice'] = None
+                st.rerun()
 
     else:
         st.markdown("""
@@ -3610,7 +3699,6 @@ def main_app():
                             st.session_state.evento_para_editar_id = None
                             st.rerun()
                 st.divider()
-
 
             st.subheader("📝 Adicionar no Mural")
             
