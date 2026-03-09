@@ -366,12 +366,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- USUÁRIOS PARA LOGIN (Exemplo) ---
-USERS = {
-    "admin": "admin123",
-    "taylan": "taylan123",
-    "fernanda": "fernanda123"
-}
+# --- USUÁRIOS ---
+# Usuários agora são armazenados no Firebase no nó 'usuarios'.
+# O admin padrão é criado automaticamente se não existir.
+ADMIN_USERNAME = "admin"
+ADMIN_DEFAULT_PASSWORD = "admin123"
 
 # --- CONFIGURAÇÃO DO FIREBASE ---
 try:
@@ -387,6 +386,56 @@ try:
         })
 except Exception as e:
     st.error(f"Erro ao inicializar o Firebase: {e}. Verifique as suas credenciais.")
+
+
+# --- FUNÇÕES DE GERENCIAMENTO DE USUÁRIOS ---
+
+def carregar_usuarios():
+    """Carrega os usuarios do Firebase. Cria o admin padrao se nao existir."""
+    try:
+        ref = db.reference('usuarios')
+        users_data = ref.get()
+        if users_data is None:
+            users_data = {}
+        # Garantir que o admin sempre exista
+        if ADMIN_USERNAME not in users_data:
+            ref.child(ADMIN_USERNAME).set({
+                "senha": ADMIN_DEFAULT_PASSWORD,
+                "role": "admin",
+                "criado_por": "sistema",
+                "data_criacao": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+            users_data[ADMIN_USERNAME] = {"senha": ADMIN_DEFAULT_PASSWORD, "role": "admin"}
+        # Migrar usuarios antigos hardcoded se existirem no codigo mas nao no Firebase
+        usuarios_legado = {"taylan": "taylan123", "fernanda": "fernanda123"}
+        for user, senha in usuarios_legado.items():
+            if user not in users_data:
+                ref.child(user).set({
+                    "senha": senha,
+                    "role": "usuario",
+                    "criado_por": "migrado",
+                    "data_criacao": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+                users_data[user] = {"senha": senha, "role": "usuario"}
+        return users_data
+    except Exception as e:
+        st.error(f"Erro ao carregar usuarios: {e}")
+        return {ADMIN_USERNAME: {"senha": ADMIN_DEFAULT_PASSWORD, "role": "admin"}}
+
+
+def validar_login(username, password):
+    """Valida credenciais de login."""
+    users = carregar_usuarios()
+    if username in users:
+        user_data = users[username]
+        senha_salva = user_data.get('senha', '') if isinstance(user_data, dict) else str(user_data)
+        return senha_salva == password
+    return False
+
+
+def is_admin():
+    """Verifica se o usuario logado e admin."""
+    return st.session_state.get('username') == ADMIN_USERNAME
 
 
 # --- FUNÇÕES GLOBAIS DE DADOS E UTILITÁRIAS ---
@@ -3429,6 +3478,120 @@ def modulo_logs():
         st.info("Nenhum log de atividade encontrado.")
 
 
+# ### MÓDULO DE GERENCIAMENTO DE CONTAS (ADMIN) ###
+def modulo_contas():
+    """Renderiza a pagina de gerenciamento de contas — apenas admin."""
+    st.markdown("""
+        <div class="mod-header">
+            <h2>👤 Gerenciamento de Contas</h2>
+            <p>Criar, visualizar e gerenciar contas de acesso ao sistema</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    users_data = carregar_usuarios()
+
+    tab_c1, tab_c2 = st.tabs(["➕ Criar Conta", "📋 Contas Existentes"])
+
+    # =============================================
+    # ABA 1: CRIAR CONTA
+    # =============================================
+    with tab_c1:
+        st.markdown('<div class="sys-card"><div class="sys-card-title">➕ Nova Conta de Usuario</div>', unsafe_allow_html=True)
+
+        novo_username = st.text_input("Nome de usuario (login)", key="cc_username", placeholder="Ex: joao.silva")
+        novo_senha = st.text_input("Senha inicial", type="password", key="cc_senha")
+        confirmar_nova = st.text_input("Confirmar senha", type="password", key="cc_confirmar")
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        if st.button("✅ Criar Conta", use_container_width=True, type="primary", key="cc_btn_criar"):
+            if not novo_username or not novo_senha:
+                st.warning("Preencha o nome de usuario e a senha.")
+            elif novo_senha != confirmar_nova:
+                st.error("As senhas nao coincidem.")
+            elif len(novo_senha) < 4:
+                st.error("A senha deve ter pelo menos 4 caracteres.")
+            elif novo_username in users_data:
+                st.error(f"O usuario '{novo_username}' ja existe.")
+            elif " " in novo_username:
+                st.error("O nome de usuario nao pode conter espacos.")
+            else:
+                try:
+                    db.reference(f'usuarios/{novo_username}').set({
+                        "senha": novo_senha,
+                        "role": "usuario",
+                        "criado_por": st.session_state.get('username', 'admin'),
+                        "data_criacao": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    })
+                    log_atividade(st.session_state.get('username'), "Criou conta de usuario", f"Usuario: {novo_username}")
+                    st.success(f"Conta '{novo_username}' criada com sucesso!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao criar conta: {e}")
+
+    # =============================================
+    # ABA 2: CONTAS EXISTENTES
+    # =============================================
+    with tab_c2:
+
+        if not users_data:
+            st.info("Nenhuma conta cadastrada.")
+        else:
+            st.markdown(f"""
+                <div class="metric-row">
+                    <div class="metric-box">
+                        <div class="metric-number">{len(users_data)}</div>
+                        <div class="metric-label">Total de Contas</div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+            for username, dados in sorted(users_data.items()):
+                if not isinstance(dados, dict):
+                    dados = {"senha": str(dados), "role": "usuario"}
+
+                role = dados.get('role', 'usuario')
+                criado_por = dados.get('criado_por', 'N/A')
+                data_criacao = dados.get('data_criacao', 'N/A')
+                is_admin_user = (role == "admin")
+
+                role_badge = "badge-red" if is_admin_user else "badge-blue"
+                role_label = "Admin" if is_admin_user else "Usuario"
+
+                st.markdown(f"""
+                    <div class="sys-card">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <span class="sys-badge {role_badge}">{role_label}</span>
+                                <span style="font-size:1.1rem;font-weight:600;color:#2C3E50;">{username}</span>
+                            </div>
+                            <span style="font-size:0.82rem;color:#85929E;">Criado por: {criado_por} | {data_criacao}</span>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                if not is_admin_user:
+                    col_r1, col_r2, col_r3 = st.columns([1, 1, 3])
+                    with col_r1:
+                        if st.button("🔑 Resetar Senha", key=f"reset_{username}", use_container_width=True):
+                            try:
+                                nova_senha_reset = f"{username}123"
+                                db.reference(f'usuarios/{username}/senha').set(nova_senha_reset)
+                                log_atividade(st.session_state.get('username'), "Resetou senha", f"Usuario: {username}")
+                                st.success(f"Senha de '{username}' resetada para: **{nova_senha_reset}**")
+                            except Exception as e:
+                                st.error(f"Erro: {e}")
+                    with col_r2:
+                        if st.button("🗑️ Deletar", key=f"del_user_{username}", use_container_width=True):
+                            try:
+                                db.reference(f'usuarios/{username}').delete()
+                                log_atividade(st.session_state.get('username'), "Deletou conta", f"Usuario: {username}")
+                                st.success(f"Conta '{username}' deletada.")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro: {e}")
+
+
 # --- ESTRUTURA PRINCIPAL DA APLICAÇÃO (LOGIN E NAVEGAÇÃO) ---
 
 def login_screen():
@@ -3450,7 +3613,7 @@ def login_screen():
             submit_button = st.form_submit_button("Entrar", use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
             if submit_button:
-                if username in USERS and USERS[username] == password:
+                if validar_login(username, password):
                     st.session_state['logged_in'] = True
                     st.session_state['username'] = username
                     st.rerun()
@@ -3464,16 +3627,48 @@ def main_app():
 
     if st.session_state.get('module_choice'):
         with st.sidebar:
-            st.title("Navegação")
-            st.write(f"Usuário: **{st.session_state['username']}**")
+            st.title("Navegacao")
+            st.write(f"Usuario: **{st.session_state['username']}**")
+            if is_admin():
+                st.markdown('<span class="sys-badge badge-red" style="font-size:0.7rem;">ADMIN</span>', unsafe_allow_html=True)
             st.divider()
             if st.button("⬅️ Voltar ao Painel de Controle"):
                 st.session_state.evento_para_editar_id = None
                 st.session_state['module_choice'] = None
                 st.rerun()
             st.divider()
+
+            # Trocar senha - disponivel para todos
+            with st.expander("🔑 Trocar Senha"):
+                senha_atual = st.text_input("Senha atual", type="password", key="sb_senha_atual")
+                nova_senha = st.text_input("Nova senha", type="password", key="sb_nova_senha")
+                confirmar_senha = st.text_input("Confirmar nova senha", type="password", key="sb_confirmar_senha")
+                if st.button("Alterar Senha", key="sb_btn_trocar_senha", use_container_width=True):
+                    if not senha_atual or not nova_senha or not confirmar_senha:
+                        st.warning("Preencha todos os campos.")
+                    elif nova_senha != confirmar_senha:
+                        st.error("As senhas nao coincidem.")
+                    elif len(nova_senha) < 4:
+                        st.error("A senha deve ter pelo menos 4 caracteres.")
+                    elif not validar_login(st.session_state['username'], senha_atual):
+                        st.error("Senha atual incorreta.")
+                    else:
+                        try:
+                            db.reference(f"usuarios/{st.session_state['username']}/senha").set(nova_senha)
+                            log_atividade(st.session_state['username'], "Alterou senha", "")
+                            st.success("Senha alterada com sucesso!")
+                        except Exception as e:
+                            st.error(f"Erro: {e}")
+
+            # Gerenciar contas - apenas admin
+            if is_admin():
+                if st.button("👤 Gerenciar Contas", use_container_width=True, key="sb_btn_contas"):
+                    st.session_state['module_choice'] = "Contas"
+                    st.rerun()
+
+            st.divider()
             if st.button("Logout"):
-                log_atividade(st.session_state.get('username'), "Logout", "Usuário encerrou a sessão.")
+                log_atividade(st.session_state.get('username'), "Logout", "Usuario encerrou a sessao.")
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
                 st.rerun()
@@ -3488,6 +3683,13 @@ def main_app():
             modulo_logs()
         elif st.session_state['module_choice'] == "Estoque":
             modulo_estoque()
+        elif st.session_state['module_choice'] == "Contas":
+            if is_admin():
+                modulo_contas()
+            else:
+                st.error("Acesso negado. Apenas o administrador pode acessar esta pagina.")
+                st.session_state['module_choice'] = None
+                st.rerun()
 
     else:
         st.markdown("""
