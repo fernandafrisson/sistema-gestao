@@ -2980,6 +2980,411 @@ def modulo_boletim():
                         else:
                             st.info("Nenhum dado de participação no período.")
 
+# ### MÓDULO DE ESTOQUE ###
+def modulo_estoque():
+    """Renderiza a pagina do modulo de Estoque."""
+    st.markdown("""
+        <div class="mod-header">
+            <h2>📦 Estoque</h2>
+            <p>Controle de EPIs, uniformes e materiais — cadastro de produtos e registro de entregas</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    df_estoque = carregar_dados_firebase('estoque_produtos')
+    df_entregas = carregar_dados_firebase('estoque_entregas')
+    df_funcionarios = carregar_dados_firebase('funcionarios')
+
+    if not df_funcionarios.empty:
+        nome_map_est = {formatar_nome(nome): nome for nome in df_funcionarios['nome']}
+        lista_nomes_est = sorted(list(nome_map_est.keys()))
+    else:
+        nome_map_est = {}
+        lista_nomes_est = []
+
+    # Metricas
+    total_produtos = len(df_estoque) if not df_estoque.empty else 0
+    total_entregas = len(df_entregas) if not df_entregas.empty else 0
+
+    # Calcular itens com estoque baixo (quantidade <= 5)
+    estoque_baixo = 0
+    if not df_estoque.empty and 'quantidade' in df_estoque.columns:
+        df_estoque['quantidade_num'] = pd.to_numeric(df_estoque['quantidade'], errors='coerce').fillna(0)
+        estoque_baixo = len(df_estoque[df_estoque['quantidade_num'] <= 5])
+
+    st.markdown(f"""
+        <div class="metric-row">
+            <div class="metric-box">
+                <div class="metric-number">{total_produtos}</div>
+                <div class="metric-label">Produtos Cadastrados</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-number">{total_entregas}</div>
+                <div class="metric-label">Entregas Realizadas</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-number" style="color:#C0392B;">{estoque_baixo}</div>
+                <div class="metric-label">Estoque Baixo</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    tab_est1, tab_est2, tab_est3, tab_est4 = st.tabs([
+        "📦 Cadastrar Produto",
+        "📋 Produtos em Estoque",
+        "🤝 Registrar Entrega",
+        "📜 Historico de Entregas"
+    ])
+
+    # =============================================
+    # ABA 1: CADASTRAR PRODUTO
+    # =============================================
+    with tab_est1:
+
+        st.markdown('<div class="sys-card"><div class="sys-card-title">📦 Novo Produto</div>', unsafe_allow_html=True)
+
+        tipos_produto = ["EPI", "Uniforme", "Material de Escritorio", "Material de Campo", "Limpeza", "Outros"]
+        tipo_produto = st.selectbox("Tipo de Produto", options=[""] + tipos_produto, key="est_tipo_produto")
+
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            nome_produto = st.text_input("Nome do Produto", key="est_nome_produto")
+            tamanho_produto = st.text_input("Tamanho", key="est_tamanho", placeholder="Ex: P, M, G, 40, Unico")
+            ca_produto = st.text_input("C.A (Certificado de Aprovacao)", key="est_ca", placeholder="Apenas para EPI")
+        with col_p2:
+            validade_produto = st.text_input("Validade", key="est_validade", placeholder="Ex: 12/2027")
+            marca_produto = st.text_input("Marca", key="est_marca")
+            quantidade_produto = st.number_input("Quantidade", min_value=0, value=0, step=1, key="est_quantidade")
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        if st.button("✅ Cadastrar Produto", use_container_width=True, type="primary", key="save_produto"):
+            produto_id = str(int(time.time() * 1000))
+            produto_data = {
+                "tipo": tipo_produto,
+                "nome": nome_produto,
+                "tamanho": tamanho_produto,
+                "ca": ca_produto,
+                "validade": validade_produto,
+                "marca": marca_produto,
+                "quantidade": quantidade_produto,
+                "data_cadastro": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            try:
+                ref = db.reference(f'estoque_produtos/{produto_id}')
+                ref.set(produto_data)
+                log_atividade(st.session_state.get('username'), "Cadastrou produto no estoque", f"Nome: {nome_produto}, Tipo: {tipo_produto}, Qtd: {quantidade_produto}")
+                st.success(f"Produto '{nome_produto}' cadastrado com sucesso!")
+                st.cache_data.clear()
+                st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao cadastrar produto: {e}")
+
+    # =============================================
+    # ABA 2: PRODUTOS EM ESTOQUE
+    # =============================================
+    with tab_est2:
+
+        if 'est_editando_id' not in st.session_state:
+            st.session_state.est_editando_id = None
+
+        if not df_estoque.empty:
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                filtro_tipo_est = st.selectbox("Filtrar por tipo", ["Todos"] + sorted(df_estoque['tipo'].dropna().unique().tolist()), key="filtro_tipo_est")
+            with col_f2:
+                busca_produto = st.text_input("🔍 Buscar por nome", key="busca_produto_est")
+
+            df_est_display = df_estoque.copy()
+            if filtro_tipo_est != "Todos":
+                df_est_display = df_est_display[df_est_display['tipo'] == filtro_tipo_est]
+            if busca_produto:
+                df_est_display = df_est_display[df_est_display['nome'].str.contains(busca_produto, case=False, na=False)]
+
+            if df_est_display.empty:
+                st.info("Nenhum produto encontrado com os filtros aplicados.")
+            else:
+                for idx_prod, produto in df_est_display.iterrows():
+                    p_tipo = produto.get('tipo', '')
+                    p_nome = produto.get('nome', 'Sem nome')
+                    p_tam = produto.get('tamanho', '')
+                    p_ca = produto.get('ca', '')
+                    p_val = produto.get('validade', '')
+                    p_marca = produto.get('marca', '')
+                    p_qtd = produto.get('quantidade', 0)
+
+                    # Badge de tipo
+                    tipo_badges = {
+                        "EPI": "badge-red", "Uniforme": "badge-blue",
+                        "Material de Escritorio": "badge-purple", "Material de Campo": "badge-green",
+                        "Limpeza": "badge-orange", "Outros": "badge-gray"
+                    }
+                    badge_cls = tipo_badges.get(p_tipo, "badge-gray")
+
+                    # Badge de quantidade
+                    qtd_num = int(p_qtd) if str(p_qtd).isdigit() else 0
+                    qtd_color = "#C0392B" if qtd_num <= 5 else "#1E8449" if qtd_num > 20 else "#B9770E"
+
+                    if st.session_state.est_editando_id == idx_prod:
+                        st.markdown(f'<div class="sys-card" style="border:2px solid #2E86C1;"><div class="sys-card-title">✏️ Editando: {p_nome}</div></div>', unsafe_allow_html=True)
+                        with st.form(f"edit_prod_{idx_prod}"):
+                            tipos_opcoes_edit = [""] + tipos_produto
+                            tipo_idx_e = tipos_opcoes_edit.index(p_tipo) if p_tipo in tipos_opcoes_edit else 0
+                            tipo_edit = st.selectbox("Tipo", tipos_opcoes_edit, index=tipo_idx_e, key=f"ep_tipo_{idx_prod}")
+                            col_e1, col_e2 = st.columns(2)
+                            with col_e1:
+                                nome_edit = st.text_input("Nome", value=str(p_nome), key=f"ep_nome_{idx_prod}")
+                                tam_edit = st.text_input("Tamanho", value=str(p_tam), key=f"ep_tam_{idx_prod}")
+                                ca_edit = st.text_input("C.A", value=str(p_ca), key=f"ep_ca_{idx_prod}")
+                            with col_e2:
+                                val_edit = st.text_input("Validade", value=str(p_val), key=f"ep_val_{idx_prod}")
+                                marca_edit = st.text_input("Marca", value=str(p_marca), key=f"ep_marca_{idx_prod}")
+                                qtd_edit = st.number_input("Quantidade", min_value=0, value=int(qtd_num), step=1, key=f"ep_qtd_{idx_prod}")
+
+                            col_b1, col_b2 = st.columns(2)
+                            with col_b1:
+                                if st.form_submit_button("✅ Salvar", use_container_width=True):
+                                    db.reference(f'estoque_produtos/{idx_prod}').update({
+                                        "tipo": tipo_edit, "nome": nome_edit, "tamanho": tam_edit,
+                                        "ca": ca_edit, "validade": val_edit, "marca": marca_edit,
+                                        "quantidade": qtd_edit
+                                    })
+                                    log_atividade(st.session_state.get('username'), "Editou produto", f"Nome: {nome_edit}")
+                                    st.success(f"Produto '{nome_edit}' atualizado!")
+                                    st.session_state.est_editando_id = None
+                                    st.cache_data.clear()
+                                    st.rerun()
+                            with col_b2:
+                                if st.form_submit_button("Cancelar", use_container_width=True):
+                                    st.session_state.est_editando_id = None
+                                    st.rerun()
+                    else:
+                        # Info grid com campos preenchidos
+                        infos_html = ""
+                        if p_tam:
+                            infos_html += f'<div class="info-item"><div class="info-label">Tamanho</div><div class="info-value">{p_tam}</div></div>'
+                        if p_ca:
+                            infos_html += f'<div class="info-item"><div class="info-label">C.A</div><div class="info-value">{p_ca}</div></div>'
+                        if p_val:
+                            infos_html += f'<div class="info-item"><div class="info-label">Validade</div><div class="info-value">{p_val}</div></div>'
+                        if p_marca:
+                            infos_html += f'<div class="info-item"><div class="info-label">Marca</div><div class="info-value">{p_marca}</div></div>'
+
+                        st.markdown(f"""
+                            <div class="sys-card">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                                    <div style="display:flex;align-items:center;gap:10px;">
+                                        <span class="sys-badge {badge_cls}">{p_tipo if p_tipo else 'Sem tipo'}</span>
+                                        <span style="font-size:1.1rem;font-weight:600;color:#2C3E50;">{p_nome}</span>
+                                    </div>
+                                    <div style="display:flex;align-items:center;gap:6px;">
+                                        <span style="font-size:1.3rem;font-weight:700;color:{qtd_color};">{qtd_num}</span>
+                                        <span style="font-size:0.78rem;color:#85929E;">un.</span>
+                                    </div>
+                                </div>
+                                <div class="info-grid">{infos_html}</div>
+                            </div>
+                        """, unsafe_allow_html=True)
+
+                        col_a1, col_a2, col_a3 = st.columns([1, 1, 3])
+                        with col_a1:
+                            if st.button("✏️ Editar", key=f"edit_est_{idx_prod}", use_container_width=True):
+                                st.session_state.est_editando_id = idx_prod
+                                st.rerun()
+                        with col_a2:
+                            if st.button("🗑️ Deletar", key=f"del_est_{idx_prod}", use_container_width=True):
+                                db.reference(f'estoque_produtos/{idx_prod}').delete()
+                                log_atividade(st.session_state.get('username'), "Deletou produto", f"Nome: {p_nome}")
+                                st.success(f"Produto '{p_nome}' deletado.")
+                                st.cache_data.clear()
+                                st.rerun()
+        else:
+            st.markdown("""
+                <div class="empty-state">
+                    <div class="icon">📦</div>
+                    <p>Nenhum produto cadastrado ainda.<br>Use a aba <strong>"Cadastrar Produto"</strong> para comecar.</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+    # =============================================
+    # ABA 3: REGISTRAR ENTREGA
+    # =============================================
+    with tab_est3:
+
+        if df_estoque.empty:
+            st.markdown("""
+                <div class="empty-state">
+                    <div class="icon">📭</div>
+                    <p>Cadastre produtos no estoque antes de registrar entregas.</p>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="sys-card"><div class="sys-card-title">🤝 Nova Entrega</div>', unsafe_allow_html=True)
+
+            # Destinatario
+            tipo_destinatario = st.radio("Destinatario", ["Funcionario cadastrado", "Outro (externo)"], horizontal=True, key="est_tipo_dest")
+
+            if tipo_destinatario == "Funcionario cadastrado":
+                if lista_nomes_est:
+                    dest_nome = st.selectbox("Selecione o funcionario", lista_nomes_est, index=None, placeholder="Selecione...", key="est_dest_func")
+                else:
+                    st.info("Nenhum funcionario cadastrado no RH.")
+                    dest_nome = None
+            else:
+                dest_nome = st.text_input("Nome do destinatario", key="est_dest_externo")
+                dest_setor = st.text_input("Setor / Orgao", key="est_dest_setor")
+
+            st.markdown('<div class="sys-divider"></div>', unsafe_allow_html=True)
+
+            # Produto
+            lista_produtos = []
+            for idx_p, row_p in df_estoque.iterrows():
+                qtd_disp = row_p.get('quantidade', 0)
+                label_p = f"{row_p.get('nome', '')} ({row_p.get('tipo', '')})"
+                if row_p.get('tamanho'):
+                    label_p += f" - Tam: {row_p.get('tamanho')}"
+                label_p += f" | Estoque: {qtd_disp}"
+                lista_produtos.append({"id": idx_p, "label": label_p, "dados": row_p})
+
+            opcoes_produtos = [p["label"] for p in lista_produtos]
+            produto_selecionado = st.selectbox("Selecione o produto", opcoes_produtos, index=None, placeholder="Selecione...", key="est_prod_sel")
+
+            qtd_entrega = st.number_input("Quantidade a entregar", min_value=1, value=1, step=1, key="est_qtd_entrega")
+
+            observacao_entrega = st.text_input("Observacao (opcional)", key="est_obs_entrega")
+
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            if st.button("✅ Registrar Entrega", use_container_width=True, type="primary", key="save_entrega"):
+                if dest_nome and produto_selecionado:
+                    # Encontrar produto
+                    prod_match = [p for p in lista_produtos if p["label"] == produto_selecionado]
+                    if prod_match:
+                        prod_info = prod_match[0]
+                        prod_id = prod_info["id"]
+                        prod_dados = prod_info["dados"]
+                        estoque_atual = int(prod_dados.get('quantidade', 0))
+
+                        if qtd_entrega > estoque_atual:
+                            st.error(f"Quantidade insuficiente em estoque. Disponivel: {estoque_atual}")
+                        else:
+                            # Registrar entrega
+                            entrega_id = str(int(time.time() * 1000))
+                            entrega_data = {
+                                "data": datetime.now().strftime("%Y-%m-%d"),
+                                "destinatario": dest_nome,
+                                "tipo_destinatario": "Interno" if tipo_destinatario == "Funcionario cadastrado" else "Externo",
+                                "setor_externo": dest_setor if tipo_destinatario != "Funcionario cadastrado" else "",
+                                "produto": prod_dados.get('nome', ''),
+                                "produto_tipo": prod_dados.get('tipo', ''),
+                                "produto_tamanho": prod_dados.get('tamanho', ''),
+                                "produto_id": prod_id,
+                                "quantidade": qtd_entrega,
+                                "observacao": observacao_entrega,
+                                "registrado_por": st.session_state.get('username', ''),
+                                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            }
+
+                            try:
+                                # Salvar entrega
+                                db.reference(f'estoque_entregas/{entrega_id}').set(entrega_data)
+
+                                # Atualizar estoque
+                                novo_estoque = estoque_atual - qtd_entrega
+                                db.reference(f'estoque_produtos/{prod_id}').update({"quantidade": novo_estoque})
+
+                                log_atividade(st.session_state.get('username'), "Registrou entrega de estoque", f"Produto: {prod_dados.get('nome', '')}, Qtd: {qtd_entrega}, Para: {dest_nome}")
+
+                                st.success(f"Entrega registrada! {qtd_entrega}x {prod_dados.get('nome', '')} para {dest_nome}. Estoque restante: {novo_estoque}")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao registrar entrega: {e}")
+                else:
+                    st.warning("Selecione o destinatario e o produto.")
+
+    # =============================================
+    # ABA 4: HISTORICO DE ENTREGAS
+    # =============================================
+    with tab_est4:
+
+        if not df_entregas.empty:
+            # Filtros
+            col_hf1, col_hf2, col_hf3 = st.columns(3)
+            with col_hf1:
+                filtro_dest = st.text_input("🔍 Buscar por destinatario", key="filtro_dest_hist")
+            with col_hf2:
+                filtro_prod_hist = st.text_input("🔍 Buscar por produto", key="filtro_prod_hist")
+            with col_hf3:
+                filtro_tipo_dest = st.selectbox("Tipo de destinatario", ["Todos", "Interno", "Externo"], key="filtro_tipo_dest_hist")
+
+            df_ent_display = df_entregas.copy()
+            if 'data' in df_ent_display.columns:
+                df_ent_display['data_dt'] = pd.to_datetime(df_ent_display['data'], errors='coerce').dt.date
+                df_ent_display = df_ent_display.sort_values(by='data_dt', ascending=False)
+
+            if filtro_dest:
+                df_ent_display = df_ent_display[df_ent_display['destinatario'].str.contains(filtro_dest, case=False, na=False)]
+            if filtro_prod_hist:
+                df_ent_display = df_ent_display[df_ent_display['produto'].str.contains(filtro_prod_hist, case=False, na=False)]
+            if filtro_tipo_dest != "Todos":
+                df_ent_display = df_ent_display[df_ent_display['tipo_destinatario'] == filtro_tipo_dest]
+
+            if df_ent_display.empty:
+                st.info("Nenhuma entrega encontrada com os filtros aplicados.")
+            else:
+                for idx_ent, entrega in df_ent_display.iterrows():
+                    e_data = pd.to_datetime(entrega.get('data', '')).strftime('%d/%m/%Y') if entrega.get('data') else 'N/A'
+                    e_dest = entrega.get('destinatario', 'N/A')
+                    e_tipo_d = entrega.get('tipo_destinatario', '')
+                    e_setor = entrega.get('setor_externo', '')
+                    e_prod = entrega.get('produto', 'N/A')
+                    e_tipo_p = entrega.get('produto_tipo', '')
+                    e_tam = entrega.get('produto_tamanho', '')
+                    e_qtd = entrega.get('quantidade', 0)
+                    e_obs = entrega.get('observacao', '')
+                    e_por = entrega.get('registrado_por', '')
+
+                    dest_badge = "badge-blue" if e_tipo_d == "Interno" else "badge-orange"
+                    dest_label = e_dest
+                    if e_tipo_d == "Externo" and e_setor:
+                        dest_label += f" ({e_setor})"
+
+                    obs_line = f'<div style="margin-top:6px;font-size:0.82rem;color:#7D6608;">Obs: {e_obs}</div>' if e_obs else ""
+
+                    st.markdown(f"""
+                        <div class="hist-card">
+                            <div style="display:flex;justify-content:space-between;align-items:center;">
+                                <div>
+                                    <span style="font-weight:600;color:#1B4F72;">📅 {e_data}</span>
+                                    <span style="color:#85929E;font-size:0.82rem;margin-left:8px;">por {e_por}</span>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:6px;">
+                                    <span style="font-size:1.2rem;font-weight:700;color:#1B4F72;">{e_qtd}x</span>
+                                </div>
+                            </div>
+                            <div class="sys-divider"></div>
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <div class="info-label">Destinatario</div>
+                                    <div class="info-value"><span class="sys-badge {dest_badge}">{e_tipo_d}</span> {dest_label}</div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-label">Produto</div>
+                                    <div class="info-value">{e_prod}{' - Tam: ' + e_tam if e_tam else ''} ({e_tipo_p})</div>
+                                </div>
+                            </div>
+                            {obs_line}
+                        </div>
+                    """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+                <div class="empty-state">
+                    <div class="icon">📜</div>
+                    <p>Nenhuma entrega registrada ainda.</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+
 # ### NOVO MÓDULO DE LOGS ###
 def modulo_logs():
     """Renderiza a pagina para visualizar os logs de atividade."""
@@ -3081,6 +3486,8 @@ def main_app():
             modulo_boletim()
         elif st.session_state['module_choice'] == "Logs":
             modulo_logs()
+        elif st.session_state['module_choice'] == "Estoque":
+            modulo_estoque()
 
     else:
         st.markdown("""
@@ -3090,7 +3497,7 @@ def main_app():
             </div>
         """, unsafe_allow_html=True)
         
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
             st.markdown("""
                 <div class="module-card">
@@ -3125,6 +3532,17 @@ def main_app():
                 st.session_state['module_choice'] = "Boletim"
                 st.rerun()
         with col4:
+            st.markdown("""
+                <div class="module-card">
+                    <div class="icon">📦</div>
+                    <div class="title">Estoque</div>
+                    <div class="desc">EPIs e materiais</div>
+                </div>
+            """, unsafe_allow_html=True)
+            if st.button("Acessar Estoque", use_container_width=True, key="btn_est"):
+                st.session_state['module_choice'] = "Estoque"
+                st.rerun()
+        with col5:
             st.markdown("""
                 <div class="module-card">
                     <div class="icon">📄</div>
