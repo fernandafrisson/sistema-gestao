@@ -14,7 +14,7 @@
 
         body {
             font-family: 'Nunito', sans-serif;
-            background: #F0F2F8;
+            background: #000; /* Fundo escuro atrás do satélite */
             color: #3D2D68;
             overflow: hidden;
         }
@@ -26,7 +26,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 4px 15px rgba(91, 72, 151, 0.2);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
             position: relative;
             z-index: 1000;
         }
@@ -49,7 +49,7 @@
         /* Controle de Filtros */
         .leaflet-control-layers {
             border-radius: 12px !important;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3) !important;
             padding: 6px !important;
             font-family: 'Nunito', sans-serif !important;
             font-weight: 700 !important;
@@ -57,22 +57,24 @@
             border: none !important;
         }
 
-        /* Estilo do Texto do Bairro (Sem fundo branco, apenas o texto flutuante com borda branca) */
+        /* Estilo do Texto do Bairro para mapa de Satélite */
         .bairro-label {
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
             font-family: 'Nunito', sans-serif !important;
-            font-size: 0.95rem !important;
-            font-weight: 800 !important;
-            color: #3D2D68 !important;
-            /* Cria um contorno branco no texto para facilitar a leitura por cima das cores */
+            font-size: 1.1rem !important; 
+            font-weight: 900 !important;
+            color: #FFFFFF !important; /* Texto branco */
+            /* Sombra escura forte para dar contraste contra o chão/telhados */
             text-shadow: 
-                2px 2px 0 #FFF, 
-                -1px -1px 0 #FFF, 
-                1px -1px 0 #FFF, 
-                -1px 1px 0 #FFF, 
-                1px 1px 0 #FFF !important;
+                2px 2px 0 #000, 
+                -1px -1px 0 #000, 
+                1px -1px 0 #000, 
+                -1px 1px 0 #000, 
+                1px 1px 0 #000,
+                0px 0px 8px rgba(0,0,0,0.9) !important;
+            text-align: center;
         }
     </style>
 </head>
@@ -80,7 +82,7 @@
 
     <div class="header">
         <div class="header-title">
-            🗺️ Mapa Interativo de Bairros
+            🗺️ Mapa Interativo de Bairros (Satélite)
         </div>
     </div>
 
@@ -96,10 +98,10 @@
             zoomControl: true
         }).setView([-22.8136, -45.1917], 13);
 
-        // 2. MAPA BASE
-        var basemap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        // 2. MAPA BASE SATÉLITE (Esri World Imagery)
+        var basemap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             maxZoom: 19,
-            attribution: '© OpenStreetMap contributors'
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
         }).addTo(map);
 
         // 3. GRUPOS DE CAMADAS
@@ -109,13 +111,14 @@
         // 4. CARREGAR RUAS
         omnivore.kml('Ruas.kml').on('ready', function() {
             this.eachLayer(function(layer) {
-                layer.setStyle({ color: '#8C84A4', weight: 2, opacity: 0.6 });
+                // Linhas amarelas semi-transparentes para contrastar no satélite
+                layer.setStyle({ color: '#F1C40F', weight: 2, opacity: 0.6 }); 
                 camadaRuas.addLayer(layer);
             });
             map.addLayer(camadaRuas);
         });
 
-        // 5. LISTA DOS NOVOS ARQUIVOS KML (POLÍGONOS DOS BAIRROS)
+        // 5. LISTA DOS ARQUIVOS KML
         var arquivosBairros = [
             'Pingo de Ouro.kml',
             'Rocinha.kml',
@@ -128,12 +131,28 @@
             'Jd Esperança.kml'
         ];
 
-        // 6. CARREGAR CADA BAIRRO E APLICAR ESTILO + NOME CENTRALIZADO
-        arquivosBairros.forEach(function(arquivo) {
+        // Paleta de cores para colorir os bairros de forma alternada
+        var paletaCores = [
+            '#FF3366', // Rosa
+            '#33CCFF', // Azul claro
+            '#00FF66', // Verde
+            '#FFFF00', // Amarelo
+            '#CC33FF', // Roxo
+            '#FF9900', // Laranja
+            '#00FFFF', // Ciano
+            '#FF3300', // Vermelho
+            '#99FF33'  // Verde limão
+        ];
+
+        // 6. CARREGAR CADA BAIRRO E APLICAR ESTILO
+        arquivosBairros.forEach(function(arquivo, index) {
+            
+            // Pega uma cor diferente para cada arquivo na lista
+            var corPreenchimento = paletaCores[index % paletaCores.length];
+
             var layerBairro = omnivore.kml(arquivo).on('ready', function() {
                 this.eachLayer(function(layer) {
                     
-                    // Extrair nome (se não tiver no KML, usa o nome do arquivo)
                     var nomeBairro = "";
                     if (layer.feature && layer.feature.properties && layer.feature.properties.name) {
                         nomeBairro = layer.feature.properties.name;
@@ -141,17 +160,17 @@
                         nomeBairro = arquivo.replace('.kml', '');
                     }
 
-                    // Estilo do Polígono
+                    // Estilo de cores
                     if (layer.setStyle) {
                         layer.setStyle({
-                            color: '#5B4897',      // Borda roxa
-                            fillColor: '#FF6B8B',  // Preenchimento rosa
-                            fillOpacity: 0.25,
+                            color: '#FFFFFF',      // Borda branca para separar bem
+                            fillColor: corPreenchimento, // A cor selecionada na paleta
+                            fillOpacity: 0.35,     // 35% de transparência para ver as casas embaixo
                             weight: 2
                         });
                     }
 
-                    // Adicionar Rótulo de Texto Fixo no Centro do Polígono
+                    // Coloca o texto centralizado
                     if (layer.bindTooltip) {
                         layer.bindTooltip(nomeBairro, {
                             permanent: true, 
@@ -160,15 +179,15 @@
                         });
                     }
 
-                    // Efeito Hover (Brilho ao passar o mouse)
+                    // Efeito ao passar o mouse
                     layer.on({
                         mouseover: function(e) {
                             var l = e.target;
-                            l.setStyle({ fillOpacity: 0.5, weight: 3 });
+                            l.setStyle({ fillOpacity: 0.65, weight: 3 });
                         },
                         mouseout: function(e) {
                             var l = e.target;
-                            l.setStyle({ fillOpacity: 0.25, weight: 2 });
+                            l.setStyle({ fillOpacity: 0.35, weight: 2 });
                         }
                     });
 
@@ -179,9 +198,9 @@
 
         map.addLayer(camadaBairros);
 
-        // 7. CAIXINHA DE FILTROS NO CANTO DIREITO
+        // 7. CAIXINHA DE FILTROS NO CANTO DIREITO (COM O NOVO NOME)
         var overlayMaps = {
-            "Bairros (Polígonos)": camadaBairros,
+            "Área de abrangencia psf": camadaBairros,
             "Ruas (Linhas)": camadaRuas
         };
         L.control.layers(null, overlayMaps, { collapsed: false }).addTo(map);
