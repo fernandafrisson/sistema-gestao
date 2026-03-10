@@ -3852,7 +3852,7 @@ def main_app():
                             st.rerun()
                 st.divider()
 
-            st.subheader("📝 Adicionar no Mural")
+           st.subheader("📝 Adicionar no Mural")
             
             tipos_de_evento_add = ["Aviso", "Compromisso", "Reunião", "Curso", "Educativa"]
             aviso_tipo_add = st.selectbox("Tipo de Evento", tipos_de_evento_add, key='tipo_evento_selecionado')
@@ -3876,4 +3876,123 @@ def main_app():
                             ref.set({
                                 'titulo': aviso_titulo,
                                 'data': aviso_data.strftime("%Y-%m-%d"),
-                                'tipo_aviso': st.session
+                                'tipo_aviso': st.session_state.tipo_evento_selecionado,
+                                'descricao': aviso_descricao,
+                                'participantes': participantes 
+                            })
+                            
+                            log_atividade(st.session_state.get('username'), "Adicionou aviso no mural", f"Título: {aviso_titulo}")
+
+                            st.success("Evento salvo no mural com sucesso!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao salvar o aviso: {e}")
+                    else:
+                        st.warning("Por favor, preencha o Título e a Data.")
+
+            st.divider()
+            st.subheader("🗓️ Eventos Agendados")
+            df_avisos = carregar_dados_firebase('avisos')
+
+            filtro_data = st.date_input("Filtrar eventos por dia", value=date.today())
+
+            if not df_avisos.empty:
+                df_avisos['data_dt'] = pd.to_datetime(df_avisos['data']).dt.date
+                avisos_filtrados = df_avisos[df_avisos['data_dt'] == filtro_data].sort_values(by='titulo')
+
+                if avisos_filtrados.empty:
+                    st.info(f"Nenhum evento agendado para {filtro_data.strftime('%d/%m/%Y')}.")
+                else:
+                    for id, aviso in avisos_filtrados.iterrows():
+                        with st.expander(f"{aviso.get('tipo_aviso', 'Evento')}: **{aviso.get('titulo', 'Sem título')}**"):
+                            if aviso.get('descricao'):
+                                st.markdown(f"**Descrição:** {aviso.get('descricao')}")
+                            
+                            lista_participantes = aviso.get('participantes', [])
+                            if lista_participantes and isinstance(lista_participantes, list):
+                                participantes_validos = [str(p) for p in lista_participantes if p]
+                                if participantes_validos:
+                                    st.markdown(f"**Participantes:** {', '.join(participantes_validos)}")
+                            
+                            st.markdown("---")
+                            col_b1, col_b2, _ = st.columns([1, 1, 3])
+                            with col_b1:
+                                if st.button("✏️ Editar", key=f"edit_{id}", use_container_width=True):
+                                    st.session_state.evento_para_editar_id = id
+                                    st.rerun()
+                            with col_b2:
+                                if st.button("🗑️ Deletar", key=f"del_{id}", type="primary", use_container_width=True):
+                                    db.reference(f'avisos/{id}').delete()
+                                    
+                                    log_atividade(st.session_state.get('username'), "Deletou aviso no mural", f"Título: {aviso.get('titulo')}")
+
+                                    st.success(f"Evento '{aviso.get('titulo')}' deletado.")
+                                    st.cache_data.clear()
+                                    st.rerun()
+            else:
+                st.info("Nenhum evento no mural para exibir.")
+
+
+        with col_cal:
+            st.subheader("📅 Calendário Geral de Eventos e Ausências")
+            
+            df_folgas = carregar_dados_firebase('folgas_ferias')
+            df_avisos_cal = carregar_dados_firebase('avisos')
+            
+            calendar_events = []
+
+            if not df_folgas.empty:
+                for _, row in df_folgas.iterrows():
+                    calendar_events.append({
+                        "title": f"AUSÊNCIA: {formatar_nome(row['nome_funcionario'])} ({row['tipo']})",
+                        "start": row['data_inicio'],
+                        "end": (pd.to_datetime(row['data_fim']) + timedelta(days=1)).strftime("%Y-%m-%d"),
+                        "color": "#FF4B4B" if row['tipo'] == "Férias" else "#FFA07A",
+                    })
+            
+            if not df_avisos_cal.empty:
+                event_colors = {
+                    "Aviso": "#ffc107",
+                    "Compromisso": "#28a745",
+                    "Reunião": "#007bff",
+                    "Curso": "#6f42c1",
+                    "Educativa": "#fd7e14"
+                }
+                for _, row in df_avisos_cal.iterrows():
+                    event_type = row.get('tipo_aviso', 'Aviso')
+                    calendar_events.append({
+                        "title": f"{event_type.upper()}: {row['titulo']}",
+                        "start": row['data'],
+                        "end": (pd.to_datetime(row['data']) + timedelta(days=1)).strftime("%Y-%m-%d"),
+                        "color": event_colors.get(event_type, "#1B4F72"),
+                    })
+
+            calendar_options = {
+                "initialView": "dayGridMonth",
+                "height": "800px",
+                "locale": "pt-br",
+                "headerToolbar": {
+                    "left": "prev,next today",
+                    "center": "title",
+                    "right": "dayGridMonth,timeGridWeek"
+                },
+                "eventTimeFormat": {
+                    "hour": '2-digit',
+                    "minute": '2-digit',
+                    "meridiem": False
+                }
+            }
+            
+            if calendar_events:
+                calendar(events=calendar_events, options=calendar_options, key="calendario_mural_atualizado")
+            else:
+                st.info("Nenhum evento no mural ou ausência registrada para exibir no calendário.")
+
+if __name__ == "__main__":
+    if 'logged_in' not in st.session_state:
+        st.session_state['logged_in'] = False
+    if st.session_state['logged_in']:
+        main_app()
+    else:
+        login_screen()
