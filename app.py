@@ -381,7 +381,8 @@ try:
             cred = credentials.Certificate("denuncias-48660-firebase-adminsdk-fbsvc-9f27fef1c8.json")
 
         firebase_admin.initialize_app(cred, {
-            'databaseURL': 'https://denuncias-48660-default-rtdb.firebaseio.com/'
+            'databaseURL': 'https://denuncias-48660-default-rtdb.firebaseio.com/',
+            'projectId': 'denuncias-48660'  # <--- ESTA É A LINHA QUE CORRIGE O ERRO
         })
 except Exception as e:
     st.error(f"Erro ao inicializar o Firebase: {e}. Verifique as suas credenciais.")
