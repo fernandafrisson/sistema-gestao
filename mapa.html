@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de Quarteiroes — Vigilancia Epidemiologica</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: #0F2940;
+            color: #2C3E50;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #0F2940 0%, #1B4F72 100%);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+            position: relative;
+            z-index: 1000;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header-logo {
+            font-size: 1.8rem;
+        }
+        .header-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: -0.3px;
+        }
+        .header-subtitle {
+            font-size: 0.78rem;
+            color: #AED6F1;
+            margin-top: 1px;
+        }
+        .header-right {
+            display: flex;
+            gap: 8px;
+        }
+        .legend-btn {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.25);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.82rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .legend-btn:hover {
+            background: rgba(255,255,255,0.22);
+            border-color: rgba(255,255,255,0.45);
+        }
+        .legend-btn.active {
+            background: #2E86C1;
+            border-color: #2E86C1;
+        }
+
+        /* Mapa */
+        #map {
+            width: 100%;
+            height: calc(100vh - 64px);
+        }
+
+        /* Painel de legenda */
+        .legend-panel {
+            display: none;
+            position: absolute;
+            top: 72px;
+            right: 16px;
+            z-index: 999;
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            max-width: 280px;
+            border: 1px solid #E5E8EB;
+        }
+        .legend-panel.show { display: block; }
+        .legend-panel h3 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #1B4F72;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #D4E6F1;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 0;
+        }
+        .legend-color {
+            width: 20px;
+            height: 14px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+        .legend-label {
+            font-size: 0.82rem;
+            color: #2C3E50;
+            font-weight: 500;
+        }
+        .legend-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .legend-toggle:hover { opacity: 0.7; }
+        .legend-toggle input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #1B4F72;
+        }
+
+        /* Loading */
+        .loading-overlay {
+            position: absolute;
+            top: 64px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 41, 64, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 998;
+            transition: opacity 0.4s;
+        }
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(255,255,255,0.2);
+            border-top: 4px solid #2E86C1;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text {
+            color: #AED6F1;
+            margin-top: 14px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        /* Popup customizado */
+        .leaflet-popup-content-wrapper {
+            border-radius: 10px !important;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15) !important;
+        }
+        .leaflet-popup-content {
+            font-family: 'DM Sans', sans-serif !important;
+            font-size: 0.85rem !important;
+            color: #2C3E50 !important;
+        }
+
+        /* Mobile */
+        @media (max-width: 640px) {
+            .header { padding: 12px 16px; }
+            .header-title { font-size: 0.95rem; }
+            .header-subtitle { display: none; }
+            .legend-panel { max-width: 240px; right: 8px; top: 60px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="header-left">
+            <span class="header-logo">🗺️</span>
+            <div>
+                <div class="header-title">Mapa de Quarteiroes</div>
+                <div class="header-subtitle">Vigilancia Epidemiologica — Guaratingueta/SP</div>
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="legend-btn" id="btnLegenda" onclick="toggleLegenda()">📋 Legenda</button>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="loading-overlay" id="loading">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Carregando mapa...</div>
+    </div>
+
+    <div class="legend-panel" id="legendPanel">
+        <h3>Camadas do Mapa</h3>
+        <label class="legend-toggle">
+            <input type="checkbox" id="toggleRuas" checked onchange="toggleCamada('ruas')">
+            <span class="legend-color" style="background:#2E86C1;"></span>
+            <span class="legend-label">Ruas / Poligonos</span>
+        </label>
+        <label class="legend-toggle">
+            <input type="checkbox" id="toggleQuarteiroes" checked onchange="toggleCamada('quarteiroes')">
+            <span class="legend-color" style="background:#E74C3C;"></span>
+            <span class="legend-label">Quarteiroes (Pontos)</span>
+        </label>
+        <div style="margin-top:12px; padding-top:10px; border-top:1px solid #E5E8EB;">
+            <div class="legend-item">
+                <span class="legend-color" style="background:#2E86C1; opacity:0.3; border:2px solid #2E86C1;"></span>
+                <span class="legend-label">Area dos poligonos</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background:#E74C3C; border-radius:50%; width:14px; height:14px;"></span>
+                <span class="legend-label">Ponto de quarteirao</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Omnivore para carregar KML -->
+    <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
+
+    <script>
+        // ==============================
+        // CONFIGURACAO - ALTERE AS URLs DOS SEUS ARQUIVOS KML AQUI
+        // ==============================
+        const KML_RUAS = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/ruas.kml';
+        const KML_QUARTEIROES = 'https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/Quadras%20de%20Guar%C3%A1.kml';
+        // ==============================
+
+        // Coordenadas centrais de Guaratingueta
+        const map = L.map('map', {
+            zoomControl: true,
+            attributionControl: true
+        }).setView([-22.8136, -45.1917], 14);
+
+        // Camada base - OpenStreetMap
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        });
+
+        // Camada satelite
+        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: '© Esri'
+        });
+
+        osm.addTo(map);
+
+        // Controle de camadas base
+        L.control.layers({
+            'Mapa': osm,
+            'Satelite': satellite
+        }, null, { position: 'topright' }).addTo(map);
+
+        // Camadas KML
+        let camadaRuas = null;
+        let camadaQuarteiroes = null;
+        let loadedCount = 0;
+
+        function onLayerLoaded() {
+            loadedCount++;
+            if (loadedCount >= 2) {
+                document.getElementById('loading').classList.add('hidden');
+                // Ajustar zoom para caber tudo
+                if (camadaRuas) {
+                    try { map.fitBounds(camadaRuas.getBounds().pad(0.1)); } catch(e) {}
+                }
+            }
+        }
+
+        function onLayerError(e) {
+            console.warn('Erro ao carregar camada KML:', e);
+            loadedCount++;
+            if (loadedCount >= 2) {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+
+        // Carregar KML de Ruas/Poligonos
+        camadaRuas = omnivore.kml(KML_RUAS)
+            .on('ready', function() {
+                this.eachLayer(function(layer) {
+                    layer.setStyle({
+                        color: '#2E86C1',
+                        weight: 2,
+                        opacity: 0.8,
+                        fillColor: '#2E86C1',
+                        fillOpacity: 0.15
+                    });
+                    if (layer.feature && layer.feature.properties) {
+                        const props = layer.feature.properties;
+                        const name = props.name || props.Name || props.NAME || '';
+                        const desc = props.description || props.Description || '';
+                        if (name || desc) {
+                            layer.bindPopup(
+                                '<div style="font-family:DM Sans,sans-serif;">' +
+                                (name ? '<strong style="color:#1B4F72;">' + name + '</strong>' : '') +
+                                (desc ? '<br><span style="color:#566573;font-size:0.8rem;">' + desc + '</span>' : '') +
+                                '</div>'
+                            );
+                        }
+                    }
+                });
+                onLayerLoaded();
+            })
+            .on('error', onLayerError)
+            .addTo(map);
+
+        // Carregar KML de Quarteiroes (pontos)
+        camadaQuarteiroes = omnivore.kml(KML_QUARTEIROES)
+            .on('ready', function() {
+                this.eachLayer(function(layer) {
+                    if (layer.getLatLng) {
+                        const latlng = layer.getLatLng();
+                        const props = layer.feature ? layer.feature.properties : {};
+                        const name = props.name || props.Name || props.NAME || '';
+
+                        // Substituir por marcador circular
+                        const marker = L.circleMarker(latlng, {
+                            radius: 7,
+                            fillColor: '#E74C3C',
+                            color: '#922B21',
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 0.85
+                        });
+
+                        if (name) {
+                            marker.bindTooltip(name, {
+                                permanent: true,
+                                direction: 'top',
+                                offset: [0, -10],
+                                className: 'quarteirao-label'
+                            });
+                            marker.bindPopup(
+                                '<div style="font-family:DM Sans,sans-serif;">' +
+                                '<strong style="color:#922B21;">Quarteirao: ' + name + '</strong>' +
+                                '</div>'
+                            );
+                        }
+
+                        marker.addTo(map);
+                        // Guardar referencia para toggle
+                        if (!camadaQuarteiroes._customMarkers) camadaQuarteiroes._customMarkers = [];
+                        camadaQuarteiroes._customMarkers.push(marker);
+                    }
+                });
+                onLayerLoaded();
+            })
+            .on('error', onLayerError)
+            .addTo(map);
+
+        // Toggle de legenda
+        function toggleLegenda() {
+            const panel = document.getElementById('legendPanel');
+            const btn = document.getElementById('btnLegenda');
+            panel.classList.toggle('show');
+            btn.classList.toggle('active');
+        }
+
+        // Toggle de camadas
+        function toggleCamada(tipo) {
+            if (tipo === 'ruas' && camadaRuas) {
+                if (map.hasLayer(camadaRuas)) {
+                    map.removeLayer(camadaRuas);
+                } else {
+                    map.addLayer(camadaRuas);
+                }
+            }
+            if (tipo === 'quarteiroes') {
+                if (camadaQuarteiroes && camadaQuarteiroes._customMarkers) {
+                    camadaQuarteiroes._customMarkers.forEach(function(m) {
+                        if (map.hasLayer(m)) {
+                            map.removeLayer(m);
+                        } else {
+                            map.addLayer(m);
+                        }
+                    });
+                }
+                if (camadaQuarteiroes) {
+                    if (map.hasLayer(camadaQuarteiroes)) {
+                        map.removeLayer(camadaQuarteiroes);
+                    } else {
+                        map.addLayer(camadaQuarteiroes);
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Label dos quarteiroes */
+        .quarteirao-label {
+            background: rgba(255,255,255,0.92) !important;
+            border: 1px solid #922B21 !important;
+            border-radius: 4px !important;
+            padding: 2px 6px !important;
+            font-family: 'DM Sans', sans-serif !important;
+            font-size: 0.72rem !important;
+            font-weight: 600 !important;
+            color: #922B21 !important;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15) !important;
+        }
+    </style>
+
+</body>
+</html>
