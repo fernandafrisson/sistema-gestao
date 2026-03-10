@@ -57,7 +57,7 @@
             border: none !important;
         }
 
-        /* Label dos quarteirões */
+        /* O Segredo do Rótulo sem Ponto (Alfinete) */
         .quarteirao-label {
             background: rgba(255,255,255,0.95) !important;
             border: 2px solid #FF6B8B !important;
@@ -70,6 +70,11 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.15) !important;
             text-align: center;
             white-space: nowrap;
+            /* Centraliza a caixinha exatamente em cima da coordenada */
+            width: fit-content !important;
+            height: fit-content !important;
+            margin-left: -15px !important; 
+            margin-top: -10px !important;
         }
     </style>
 </head>
@@ -87,98 +92,97 @@
     <script src="https://api.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.3.1/leaflet-omnivore.min.js"></script>
 
     <script>
-        // 1. INICIALIZAÇÃO DO MAPA COM CANVAS (Melhora a performance em 80%)
+        // 1. INICIALIZAÇÃO DO MAPA COM CANVAS (Evita o travamento do navegador)
         var map = L.map('map', {
-            preferCanvas: true, // Força renderização no Canvas
+            preferCanvas: true,
             zoomControl: true
-        }).setView([-22.8136, -45.1917], 13); // Coordenadas de Guaratinguetá
+        }).setView([-22.8136, -45.1917], 14); // Coordenadas Iniciais
 
-        // 2. CAMADA BASE DO MAPA (OpenStreetMap)
+        // 2. MAPA BASE
         var basemap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // 3. VARIÁVEIS PARA ARMAZENAR CAMADAS
+        // 3. GRUPOS PARA GUARDAR AS CAMADAS
         var camadaRuas = L.layerGroup();
         var camadaQuarteiroesPoligonos = L.layerGroup();
-        var rotulosQuarteiroes = L.layerGroup(); // Grupo separado apenas para os textos
+        var rotulosQuarteiroes = L.layerGroup(); // Grupo isolado para os textos
 
-        // 4. CARREGANDO RUAS (Linhas)
+        // 4. CARREGAR RUAS
         omnivore.kml('Ruas.kml').on('ready', function() {
             this.eachLayer(function(layer) {
-                layer.setStyle({
-                    color: '#8C84A4', 
-                    weight: 2,
-                    opacity: 0.6
-                });
+                layer.setStyle({ color: '#8C84A4', weight: 2, opacity: 0.6 });
                 camadaRuas.addLayer(layer);
             });
-            // Adiciona as ruas ao mapa inicialmente
             map.addLayer(camadaRuas);
         });
 
-        // 5. CARREGANDO QUARTEIRÕES (Polígonos e Textos)
-        omnivore.kml('Quadras de Guará.kml').on('ready', function() {
-            this.eachLayer(function(layer) {
-                
-                // Extrai o nome/número do quarteirão
-                var nomeQuarteirao = layer.feature.properties.name;
-
-                // Estiliza o polígono (se existir)
-                if (layer.setStyle) {
-                    layer.setStyle({
-                        color: '#5B4897',
-                        fillColor: '#765EBC',
-                        fillOpacity: 0.2,
-                        weight: 1.5
-                    });
-                    camadaQuarteiroesPoligonos.addLayer(layer);
-                }
-
-                // Cria o Rótulo de texto no centro da feição
-                if (nomeQuarteirao) {
-                    var centro = layer.getBounds ? layer.getBounds().getCenter() : layer.getLatLng();
-                    var rotulo = L.marker(centro, {
+        // 5. A MÁGICA: REGRA CUSTOMIZADA PARA LER OS QUARTEIRÕES
+        var estiloKml = L.geoJson(null, {
+            // pointToLayer substitui o Ponto original (alfinete azul) pelo nosso rótulo HTML!
+            pointToLayer: function(feature, latlng) {
+                if (feature.properties && feature.properties.name) {
+                    return L.marker(latlng, {
                         icon: L.divIcon({
                             className: 'quarteirao-label',
-                            html: nomeQuarteirao,
-                            iconSize: null
+                            html: feature.properties.name,
+                            iconSize: null // O tamanho fica automático de acordo com o texto
                         }),
-                        interactive: false // Essencial para performance: o mouse não precisa ler o texto
+                        interactive: false // Essencial: tira eventos de clique do texto, deixando o mapa mais leve
                     });
-                    rotulosQuarteiroes.addLayer(rotulo);
+                }
+                return null;
+            },
+            // Estilo para caso o KML possua também áreas desenhadas (polígonos)
+            style: function(feature) {
+                return {
+                    color: '#5B4897',
+                    fillColor: '#765EBC',
+                    fillOpacity: 0.2,
+                    weight: 1.5
+                };
+            }
+        });
+
+        // 6. CARREGA OS QUARTEIRÕES USANDO A REGRA CRIADA ACIMA
+        omnivore.kml('Quadras de Guará.kml', null, estiloKml).on('ready', function() {
+            this.eachLayer(function(layer) {
+                // Verifica se é o texto (rótulo) ou se é um polígono
+                if (layer instanceof L.Marker) {
+                    rotulosQuarteiroes.addLayer(layer);
+                } else {
+                    camadaQuarteiroesPoligonos.addLayer(layer);
                 }
             });
 
-            // Adiciona os polígonos ao mapa
+            // Adiciona as áreas ao mapa
             map.addLayer(camadaQuarteiroesPoligonos);
             
-            // Só adiciona os textos se o mapa já começar com zoom próximo
+            // Só exibe os textos de início se o zoom já estiver perto (Zoom >= 16)
             if (map.getZoom() >= 16) {
                 map.addLayer(rotulosQuarteiroes);
             }
         });
 
-        // 6. CONTROLE DE CAMADAS (Canto Superior Direito)
+        // 7. CAIXINHA DE FILTROS NO CANTO DIREITO
         var overlayMaps = {
-            "Quadras (Área)": camadaQuarteiroesPoligonos,
-            "Ruas (Linhas)": camadaRuas
+            "Quadras": camadaQuarteiroesPoligonos,
+            "Ruas": camadaRuas
         };
         L.control.layers(null, overlayMaps, { collapsed: false }).addTo(map);
 
-        // 7. LÓGICA DE PERFORMANCE (MOSTRAR/OCULTAR TEXTOS CONFORME O ZOOM)
-        // Isso evita o travamento ao afastar o mapa!
+        // 8. CONTROLE ANTI-TRAVAMENTO (SÓ MOSTRA NÚMEROS QUANDO APROXIMAR A TELA)
         map.on('zoomend', function() {
             var zoomAtual = map.getZoom();
             
+            // Se chegou perto (16 ou mais), adiciona os rótulos
             if (zoomAtual >= 16) {
-                // Adiciona textos se estiver próximo (zoom >= 16)
                 if (!map.hasLayer(rotulosQuarteiroes)) {
                     map.addLayer(rotulosQuarteiroes);
                 }
             } else {
-                // Remove textos se estiver longe (zoom < 16)
+                // Se afastou (menos de 16), remove os rótulos para não poluir nem travar
                 if (map.hasLayer(rotulosQuarteiroes)) {
                     map.removeLayer(rotulosQuarteiroes);
                 }
