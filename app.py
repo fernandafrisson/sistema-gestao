@@ -1839,7 +1839,7 @@ def modulo_boletim():
         st.markdown("""
             <div class="mod-header">
                 <h2>Pontos Estrategicos e Imoveis Especiais</h2>
-                <p>P.E = Ponto de Encontro (quinzenal) &nbsp;&middot;&nbsp; I.E = Imovel Especial (trimestral)</p>
+                <p>P.E = Ponto de Encontro (quinzenal)  ·  I.E = Imovel Especial (trimestral)</p>
             </div>
         """, unsafe_allow_html=True)
 
@@ -2169,7 +2169,7 @@ def modulo_boletim():
                     <div class="sys-card">
                         <div class="sys-card-title">🟢 Controle de P.E — Quinzenal</div>
                         <div style="font-size:0.9rem; color:#566573; margin-bottom:16px;">
-                            Periodo atual: <strong>{quinzena_label}</strong> &nbsp;·&nbsp;
+                            Periodo atual: <strong>{quinzena_label}</strong>  · 
                             Dias restantes: <strong>{(fim_quinzena - hoje).days}</strong>
                         </div>
                     </div>
@@ -2268,7 +2268,7 @@ def modulo_boletim():
                     <div class="sys-card">
                         <div class="sys-card-title">🔵 Controle de I.E — Trimestral</div>
                         <div style="font-size:0.9rem; color:#566573; margin-bottom:16px;">
-                            Periodo atual: <strong>{trimestre_label}</strong> &nbsp;·&nbsp;
+                            Periodo atual: <strong>{trimestre_label}</strong>  · 
                             Dias restantes: <strong>{(fim_trimestre - hoje).days}</strong>
                         </div>
                     </div>
@@ -2951,14 +2951,18 @@ def modulo_boletim():
 
         if uploaded_file is not None:
             try:
-                df_adl = pd.read_csv(uploaded_file, sep=';')
+                try:
+                    content = uploaded_file.getvalue().decode("utf-8").replace('"', '')
+                except UnicodeDecodeError:
+                    content = uploaded_file.getvalue().decode("latin-1").replace('"', '')
+                
+                df_adl = pd.read_csv(io.StringIO(content), sep=';')
                 
                 colunas_esperadas = ['Area', 'Censitario', 'Quarteirao', 'Imoveis', 'Inicio', 'Amostra']
                 colunas_presentes = df_adl.columns.tolist()
                 
-                if len(colunas_presentes) == 1 or not all(c in colunas_presentes for c in ['Quarteirao']):
-                    uploaded_file.seek(0)
-                    df_adl = pd.read_csv(uploaded_file, sep=',')
+                if 'Quarteirao' not in colunas_presentes:
+                    df_adl = pd.read_csv(io.StringIO(content), sep=',')
 
                 st.write("Pré-visualização dos dados carregados:")
                 st.dataframe(df_adl.head(), use_container_width=True)
@@ -2967,7 +2971,7 @@ def modulo_boletim():
                     with st.spinner("Cruzando dados e gerando os mapas para impressão..."):
                         if 'Quarteirao' in df_adl.columns and not df_geo_quarteiroes.empty:
                             df_adl['Quarteirao'] = df_adl['Quarteirao'].astype(str).str.strip()
-                            df_geo_quarteiroes['quadra_str'] = df_geo_quarteiroes['quadra'].astype(str).str.strip()
+                            df_geo_quarteiroes['quadra_str'] = df_geo_quarteiroes['quadra'].astype(str).apply(lambda x: x.replace('.0', '')).str.strip()
                             
                             df_merged = pd.merge(df_adl, df_geo_quarteiroes, left_on='Quarteirao', right_on='quadra_str', how='left')
                             
@@ -3023,7 +3027,8 @@ def modulo_boletim():
                                 if pd.isna(lat) or pd.isna(lon):
                                     map_iframe = f"<div class='error-box'>Erro: Coordenadas não encontradas para o Quarteirão {quart_val} no KML do GitHub.</div>"
                                 else:
-                                    map_iframe = f'<iframe class="map-container" src="https://maps.google.com/maps?q={lat},{lon}&hl=pt-BR&z=18&output=embed" frameborder="0" scrolling="no" marginheight="0" marginwidth="0"></iframe>'
+                                    # Link corrigido para evitar o erro branco no iframe:
+                                    map_iframe = f'<iframe class="map-container" src="https://maps.google.com/maps?q={lat},{lon}&t=k&z=18&output=embed" frameborder="0" scrolling="no" marginheight="0" marginwidth="0"></iframe>'
 
                                 html_content += f"""
                                 <div class="card">
@@ -3623,7 +3628,7 @@ def login_screen():
             st.rerun()
             
         # Mostra o iframe ocupando quase a tela toda (850px de altura)
-        components.iframe("https://fernandafrisson.github.io/sistema-gestao/mapa.html?v=5", height=850, scrolling=True)
+        components.iframe("https://fernandafrisson.github.io/sistema-gestao/mapa.html?v=6", height=850, scrolling=True)
         
     else:
         # Mostra a tela de login normal
@@ -3795,3 +3800,79 @@ def main_app():
 
         with col_form:
             df_funcionarios = carregar_dados_firebase('funcionarios')
+            if not df_funcionarios.empty:
+                lista_nomes_curtos = sorted([formatar_nome(nome) for nome in df_funcionarios['nome']])
+            else:
+                lista_nomes_curtos = []
+
+            if st.session_state.evento_para_editar_id:
+                st.subheader("✏️ Editando Evento")
+                df_avisos_all = carregar_dados_firebase('avisos')
+                dados_evento = df_avisos_all.loc[st.session_state.evento_para_editar_id]
+
+                with st.form("form_avisos_edit"):
+                    titulo_edit = st.text_input("Título do Evento", value=dados_evento.get('titulo', ''))
+                    
+                    tipos_de_evento = ["Aviso", "Compromisso", "Reunião", "Curso", "Educativa"]
+                    tipo_idx = tipos_de_evento.index(dados_evento.get('tipo_aviso')) if dados_evento.get('tipo_aviso') in tipos_de_evento else 0
+                    tipo_edit = st.selectbox("Tipo", tipos_de_evento, index=tipo_idx, key='tipo_evento_edit')
+
+                    data_val = pd.to_datetime(dados_evento.get('data')).date() if pd.notna(dados_evento.get('data')) else date.today()
+                    data_edit = st.date_input("Data", value=data_val)
+
+                    participantes_edit = []
+                    if tipo_edit in ["Reunião", "Curso", "Educativa"]:
+                        participantes_edit = st.multiselect("Participantes", options=lista_nomes_curtos, default=dados_evento.get('participantes', []))
+                    
+                    descricao_edit = st.text_area("Descrição (Opcional)", value=dados_evento.get('descricao', ''))
+
+                    col_save, col_cancel = st.columns(2)
+                    with col_save:
+                        if st.form_submit_button("Salvar Alterações", use_container_width=True):
+                            dados_atualizados = {
+                                'titulo': titulo_edit,
+                                'data': data_edit.strftime("%Y-%m-%d"),
+                                'tipo_aviso': tipo_edit,
+                                'descricao': descricao_edit,
+                                'participantes': participantes_edit
+                            }
+                            db.reference(f'avisos/{st.session_state.evento_para_editar_id}').update(dados_atualizados)
+                            
+                            log_atividade(st.session_state.get('username'), "Editou aviso no mural", f"Título: {titulo_edit}")
+
+                            st.success("Evento atualizado com sucesso!")
+                            st.session_state.evento_para_editar_id = None
+                            st.cache_data.clear()
+                            st.rerun()
+
+                    with col_cancel:
+                        if st.form_submit_button("Cancelar", type="secondary", use_container_width=True):
+                            st.session_state.evento_para_editar_id = None
+                            st.rerun()
+                st.divider()
+
+            st.subheader("📝 Adicionar no Mural")
+            
+            tipos_de_evento_add = ["Aviso", "Compromisso", "Reunião", "Curso", "Educativa"]
+            aviso_tipo_add = st.selectbox("Tipo de Evento", tipos_de_evento_add, key='tipo_evento_selecionado')
+            
+            with st.form("form_avisos_add", clear_on_submit=True):
+                aviso_titulo = st.text_input("Título do Evento")
+                aviso_data = st.date_input("Data")
+                
+                participantes = []
+                if st.session_state.tipo_evento_selecionado in ["Reunião", "Curso", "Educativa"]:
+                    participantes = st.multiselect("Participantes", options=lista_nomes_curtos)
+
+                aviso_descricao = st.text_area("Descrição (Opcional)")
+                
+                submitted = st.form_submit_button("Salvar no Mural")
+                if submitted:
+                    if aviso_titulo and aviso_data:
+                        try:
+                            aviso_id = str(int(time.time() * 1000))
+                            ref = db.reference(f'avisos/{aviso_id}')
+                            ref.set({
+                                'titulo': aviso_titulo,
+                                'data': aviso_data.strftime("%Y-%m-%d"),
+                                'tipo_aviso': st.session
