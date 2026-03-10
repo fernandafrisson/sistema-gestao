@@ -8,21 +8,21 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'Nunito', sans-serif;
+            font-family: 'DM Sans', sans-serif;
             background: #000; /* Fundo escuro atrás do satélite */
-            color: #3D2D68;
+            color: #2C3E50;
             overflow: hidden;
         }
 
-        /* Header Modernizado */
+        /* Header com a cor Azul Original do seu sistema */
         .header {
-            background: linear-gradient(135deg, #5B4897 0%, #46357A 100%);
-            padding: 12px 24px;
+            background: linear-gradient(135deg, #1B4F72 0%, #2E86C1 100%);
+            padding: 14px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -32,7 +32,7 @@
         }
         .header-title {
             color: white;
-            font-weight: 800;
+            font-weight: 700;
             font-size: 1.2rem;
             display: flex;
             align-items: center;
@@ -48,12 +48,12 @@
 
         /* Controle de Filtros */
         .leaflet-control-layers {
-            border-radius: 12px !important;
+            border-radius: 10px !important;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3) !important;
             padding: 6px !important;
-            font-family: 'Nunito', sans-serif !important;
-            font-weight: 700 !important;
-            color: #3D2D68 !important;
+            font-family: 'DM Sans', sans-serif !important;
+            font-weight: 600 !important;
+            color: #1B4F72 !important;
             border: none !important;
         }
 
@@ -62,9 +62,9 @@
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
-            font-family: 'Nunito', sans-serif !important;
+            font-family: 'DM Sans', sans-serif !important;
             font-size: 1.1rem !important; 
-            font-weight: 900 !important;
+            font-weight: 700 !important;
             color: #FFFFFF !important; /* Texto branco */
             /* Sombra escura forte para dar contraste contra o chão/telhados */
             text-shadow: 
@@ -98,17 +98,17 @@
             zoomControl: true
         }).setView([-22.8136, -45.1917], 13);
 
-        // 2. MAPA BASE SATÉLITE (Esri World Imagery)
-        var basemap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 19,
-            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        // 2. MAPA BASE HÍBRIDO (Google Satélite + Nomes das Ruas)
+        var basemap = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+            maxZoom: 20,
+            attribution: '© Google Maps'
         }).addTo(map);
 
         // 3. GRUPOS DE CAMADAS
         var camadaRuas = L.layerGroup();
         var camadaBairros = L.featureGroup();
 
-        // 4. CARREGAR RUAS
+        // 4. CARREGAR RUAS DO SEU KML
         omnivore.kml('Ruas.kml').on('ready', function() {
             this.eachLayer(function(layer) {
                 // Linhas amarelas semi-transparentes para contrastar no satélite
@@ -131,7 +131,7 @@
             'Jd Esperança.kml'
         ];
 
-        // Paleta de cores para colorir os bairros de forma alternada
+        // Paleta de cores vibrantes para colorir os bairros de forma alternada
         var paletaCores = [
             '#FF3366', // Rosa
             '#33CCFF', // Azul claro
@@ -160,7 +160,7 @@
                         nomeBairro = arquivo.replace('.kml', '');
                     }
 
-                    // Estilo de cores
+                    // Estilo do Polígono
                     if (layer.setStyle) {
                         layer.setStyle({
                             color: '#FFFFFF',      // Borda branca para separar bem
@@ -198,7 +198,7 @@
 
         map.addLayer(camadaBairros);
 
-        // 7. CAIXINHA DE FILTROS NO CANTO DIREITO (COM O NOVO NOME)
+        // 7. CAIXINHA DE FILTROS NO CANTO DIREITO
         var overlayMaps = {
             "Área de abrangencia psf": camadaBairros,
             "Ruas (Linhas)": camadaRuas
