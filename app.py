@@ -2374,7 +2374,7 @@ def modulo_boletim():
                 with col_filtro1:
                     filtro_tipo_pe = st.selectbox("Filtrar por tipo", ["Todos", "P.E", "I.E"], key="filtro_tipo_pe_ie")
                 with col_filtro2:
-                    busca_nome = text_input("🔍 Buscar por nome fantasia", key="busca_nome_pe_ie")
+                    busca_nome = st.text_input("🔍 Buscar por nome fantasia", key="busca_nome_pe_ie")
 
                 df_pe_ie_display = df_pe_ie.copy()
 
@@ -2769,7 +2769,7 @@ def modulo_boletim():
     with tab3:
         st.subheader("Mapa de Atividades por Dia")
         if df_boletins.empty or df_geo_quarteiroes.empty:
-            st.warning("Dados de boletins ou geolocalização de quarteirões não estão disponíveis.")
+            st.warning("Aviso: Dados de geolocalização dos quarteirões estão ausentes (arquivos no GitHub).")
         else:
             data_mapa = st.date_input("Selecione a data para visualizar no mapa", date.today(), key="mapa_data_plotly")
             boletim_id_mapa = data_mapa.strftime("%Y-%m-%d")
