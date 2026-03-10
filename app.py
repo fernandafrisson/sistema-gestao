@@ -23,315 +23,347 @@ from reportlab.lib.units import mm, cm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
-import streamlit.components.v1 as components  # Adicionado para embutir o mapa
+import streamlit.components.v1 as components  # Adicionado para o mapa
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide", page_title="Sistema de Gestao - CCZ", page_icon="🏥")
 
-# --- CSS GLOBAL DO SISTEMA (INSPIRADO NA NOVA UI) ---
+# --- CSS GLOBAL DO SISTEMA (VISUAL ORIGINAL - AZUL) ---
 st.markdown("""
 <style>
-    /* === FONTE MODERNA === */
-    @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap');
+    /* === RESET & BASE === */
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
 
-    html, body, [class*="css"], .stApp {
-        font-family: 'Nunito', sans-serif;
-    }
-    
-    /* === COR DE FUNDO GLOBAL === */
-    .stApp {
-        background-color: #F0F2F8;
+    html, body, [class*="css"] {
+        font-family: 'DM Sans', sans-serif;
     }
     
     /* === SIDEBAR === */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #5B4897 0%, #46357A 100%);
-        box-shadow: 4px 0 20px rgba(0,0,0,0.1);
+        background: linear-gradient(180deg, #0F2940 0%, #1B4F72 100%);
     }
     [data-testid="stSidebar"] * {
-        color: #E8E4F4 !important;
+        color: #D6EAF8 !important;
     }
     [data-testid="stSidebar"] .stButton > button {
         background: rgba(255,255,255,0.1) !important;
-        border: none !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
         color: white !important;
-        border-radius: 14px !important;
-        transition: all 0.3s ease !important;
-        box-shadow: none !important;
+        border-radius: 10px !important;
+        transition: all 0.2s ease !important;
     }
     [data-testid="stSidebar"] .stButton > button:hover {
-        background: rgba(255,255,255,0.25) !important;
-        transform: translateY(-2px);
+        background: rgba(255,255,255,0.2) !important;
+        border-color: rgba(255,255,255,0.4) !important;
     }
 
     /* === TABS GLOBAIS === */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
-        background: #FFFFFF;
-        padding: 8px;
-        border-radius: 20px;
-        box-shadow: 0 4px 15px rgba(91, 72, 151, 0.05);
+        background: #F0F3F8;
+        padding: 6px;
+        border-radius: 14px;
     }
     .stTabs [data-baseweb="tab"] {
-        border-radius: 14px;
-        padding: 10px 24px;
+        border-radius: 10px;
+        padding: 10px 20px;
         background: transparent;
-        font-weight: 600;
-        font-size: 0.95rem;
-        color: #8C84A4;
+        font-weight: 500;
+        font-size: 0.9rem;
+        color: #566573;
     }
     .stTabs [aria-selected="true"] {
-        background: #5B4897 !important;
+        background: #1B4F72 !important;
         color: white !important;
-        font-weight: 700;
-        box-shadow: 0 4px 15px rgba(91, 72, 151, 0.3);
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(27,79,114,0.3);
     }
 
     /* === CARDS === */
     .sys-card {
         background: #ffffff;
-        border: none;
-        border-radius: 24px;
-        padding: 28px 32px;
-        margin-bottom: 24px;
-        box-shadow: 0 10px 30px rgba(91, 72, 151, 0.07);
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        border: 1px solid #E5E8EB;
+        border-radius: 14px;
+        padding: 24px 28px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+        transition: box-shadow 0.2s ease;
     }
     .sys-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 15px 35px rgba(91, 72, 151, 0.12);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
     }
     .sys-card-title {
-        font-size: 1.2rem;
-        font-weight: 800;
-        color: #3D2D68;
-        margin-bottom: 20px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1B4F72;
+        margin-bottom: 16px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #D4E6F1;
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
     }
 
     /* === HEADERS DE MODULO === */
     .mod-header {
-        background: linear-gradient(135deg, #5B4897 0%, #765EBC 100%);
-        border-radius: 24px;
-        padding: 36px 40px;
-        margin-bottom: 32px;
+        background: linear-gradient(135deg, #1B4F72 0%, #2E86C1 100%);
+        border-radius: 16px;
+        padding: 28px 32px;
+        margin-bottom: 28px;
         color: white;
-        box-shadow: 0 12px 25px rgba(91, 72, 151, 0.25);
     }
     .mod-header h2 {
-        margin: 0 0 8px 0;
-        font-size: 1.8rem;
-        font-weight: 800;
+        margin: 0 0 6px 0;
+        font-size: 1.6rem;
+        font-weight: 700;
         color: white !important;
-        letter-spacing: -0.5px;
+        letter-spacing: -0.3px;
     }
     .mod-header p {
         margin: 0;
-        font-size: 1rem;
+        font-size: 0.92rem;
         opacity: 0.85;
-        color: #E8E4F4;
+        color: #D6EAF8;
     }
 
     /* === METRICAS === */
     .metric-row {
         display: flex;
-        gap: 20px;
-        margin-bottom: 28px;
+        gap: 16px;
+        margin-bottom: 24px;
     }
     .metric-box {
         flex: 1;
-        background: #ffffff;
-        border: none;
-        border-radius: 20px;
-        padding: 24px 20px;
+        background: #F8F9FA;
+        border: 1px solid #E5E8EB;
+        border-radius: 12px;
+        padding: 18px 20px;
         text-align: center;
-        box-shadow: 0 8px 25px rgba(91, 72, 151, 0.06);
     }
     .metric-number {
-        font-size: 2.2rem;
-        font-weight: 800;
-        color: #5B4897;
+        font-size: 1.9rem;
+        font-weight: 700;
+        color: #1B4F72;
         line-height: 1;
     }
     .metric-label {
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: #8C84A4;
+        font-size: 0.78rem;
+        color: #85929E;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        margin-top: 8px;
+        margin-top: 4px;
     }
 
     /* === BADGES === */
     .sys-badge {
         display: inline-block;
-        padding: 6px 16px;
+        padding: 4px 14px;
         border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 700;
+        font-size: 0.78rem;
+        font-weight: 600;
         letter-spacing: 0.5px;
         text-transform: uppercase;
     }
-    .badge-green { background: #E8F8F5; color: #27AE60; }
-    .badge-blue { background: #E8E4F4; color: #5B4897; }
-    .badge-orange { background: #FEF5E7; color: #F39C12; }
-    .badge-red { background: #FDEDEC; color: #E74C3C; }
-    .badge-purple { background: #F4ECF7; color: #8E44AD; }
-    .badge-gray { background: #F2F3F4; color: #7F8C8D; }
+    .badge-green { background: #D5F5E3; color: #1E8449; }
+    .badge-blue { background: #D4E6F1; color: #1B4F72; }
+    .badge-orange { background: #FDEBD0; color: #B9770E; }
+    .badge-red { background: #FADBD8; color: #C0392B; }
+    .badge-purple { background: #E8DAEF; color: #6C3483; }
+    .badge-gray { background: #EAECEE; color: #566573; }
 
     /* === INFO GRID === */
     .info-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 16px 24px;
-        margin-top: 16px;
+        gap: 10px 24px;
+        margin-top: 12px;
     }
+    .info-item { padding: 8px 0; }
     .info-label {
-        font-size: 0.8rem;
-        font-weight: 700;
-        color: #8C84A4;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #85929E;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 4px;
+        letter-spacing: 0.6px;
+        margin-bottom: 2px;
     }
     .info-value {
-        font-size: 1rem;
-        color: #3D2D68;
-        font-weight: 600;
+        font-size: 0.95rem;
+        color: #2C3E50;
+        font-weight: 500;
     }
 
     /* === TAGS/CHIPS === */
-    .sys-tag, .sys-chip {
+    .sys-tag {
         display: inline-block;
-        background: #F0F2F8;
-        color: #5B4897;
-        padding: 6px 14px;
-        border-radius: 12px;
+        background: #EBF5FB;
+        color: #2471A3;
+        padding: 5px 12px;
+        border-radius: 8px;
         font-size: 0.85rem;
+        margin: 3px 4px 3px 0;
+        font-weight: 500;
+    }
+    .sys-chip {
+        display: inline-block;
+        background: #EAF2F8;
+        border: 1px solid #AED6F1;
+        color: #1A5276;
+        padding: 5px 14px;
+        border-radius: 20px;
+        font-size: 0.83rem;
         margin: 4px 6px 4px 0;
-        font-weight: 600;
-        border: none;
+        font-weight: 500;
     }
 
     /* === DIVIDER === */
     .sys-divider {
-        height: 2px;
-        background: #F0F2F8;
-        margin: 24px 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, #D4E6F1, transparent);
+        margin: 16px 0;
         border: none;
-        border-radius: 2px;
     }
 
     /* === TIMELINE/HIST CARDS === */
     .hist-card {
-        background: #ffffff;
-        border: none;
-        border-left: 6px solid #5B4897;
-        border-radius: 16px;
-        padding: 24px;
-        margin-bottom: 16px;
-        box-shadow: 0 6px 20px rgba(91, 72, 151, 0.05);
+        background: #FAFBFC;
+        border: 1px solid #E5E8EB;
+        border-left: 4px solid #2E86C1;
+        border-radius: 10px;
+        padding: 20px 24px;
+        margin-bottom: 14px;
     }
 
-    /* === BOTOES GLOBAIS === */
-    .stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #FF6B8B 0%, #FF4D79 100%) !important;
-        border: none !important;
-        border-radius: 16px !important;
-        font-weight: 700 !important;
-        color: white !important;
-        padding: 8px 24px !important;
-        box-shadow: 0 8px 20px rgba(255, 107, 139, 0.3) !important;
-        transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+    /* === EMPTY STATE === */
+    .empty-state {
+        text-align: center;
+        padding: 48px 24px;
+        color: #85929E;
     }
-    .stButton > button[kind="primary"]:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 12px 25px rgba(255, 107, 139, 0.4) !important;
+    .empty-state .icon {
+        font-size: 3rem;
+        margin-bottom: 12px;
+        opacity: 0.5;
     }
-    
-    .stButton > button[kind="secondary"] {
-        background: #FFFFFF !important;
-        border: 2px solid #E8E4F4 !important;
-        color: #5B4897 !important;
-        border-radius: 16px !important;
-        font-weight: 700 !important;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.02) !important;
-    }
-    .stButton > button[kind="secondary"]:hover {
-        border-color: #5B4897 !important;
-        transform: translateY(-2px);
-    }
-
-    /* === INPUTS E FORMS === */
-    .stTextInput > div > div > input, 
-    .stSelectbox > div > div > div, 
-    .stTextArea > div > div > textarea, 
-    .stDateInput > div > div > input, 
-    .stNumberInput > div > div > input {
-        border-radius: 12px !important;
-        border: 2px solid #E8E4F4 !important;
-        background-color: #FAFAFC !important;
-        padding: 10px 14px !important;
-        font-family: 'Nunito', sans-serif !important;
-        color: #3D2D68 !important;
-        font-weight: 500 !important;
-    }
-    
-    .stTextInput > div > div > input:focus, 
-    .stSelectbox > div > div > div:focus-within, 
-    .stTextArea > div > div > textarea:focus {
-        border-color: #5B4897 !important;
-        box-shadow: 0 0 0 2px rgba(91, 72, 151, 0.1) !important;
-    }
-
-    /* === DATAFRAME === */
-    .stDataFrame {
-        border-radius: 16px;
-        overflow: hidden;
-        border: none;
-        box-shadow: 0 8px 25px rgba(91, 72, 151, 0.05);
+    .empty-state p {
+        font-size: 1rem;
+        margin: 0;
     }
 
     /* === LOGIN === */
     .login-container {
         max-width: 420px;
-        margin: 80px auto 40px;
+        margin: 60px auto;
         text-align: center;
     }
-    .login-logo { font-size: 4rem; margin-bottom: 12px; }
-    .login-title {
-        font-size: 2rem;
-        font-weight: 800;
-        color: #3D2D68;
+    .login-logo {
+        font-size: 3.5rem;
         margin-bottom: 8px;
     }
+    .login-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #1B4F72;
+        margin-bottom: 4px;
+    }
     .login-subtitle {
-        font-size: 1.1rem;
-        color: #8C84A4;
+        font-size: 0.95rem;
+        color: #85929E;
         margin-bottom: 32px;
-        font-weight: 500;
     }
 
     /* === PAINEL CARDS DE MODULO === */
     .module-card {
         background: #ffffff;
-        border: none;
-        border-radius: 24px;
-        padding: 32px 24px;
+        border: 1px solid #E5E8EB;
+        border-radius: 16px;
+        padding: 28px 24px;
         text-align: center;
-        transition: all 0.3s ease;
+        transition: all 0.25s ease;
         cursor: pointer;
-        box-shadow: 0 10px 30px rgba(91, 72, 151, 0.06);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
     }
     .module-card:hover {
-        box-shadow: 0 15px 40px rgba(91, 72, 151, 0.15);
-        transform: translateY(-5px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+        border-color: #2E86C1;
     }
-    .module-card .icon { font-size: 2.8rem; margin-bottom: 16px; }
-    .module-card .title { font-size: 1.1rem; font-weight: 800; color: #3D2D68; }
-    .module-card .desc { font-size: 0.9rem; font-weight: 500; color: #8C84A4; margin-top: 6px; }
+    .module-card .icon { font-size: 2.4rem; margin-bottom: 10px; }
+    .module-card .title { font-size: 1rem; font-weight: 600; color: #2C3E50; }
+    .module-card .desc { font-size: 0.82rem; color: #85929E; margin-top: 4px; }
+
+    /* === FICHA FUNCIONARIO === */
+    .ficha-card {
+        background: #ffffff;
+        border: 1px solid #E5E8EB;
+        border-radius: 14px;
+        padding: 24px;
+        text-align: center;
+    }
+    .ficha-avatar {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #1B4F72, #2E86C1);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0 auto 14px;
+    }
+    .ficha-name {
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: #2C3E50;
+        margin-bottom: 4px;
+    }
+    .ficha-role {
+        font-size: 0.88rem;
+        color: #85929E;
+        margin-bottom: 16px;
+    }
+    .ficha-detail {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #F0F3F8;
+        font-size: 0.88rem;
+    }
+    .ficha-detail-label {
+        color: #85929E;
+        font-weight: 500;
+    }
+    .ficha-detail-value {
+        color: #2C3E50;
+        font-weight: 600;
+    }
+
+    /* === NOTES/OBS BOX === */
+    .obs-box {
+        margin-top: 12px;
+        padding: 10px 14px;
+        background: #FEF9E7;
+        border-radius: 8px;
+        font-size: 0.88rem;
+        color: #7D6608;
+    }
+
+    /* === BOTOES GLOBAIS === */
+    .stButton > button[kind="primary"] {
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+    }
+    .stButton > button {
+        border-radius: 10px !important;
+    }
+
+    /* === DATAFRAME === */
+    .stDataFrame {
+        border-radius: 12px;
+        overflow: hidden;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -357,7 +389,6 @@ except Exception as e:
 
 # --- FUNÇÕES DE GERENCIAMENTO DE USUÁRIOS ---
 def carregar_usuarios():
-    """Carrega os usuarios do Firebase. Cria o admin padrao se nao existir."""
     try:
         ref = db.reference('usuarios')
         users_data = ref.get()
@@ -386,6 +417,7 @@ def carregar_usuarios():
         st.error(f"Erro ao carregar usuarios: {e}")
         return {ADMIN_USERNAME: {"senha": ADMIN_DEFAULT_PASSWORD, "role": "admin"}}
 
+
 def validar_login(username, password):
     users = carregar_usuarios()
     if username in users:
@@ -394,8 +426,10 @@ def validar_login(username, password):
         return senha_salva == password
     return False
 
+
 def is_admin():
     return st.session_state.get('username') == ADMIN_USERNAME
+
 
 # --- FUNÇÕES GLOBAIS DE DADOS E UTILITÁRIAS ---
 def formatar_nome(nome_completo):
@@ -3037,7 +3071,7 @@ def modulo_estoque():
                     qtd_color = "#C0392B" if qtd_num <= 5 else "#1E8449" if qtd_num > 20 else "#B9770E"
 
                     if st.session_state.est_editando_id == idx_prod:
-                        st.markdown(f'<div class="sys-card" style="border:2px solid #5B4897;"><div class="sys-card-title">✏️ Editando: {p_nome}</div></div>', unsafe_allow_html=True)
+                        st.markdown(f'<div class="sys-card" style="border:2px solid #1B4F72;"><div class="sys-card-title">✏️ Editando: {p_nome}</div></div>', unsafe_allow_html=True)
                         with st.form(f"edit_prod_{idx_prod}"):
                             tipos_opcoes_edit = [""] + tipos_produto
                             tipo_idx_e = tipos_opcoes_edit.index(p_tipo) if p_tipo in tipos_opcoes_edit else 0
@@ -3085,11 +3119,11 @@ def modulo_estoque():
                                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
                                     <div style="display:flex;align-items:center;gap:10px;">
                                         <span class="sys-badge {badge_cls}">{p_tipo if p_tipo else 'Sem tipo'}</span>
-                                        <span style="font-size:1.1rem;font-weight:600;color:#3D2D68;">{p_nome}</span>
+                                        <span style="font-size:1.1rem;font-weight:600;color:#2C3E50;">{p_nome}</span>
                                     </div>
                                     <div style="display:flex;align-items:center;gap:6px;">
                                         <span style="font-size:1.3rem;font-weight:700;color:{qtd_color};">{qtd_num}</span>
-                                        <span style="font-size:0.78rem;color:#8C84A4;">un.</span>
+                                        <span style="font-size:0.78rem;color:#85929E;">un.</span>
                                     </div>
                                 </div>
                                 <div class="info-grid">{infos_html}</div>
@@ -3251,11 +3285,11 @@ def modulo_estoque():
                         <div class="hist-card">
                             <div style="display:flex;justify-content:space-between;align-items:center;">
                                 <div>
-                                    <span style="font-weight:600;color:#5B4897;">📅 {e_data}</span>
-                                    <span style="color:#8C84A4;font-size:0.82rem;margin-left:8px;">por {e_por}</span>
+                                    <span style="font-weight:600;color:#1B4F72;">📅 {e_data}</span>
+                                    <span style="color:#85929E;font-size:0.82rem;margin-left:8px;">por {e_por}</span>
                                 </div>
                                 <div style="display:flex;align-items:center;gap:6px;">
-                                    <span style="font-size:1.2rem;font-weight:700;color:#5B4897;">{e_qtd}x</span>
+                                    <span style="font-size:1.2rem;font-weight:700;color:#1B4F72;">{e_qtd}x</span>
                                 </div>
                             </div>
                             <div class="sys-divider"></div>
@@ -3422,9 +3456,9 @@ def modulo_contas():
                         <div style="display:flex;justify-content:space-between;align-items:center;">
                             <div style="display:flex;align-items:center;gap:10px;">
                                 <span class="sys-badge {role_badge}">{role_label}</span>
-                                <span style="font-size:1.1rem;font-weight:600;color:#3D2D68;">{username}</span>
+                                <span style="font-size:1.1rem;font-weight:600;color:#2C3E50;">{username}</span>
                             </div>
-                            <span style="font-size:0.82rem;color:#8C84A4;">Criado por: {criado_por} | {data_criacao}</span>
+                            <span style="font-size:0.82rem;color:#85929E;">Criado por: {criado_por} | {data_criacao}</span>
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
@@ -3467,7 +3501,7 @@ def login_screen():
             st.markdown('<div class="sys-card">', unsafe_allow_html=True)
             username = st.text_input("Usuario", key="login_username")
             password = st.text_input("Senha", type="password", key="login_password")
-            submit_button = st.form_submit_button("Entrar", use_container_width=True, type="primary")
+            submit_button = st.form_submit_button("Entrar", use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
             if submit_button:
                 if validar_login(username, password):
@@ -3479,18 +3513,19 @@ def login_screen():
         
         # Botão para abrir o mapa embutido
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🗺️ Abrir Mapa de Quarteirões", use_container_width=True, type="secondary"):
+        if st.button("🗺️ Abrir Mapa de Bairros", use_container_width=True):
             # Alterna o estado de visualização do mapa
             st.session_state.mostrar_mapa_login = not st.session_state.get('mostrar_mapa_login', False)
 
     # Renderiza o mapa dentro do app caso o botão tenha sido clicado
     if st.session_state.get('mostrar_mapa_login', False):
         st.markdown("""
-            <div style="margin-top: 20px; background: white; border-radius: 24px; padding: 10px; box-shadow: 0 10px 30px rgba(91, 72, 151, 0.1);">
+            <div style="margin-top: 20px; background: white; border-radius: 14px; padding: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); border: 1px solid #E5E8EB;">
         """, unsafe_allow_html=True)
         
-        # Iframe carrega a página do GitHub sem sair do sistema
-        components.iframe("https://fernandafrisson.github.io/sistema-gestao/mapa.html", height=600, scrolling=True)
+        # Iframe carrega a página do GitHub sem sair do sistema. 
+        # O ?v=2 ou ?v=3 força a limpeza do cache!
+        components.iframe("https://fernandafrisson.github.io/sistema-gestao/mapa.html?v=3", height=600, scrolling=True)
         
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -3797,7 +3832,7 @@ def main_app():
                         "title": f"{event_type.upper()}: {row['titulo']}",
                         "start": row['data'],
                         "end": (pd.to_datetime(row['data']) + timedelta(days=1)).strftime("%Y-%m-%d"),
-                        "color": event_colors.get(event_type, "#5B4897"),
+                        "color": event_colors.get(event_type, "#6c757d"),
                     })
 
             calendar_options = {
