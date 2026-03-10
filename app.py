@@ -23,7 +23,7 @@ from reportlab.lib.units import mm, cm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
-import streamlit.components.v1 as components  
+import streamlit.components.v1 as components  # Adicionado para o mapa
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide", page_title="Sistema de Gestao - CCZ", page_icon="🏥")
@@ -381,8 +381,7 @@ try:
             cred = credentials.Certificate("denuncias-48660-firebase-adminsdk-fbsvc-9f27fef1c8.json")
 
         firebase_admin.initialize_app(cred, {
-            'databaseURL': 'https://denuncias-48660-default-rtdb.firebaseio.com/',
-            'projectId': 'denuncias-48660'  # <--- ESTA É A LINHA QUE CORRIGE O ERRO
+            'databaseURL': 'https://denuncias-48660-default-rtdb.firebaseio.com/'
         })
 except Exception as e:
     st.error(f"Erro ao inicializar o Firebase: {e}. Verifique as suas credenciais.")
@@ -1691,11 +1690,7 @@ def modulo_boletim():
     if 'num_equipes_pe_ie' not in st.session_state:
         st.session_state.num_equipes_pe_ie = 1
 
-    # Nova aba ADL adicionada
-    tab1, tab_pe_ie, tab2, tab3, tab4, tab_adl = st.tabs([
-        "🗓️ Criar Boletim", "📍 P.E e I.E", "🔍 Visualizar/Editar Boletim", 
-        "🗺️ Mapa de Atividades", "📊 Dashboard", "🔬 ADL"
-    ])
+    tab1, tab_pe_ie, tab2, tab3, tab4 = st.tabs(["🗓️ Criar Boletim", "📍 P.E e I.E", "🔍 Visualizar/Editar Boletim", "🗺️ Mapa de Atividades", "📊 Dashboard"])
 
     with tab1:
         st.header("Novo Boletim de Programação")
@@ -1840,7 +1835,7 @@ def modulo_boletim():
         st.markdown("""
             <div class="mod-header">
                 <h2>Pontos Estrategicos e Imoveis Especiais</h2>
-                <p>P.E = Ponto de Encontro (quinzenal)  ·  I.E = Imovel Especial (trimestral)</p>
+                <p>P.E = Ponto de Encontro (quinzenal) &nbsp;&middot;&nbsp; I.E = Imovel Especial (trimestral)</p>
             </div>
         """, unsafe_allow_html=True)
 
@@ -2170,7 +2165,7 @@ def modulo_boletim():
                     <div class="sys-card">
                         <div class="sys-card-title">🟢 Controle de P.E — Quinzenal</div>
                         <div style="font-size:0.9rem; color:#566573; margin-bottom:16px;">
-                            Periodo atual: <strong>{quinzena_label}</strong>  · 
+                            Periodo atual: <strong>{quinzena_label}</strong> &nbsp;·&nbsp;
                             Dias restantes: <strong>{(fim_quinzena - hoje).days}</strong>
                         </div>
                     </div>
@@ -2269,7 +2264,7 @@ def modulo_boletim():
                     <div class="sys-card">
                         <div class="sys-card-title">🔵 Controle de I.E — Trimestral</div>
                         <div style="font-size:0.9rem; color:#566573; margin-bottom:16px;">
-                            Periodo atual: <strong>{trimestre_label}</strong>  · 
+                            Periodo atual: <strong>{trimestre_label}</strong> &nbsp;·&nbsp;
                             Dias restantes: <strong>{(fim_trimestre - hoje).days}</strong>
                         </div>
                     </div>
@@ -2941,130 +2936,6 @@ def modulo_boletim():
                         else:
                             st.info("Nenhum dado de participação no período.")
 
-    # ==========================================
-    # NOVA ABA: ADL (Avaliação de Densidade Larvária)
-    # ==========================================
-    with tab_adl:
-        st.subheader("🔬 Avaliação de Densidade Larvária (ADL)")
-        st.markdown("Faça o upload do arquivo CSV contendo os dados da ADL para gerar as etiquetas e os mapas para impressão.")
-
-        uploaded_file = st.file_uploader("Upload do CSV da ADL", type=["csv"])
-
-        if uploaded_file is not None:
-            try:
-                try:
-                    content = uploaded_file.getvalue().decode("utf-8").replace('"', '')
-                except UnicodeDecodeError:
-                    content = uploaded_file.getvalue().decode("latin-1").replace('"', '')
-                
-                df_adl = pd.read_csv(io.StringIO(content), sep=';')
-                
-                colunas_esperadas = ['Area', 'Censitario', 'Quarteirao', 'Imoveis', 'Inicio', 'Amostra']
-                colunas_presentes = df_adl.columns.tolist()
-                
-                if 'Quarteirao' not in colunas_presentes:
-                    df_adl = pd.read_csv(io.StringIO(content), sep=',')
-
-                st.write("Pré-visualização dos dados carregados:")
-                st.dataframe(df_adl.head(), use_container_width=True)
-
-                if st.button("📄 Gerar Arquivo de Impressão (Mapas e Etiquetas)", type="primary"):
-                    with st.spinner("Cruzando dados e gerando os mapas para impressão..."):
-                        if 'Quarteirao' in df_adl.columns and not df_geo_quarteiroes.empty:
-                            df_adl['Quarteirao'] = df_adl['Quarteirao'].astype(str).str.strip()
-                            df_geo_quarteiroes['quadra_str'] = df_geo_quarteiroes['quadra'].astype(str).apply(lambda x: x.replace('.0', '')).str.strip()
-                            
-                            df_merged = pd.merge(df_adl, df_geo_quarteiroes, left_on='Quarteirao', right_on='quadra_str', how='left')
-                            
-                            html_content = """
-                            <!DOCTYPE html>
-                            <html lang="pt-BR">
-                            <head>
-                                <meta charset="utf-8">
-                                <title>Mapas para ADL - CCZ</title>
-                                <style>
-                                    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap');
-                                    body { font-family: 'DM Sans', Arial, sans-serif; margin: 0; padding: 20px; background: #F0F3F8; }
-                                    .card { 
-                                        background: #fff; 
-                                        border: 2px solid #1B4F72; 
-                                        border-radius: 12px; 
-                                        padding: 20px; 
-                                        margin: 0 auto 30px auto; 
-                                        max-width: 800px; 
-                                        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-                                        page-break-after: always;
-                                    }
-                                    .header-adl { text-align: center; color: #1B4F72; border-bottom: 2px solid #D4E6F1; padding-bottom: 10px; margin-bottom: 20px; }
-                                    .header-adl h2 { margin: 0; font-size: 1.8rem; }
-                                    .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
-                                    .info-item { background: #F8F9FA; padding: 12px; border-radius: 8px; border: 1px solid #E5E8EB; text-align: center; }
-                                    .info-item b { display: block; font-size: 0.85rem; color: #85929E; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
-                                    .info-item span { font-size: 1.3rem; font-weight: 700; color: #2C3E50; }
-                                    .map-container { width: 100%; height: 550px; border-radius: 8px; overflow: hidden; border: 1px solid #D4E6F1; }
-                                    .error-box { height: 500px; display: flex; align-items: center; justify-content: center; background: #FDEDEC; color: #C0392B; border: 1px solid #F5B7B1; border-radius: 8px; font-weight: bold; }
-                                    
-                                    @media print {
-                                        body { background: #fff; padding: 0; }
-                                        .card { box-shadow: none; margin-bottom: 0; border: 1px solid #000; }
-                                        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                                    }
-                                </style>
-                            </head>
-                            <body>
-                            """
-
-                            for idx, row in df_merged.iterrows():
-                                lat = row.get('lat')
-                                lon = row.get('lon')
-                                
-                                area_val = row.get('Area', '-')
-                                cens_val = row.get('Censitario', '-')
-                                quart_val = row.get('Quarteirao', '-')
-                                imov_val = row.get('Imoveis', '-')
-                                inicio_val = row.get('Inicio', '-')
-                                amostra_val = row.get('Amostra', '-')
-
-                                if pd.isna(lat) or pd.isna(lon):
-                                    map_iframe = f"<div class='error-box'>Erro: Coordenadas não encontradas para o Quarteirão {quart_val} no KML do GitHub.</div>"
-                                else:
-                                    # Link corrigido para evitar o erro branco no iframe:
-                                    map_iframe = f'<iframe class="map-container" src="https://maps.google.com/maps?q={lat},{lon}&t=k&z=18&output=embed" frameborder="0" scrolling="no" marginheight="0" marginwidth="0"></iframe>'
-
-                                html_content += f"""
-                                <div class="card">
-                                    <div class="header-adl">
-                                        <h2>🔬 ADL - Avaliação de Densidade Larvária</h2>
-                                    </div>
-                                    <div class="info-grid">
-                                        <div class="info-item"><b>Área</b><span>{area_val}</span></div>
-                                        <div class="info-item"><b>Censitário</b><span>{cens_val}</span></div>
-                                        <div class="info-item"><b>Quarteirão</b><span>{quart_val}</span></div>
-                                        <div class="info-item"><b>Imóveis</b><span>{imov_val}</span></div>
-                                        <div class="info-item"><b>Início</b><span>{inicio_val}</span></div>
-                                        <div class="info-item"><b>Amostra</b><span>{amostra_val}</span></div>
-                                    </div>
-                                    {map_iframe}
-                                </div>
-                                """
-                            
-                            html_content += "</body></html>"
-                            
-                            b64 = html_content.encode('utf-8')
-                            st.success("Arquivo gerado com sucesso!")
-                            st.download_button(
-                                label="📥 Baixar Arquivo para Impressão (.html)",
-                                data=b64,
-                                file_name=f"Mapas_ADL_{date.today().strftime('%d_%m_%Y')}.html",
-                                mime="text/html",
-                                use_container_width=True
-                            )
-                            st.info("💡 **Dica:** Abra o arquivo baixado no seu navegador (Google Chrome ou Edge) e aperte **Ctrl + P** para salvar como PDF ou imprimir direto na impressora!")
-                        else:
-                            st.error("A coluna 'Quarteirao' não foi encontrada no CSV ou o KML de quarteirões não carregou corretamente.")
-
-            except Exception as e:
-                st.error(f"Erro ao processar o arquivo CSV: {e}")
 
 def modulo_estoque():
     st.markdown("""
@@ -3629,7 +3500,7 @@ def login_screen():
             st.rerun()
             
         # Mostra o iframe ocupando quase a tela toda (850px de altura)
-        components.iframe("https://fernandafrisson.github.io/sistema-gestao/mapa.html?v=6", height=850, scrolling=True)
+        components.iframe("https://fernandafrisson.github.io/sistema-gestao/mapa.html?v=5", height=850, scrolling=True)
         
     else:
         # Mostra a tela de login normal
@@ -3852,7 +3723,7 @@ def main_app():
                             st.rerun()
                 st.divider()
 
-           st.subheader("📝 Adicionar no Mural")
+            st.subheader("📝 Adicionar no Mural")
             
             tipos_de_evento_add = ["Aviso", "Compromisso", "Reunião", "Curso", "Educativa"]
             aviso_tipo_add = st.selectbox("Tipo de Evento", tipos_de_evento_add, key='tipo_evento_selecionado')
@@ -3965,7 +3836,7 @@ def main_app():
                         "title": f"{event_type.upper()}: {row['titulo']}",
                         "start": row['data'],
                         "end": (pd.to_datetime(row['data']) + timedelta(days=1)).strftime("%Y-%m-%d"),
-                        "color": event_colors.get(event_type, "#1B4F72"),
+                        "color": event_colors.get(event_type, "#6c757d"),
                     })
 
             calendar_options = {
