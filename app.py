@@ -23,7 +23,7 @@ from reportlab.lib.units import mm, cm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
-import streamlit.components.v1 as components  # Adicionado para o mapa
+import streamlit.components.v1 as components  
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide", page_title="Sistema de Gestao - CCZ", page_icon="🏥")
@@ -1690,7 +1690,11 @@ def modulo_boletim():
     if 'num_equipes_pe_ie' not in st.session_state:
         st.session_state.num_equipes_pe_ie = 1
 
-    tab1, tab_pe_ie, tab2, tab3, tab4 = st.tabs(["🗓️ Criar Boletim", "📍 P.E e I.E", "🔍 Visualizar/Editar Boletim", "🗺️ Mapa de Atividades", "📊 Dashboard"])
+    # Nova aba ADL adicionada
+    tab1, tab_pe_ie, tab2, tab3, tab4, tab_adl = st.tabs([
+        "🗓️ Criar Boletim", "📍 P.E e I.E", "🔍 Visualizar/Editar Boletim", 
+        "🗺️ Mapa de Atividades", "📊 Dashboard", "🔬 ADL"
+    ])
 
     with tab1:
         st.header("Novo Boletim de Programação")
@@ -2936,6 +2940,125 @@ def modulo_boletim():
                         else:
                             st.info("Nenhum dado de participação no período.")
 
+    # ==========================================
+    # NOVA ABA: ADL (Avaliação de Densidade Larvária)
+    # ==========================================
+    with tab_adl:
+        st.subheader("🔬 Avaliação de Densidade Larvária (ADL)")
+        st.markdown("Faça o upload do arquivo CSV contendo os dados da ADL para gerar as etiquetas e os mapas para impressão.")
+
+        uploaded_file = st.file_uploader("Upload do CSV da ADL", type=["csv"])
+
+        if uploaded_file is not None:
+            try:
+                df_adl = pd.read_csv(uploaded_file, sep=';')
+                
+                colunas_esperadas = ['Area', 'Censitario', 'Quarteirao', 'Imoveis', 'Inicio', 'Amostra']
+                colunas_presentes = df_adl.columns.tolist()
+                
+                if len(colunas_presentes) == 1 or not all(c in colunas_presentes for c in ['Quarteirao']):
+                    uploaded_file.seek(0)
+                    df_adl = pd.read_csv(uploaded_file, sep=',')
+
+                st.write("Pré-visualização dos dados carregados:")
+                st.dataframe(df_adl.head(), use_container_width=True)
+
+                if st.button("📄 Gerar Arquivo de Impressão (Mapas e Etiquetas)", type="primary"):
+                    with st.spinner("Cruzando dados e gerando os mapas para impressão..."):
+                        if 'Quarteirao' in df_adl.columns and not df_geo_quarteiroes.empty:
+                            df_adl['Quarteirao'] = df_adl['Quarteirao'].astype(str).str.strip()
+                            df_geo_quarteiroes['quadra_str'] = df_geo_quarteiroes['quadra'].astype(str).str.strip()
+                            
+                            df_merged = pd.merge(df_adl, df_geo_quarteiroes, left_on='Quarteirao', right_on='quadra_str', how='left')
+                            
+                            html_content = """
+                            <!DOCTYPE html>
+                            <html lang="pt-BR">
+                            <head>
+                                <meta charset="utf-8">
+                                <title>Mapas para ADL - CCZ</title>
+                                <style>
+                                    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap');
+                                    body { font-family: 'DM Sans', Arial, sans-serif; margin: 0; padding: 20px; background: #F0F3F8; }
+                                    .card { 
+                                        background: #fff; 
+                                        border: 2px solid #1B4F72; 
+                                        border-radius: 12px; 
+                                        padding: 20px; 
+                                        margin: 0 auto 30px auto; 
+                                        max-width: 800px; 
+                                        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                                        page-break-after: always;
+                                    }
+                                    .header-adl { text-align: center; color: #1B4F72; border-bottom: 2px solid #D4E6F1; padding-bottom: 10px; margin-bottom: 20px; }
+                                    .header-adl h2 { margin: 0; font-size: 1.8rem; }
+                                    .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
+                                    .info-item { background: #F8F9FA; padding: 12px; border-radius: 8px; border: 1px solid #E5E8EB; text-align: center; }
+                                    .info-item b { display: block; font-size: 0.85rem; color: #85929E; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+                                    .info-item span { font-size: 1.3rem; font-weight: 700; color: #2C3E50; }
+                                    .map-container { width: 100%; height: 550px; border-radius: 8px; overflow: hidden; border: 1px solid #D4E6F1; }
+                                    .error-box { height: 500px; display: flex; align-items: center; justify-content: center; background: #FDEDEC; color: #C0392B; border: 1px solid #F5B7B1; border-radius: 8px; font-weight: bold; }
+                                    
+                                    @media print {
+                                        body { background: #fff; padding: 0; }
+                                        .card { box-shadow: none; margin-bottom: 0; border: 1px solid #000; }
+                                        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                                    }
+                                </style>
+                            </head>
+                            <body>
+                            """
+
+                            for idx, row in df_merged.iterrows():
+                                lat = row.get('lat')
+                                lon = row.get('lon')
+                                
+                                area_val = row.get('Area', '-')
+                                cens_val = row.get('Censitario', '-')
+                                quart_val = row.get('Quarteirao', '-')
+                                imov_val = row.get('Imoveis', '-')
+                                inicio_val = row.get('Inicio', '-')
+                                amostra_val = row.get('Amostra', '-')
+
+                                if pd.isna(lat) or pd.isna(lon):
+                                    map_iframe = f"<div class='error-box'>Erro: Coordenadas não encontradas para o Quarteirão {quart_val} no KML do GitHub.</div>"
+                                else:
+                                    map_iframe = f'<iframe class="map-container" src="https://maps.google.com/maps?q={lat},{lon}&hl=pt-BR&z=18&output=embed" frameborder="0" scrolling="no" marginheight="0" marginwidth="0"></iframe>'
+
+                                html_content += f"""
+                                <div class="card">
+                                    <div class="header-adl">
+                                        <h2>🔬 ADL - Avaliação de Densidade Larvária</h2>
+                                    </div>
+                                    <div class="info-grid">
+                                        <div class="info-item"><b>Área</b><span>{area_val}</span></div>
+                                        <div class="info-item"><b>Censitário</b><span>{cens_val}</span></div>
+                                        <div class="info-item"><b>Quarteirão</b><span>{quart_val}</span></div>
+                                        <div class="info-item"><b>Imóveis</b><span>{imov_val}</span></div>
+                                        <div class="info-item"><b>Início</b><span>{inicio_val}</span></div>
+                                        <div class="info-item"><b>Amostra</b><span>{amostra_val}</span></div>
+                                    </div>
+                                    {map_iframe}
+                                </div>
+                                """
+                            
+                            html_content += "</body></html>"
+                            
+                            b64 = html_content.encode('utf-8')
+                            st.success("Arquivo gerado com sucesso!")
+                            st.download_button(
+                                label="📥 Baixar Arquivo para Impressão (.html)",
+                                data=b64,
+                                file_name=f"Mapas_ADL_{date.today().strftime('%d_%m_%Y')}.html",
+                                mime="text/html",
+                                use_container_width=True
+                            )
+                            st.info("💡 **Dica:** Abra o arquivo baixado no seu navegador (Google Chrome ou Edge) e aperte **Ctrl + P** para salvar como PDF ou imprimir direto na impressora!")
+                        else:
+                            st.error("A coluna 'Quarteirao' não foi encontrada no CSV ou o KML de quarteirões não carregou corretamente.")
+
+            except Exception as e:
+                st.error(f"Erro ao processar o arquivo CSV: {e}")
 
 def modulo_estoque():
     st.markdown("""
@@ -3672,198 +3795,3 @@ def main_app():
 
         with col_form:
             df_funcionarios = carregar_dados_firebase('funcionarios')
-            if not df_funcionarios.empty:
-                lista_nomes_curtos = sorted([formatar_nome(nome) for nome in df_funcionarios['nome']])
-            else:
-                lista_nomes_curtos = []
-
-            if st.session_state.evento_para_editar_id:
-                st.subheader("✏️ Editando Evento")
-                df_avisos_all = carregar_dados_firebase('avisos')
-                dados_evento = df_avisos_all.loc[st.session_state.evento_para_editar_id]
-
-                with st.form("form_avisos_edit"):
-                    titulo_edit = st.text_input("Título do Evento", value=dados_evento.get('titulo', ''))
-                    
-                    tipos_de_evento = ["Aviso", "Compromisso", "Reunião", "Curso", "Educativa"]
-                    tipo_idx = tipos_de_evento.index(dados_evento.get('tipo_aviso')) if dados_evento.get('tipo_aviso') in tipos_de_evento else 0
-                    tipo_edit = st.selectbox("Tipo", tipos_de_evento, index=tipo_idx, key='tipo_evento_edit')
-
-                    data_val = pd.to_datetime(dados_evento.get('data')).date() if pd.notna(dados_evento.get('data')) else date.today()
-                    data_edit = st.date_input("Data", value=data_val)
-
-                    participantes_edit = []
-                    if tipo_edit in ["Reunião", "Curso", "Educativa"]:
-                        participantes_edit = st.multiselect("Participantes", options=lista_nomes_curtos, default=dados_evento.get('participantes', []))
-                    
-                    descricao_edit = st.text_area("Descrição (Opcional)", value=dados_evento.get('descricao', ''))
-
-                    col_save, col_cancel = st.columns(2)
-                    with col_save:
-                        if st.form_submit_button("Salvar Alterações", use_container_width=True):
-                            dados_atualizados = {
-                                'titulo': titulo_edit,
-                                'data': data_edit.strftime("%Y-%m-%d"),
-                                'tipo_aviso': tipo_edit,
-                                'descricao': descricao_edit,
-                                'participantes': participantes_edit
-                            }
-                            db.reference(f'avisos/{st.session_state.evento_para_editar_id}').update(dados_atualizados)
-                            
-                            log_atividade(st.session_state.get('username'), "Editou aviso no mural", f"Título: {titulo_edit}")
-
-                            st.success("Evento atualizado com sucesso!")
-                            st.session_state.evento_para_editar_id = None
-                            st.cache_data.clear()
-                            st.rerun()
-
-                    with col_cancel:
-                        if st.form_submit_button("Cancelar", type="secondary", use_container_width=True):
-                            st.session_state.evento_para_editar_id = None
-                            st.rerun()
-                st.divider()
-
-            st.subheader("📝 Adicionar no Mural")
-            
-            tipos_de_evento_add = ["Aviso", "Compromisso", "Reunião", "Curso", "Educativa"]
-            aviso_tipo_add = st.selectbox("Tipo de Evento", tipos_de_evento_add, key='tipo_evento_selecionado')
-            
-            with st.form("form_avisos_add", clear_on_submit=True):
-                aviso_titulo = st.text_input("Título do Evento")
-                aviso_data = st.date_input("Data")
-                
-                participantes = []
-                if st.session_state.tipo_evento_selecionado in ["Reunião", "Curso", "Educativa"]:
-                    participantes = st.multiselect("Participantes", options=lista_nomes_curtos)
-
-                aviso_descricao = st.text_area("Descrição (Opcional)")
-                
-                submitted = st.form_submit_button("Salvar no Mural")
-                if submitted:
-                    if aviso_titulo and aviso_data:
-                        try:
-                            aviso_id = str(int(time.time() * 1000))
-                            ref = db.reference(f'avisos/{aviso_id}')
-                            ref.set({
-                                'titulo': aviso_titulo,
-                                'data': aviso_data.strftime("%Y-%m-%d"),
-                                'tipo_aviso': st.session_state.tipo_evento_selecionado,
-                                'descricao': aviso_descricao,
-                                'participantes': participantes 
-                            })
-                            
-                            log_atividade(st.session_state.get('username'), "Adicionou aviso no mural", f"Título: {aviso_titulo}")
-
-                            st.success("Evento salvo no mural com sucesso!")
-                            st.cache_data.clear()
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao salvar o aviso: {e}")
-                    else:
-                        st.warning("Por favor, preencha o Título e a Data.")
-
-            st.divider()
-            st.subheader("🗓️ Eventos Agendados")
-            df_avisos = carregar_dados_firebase('avisos')
-
-            filtro_data = st.date_input("Filtrar eventos por dia", value=date.today())
-
-            if not df_avisos.empty:
-                df_avisos['data_dt'] = pd.to_datetime(df_avisos['data']).dt.date
-                avisos_filtrados = df_avisos[df_avisos['data_dt'] == filtro_data].sort_values(by='titulo')
-
-                if avisos_filtrados.empty:
-                    st.info(f"Nenhum evento agendado para {filtro_data.strftime('%d/%m/%Y')}.")
-                else:
-                    for id, aviso in avisos_filtrados.iterrows():
-                        with st.expander(f"{aviso.get('tipo_aviso', 'Evento')}: **{aviso.get('titulo', 'Sem título')}**"):
-                            if aviso.get('descricao'):
-                                st.markdown(f"**Descrição:** {aviso.get('descricao')}")
-                            
-                            lista_participantes = aviso.get('participantes', [])
-                            if lista_participantes and isinstance(lista_participantes, list):
-                                participantes_validos = [str(p) for p in lista_participantes if p]
-                                if participantes_validos:
-                                    st.markdown(f"**Participantes:** {', '.join(participantes_validos)}")
-                            
-                            st.markdown("---")
-                            col_b1, col_b2, _ = st.columns([1, 1, 3])
-                            with col_b1:
-                                if st.button("✏️ Editar", key=f"edit_{id}", use_container_width=True):
-                                    st.session_state.evento_para_editar_id = id
-                                    st.rerun()
-                            with col_b2:
-                                if st.button("🗑️ Deletar", key=f"del_{id}", type="primary", use_container_width=True):
-                                    db.reference(f'avisos/{id}').delete()
-                                    
-                                    log_atividade(st.session_state.get('username'), "Deletou aviso no mural", f"Título: {aviso.get('titulo')}")
-
-                                    st.success(f"Evento '{aviso.get('titulo')}' deletado.")
-                                    st.cache_data.clear()
-                                    st.rerun()
-            else:
-                st.info("Nenhum evento no mural para exibir.")
-
-
-        with col_cal:
-            st.subheader("📅 Calendário Geral de Eventos e Ausências")
-            
-            df_folgas = carregar_dados_firebase('folgas_ferias')
-            df_avisos_cal = carregar_dados_firebase('avisos')
-            
-            calendar_events = []
-
-            if not df_folgas.empty:
-                for _, row in df_folgas.iterrows():
-                    calendar_events.append({
-                        "title": f"AUSÊNCIA: {formatar_nome(row['nome_funcionario'])} ({row['tipo']})",
-                        "start": row['data_inicio'],
-                        "end": (pd.to_datetime(row['data_fim']) + timedelta(days=1)).strftime("%Y-%m-%d"),
-                        "color": "#FF4B4B" if row['tipo'] == "Férias" else "#FFA07A",
-                    })
-            
-            if not df_avisos_cal.empty:
-                event_colors = {
-                    "Aviso": "#ffc107",
-                    "Compromisso": "#28a745",
-                    "Reunião": "#007bff",
-                    "Curso": "#6f42c1",
-                    "Educativa": "#fd7e14"
-                }
-                for _, row in df_avisos_cal.iterrows():
-                    event_type = row.get('tipo_aviso', 'Aviso')
-                    calendar_events.append({
-                        "title": f"{event_type.upper()}: {row['titulo']}",
-                        "start": row['data'],
-                        "end": (pd.to_datetime(row['data']) + timedelta(days=1)).strftime("%Y-%m-%d"),
-                        "color": event_colors.get(event_type, "#6c757d"),
-                    })
-
-            calendar_options = {
-                "initialView": "dayGridMonth",
-                "height": "800px",
-                "locale": "pt-br",
-                "headerToolbar": {
-                    "left": "prev,next today",
-                    "center": "title",
-                    "right": "dayGridMonth,timeGridWeek"
-                },
-                "eventTimeFormat": {
-                    "hour": '2-digit',
-                    "minute": '2-digit',
-                    "meridiem": False
-                }
-            }
-            
-            if calendar_events:
-                calendar(events=calendar_events, options=calendar_options, key="calendario_mural_atualizado")
-            else:
-                st.info("Nenhum evento no mural ou ausência registrada para exibir no calendário.")
-
-if __name__ == "__main__":
-    if 'logged_in' not in st.session_state:
-        st.session_state['logged_in'] = False
-    if st.session_state['logged_in']:
-        main_app()
-    else:
-        login_screen()
