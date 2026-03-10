@@ -98,27 +98,16 @@
             zoomControl: true
         }).setView([-22.8136, -45.1917], 13);
 
-        // 2. MAPA BASE HÍBRIDO (Google Satélite + Nomes das Ruas)
+        // 2. MAPA BASE HÍBRIDO (Google Satélite + Nomes das Ruas já incluídos nativamente)
         var basemap = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
             maxZoom: 20,
             attribution: '© Google Maps'
         }).addTo(map);
 
-        // 3. GRUPOS DE CAMADAS
-        var camadaRuas = L.layerGroup();
+        // 3. GRUPO DE CAMADA PARA OS BAIRROS
         var camadaBairros = L.featureGroup();
 
-        // 4. CARREGAR RUAS DO SEU KML
-        omnivore.kml('Ruas.kml').on('ready', function() {
-            this.eachLayer(function(layer) {
-                // Linhas amarelas semi-transparentes para contrastar no satélite
-                layer.setStyle({ color: '#F1C40F', weight: 2, opacity: 0.6 }); 
-                camadaRuas.addLayer(layer);
-            });
-            map.addLayer(camadaRuas);
-        });
-
-        // 5. LISTA DOS ARQUIVOS KML
+        // 4. LISTA DOS ARQUIVOS KML
         var arquivosBairros = [
             'Pingo de Ouro.kml',
             'Rocinha.kml',
@@ -144,7 +133,7 @@
             '#99FF33'  // Verde limão
         ];
 
-        // 6. CARREGAR CADA BAIRRO E APLICAR ESTILO
+        // 5. CARREGAR CADA BAIRRO E APLICAR ESTILO
         arquivosBairros.forEach(function(arquivo, index) {
             
             // Pega uma cor diferente para cada arquivo na lista
@@ -198,10 +187,9 @@
 
         map.addLayer(camadaBairros);
 
-        // 7. CAIXINHA DE FILTROS NO CANTO DIREITO
+        // 6. CAIXINHA DE FILTROS NO CANTO DIREITO
         var overlayMaps = {
-            "Área de abrangencia psf": camadaBairros,
-            "Ruas (Linhas)": camadaRuas
+            "Área de abrangencia psf": camadaBairros
         };
         L.control.layers(null, overlayMaps, { collapsed: false }).addTo(map);
 
