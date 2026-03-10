@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+<Document>
+	<name>Jd Esperança.kml</name>
+	<StyleMap id="msn_ylw-pushpin0000">
+		<Pair>
+			<key>normal</key>
+			<styleUrl>#sn_ylw-pushpin111</styleUrl>
+		</Pair>
+		<Pair>
+			<key>highlight</key>
+			<styleUrl>#sh_ylw-pushpin200</styleUrl>
+		</Pair>
+	</StyleMap>
+	<Style id="sh_ylw-pushpin200">
+		<IconStyle>
+			<scale>1.3</scale>
+			<Icon>
+				<href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+			</Icon>
+			<hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+		</IconStyle>
+		<LineStyle>
+			<color>ff00ff00</color>
+		</LineStyle>
+		<PolyStyle>
+			<color>7f00ff00</color>
+		</PolyStyle>
+	</Style>
+	<Style id="sn_ylw-pushpin111">
+		<IconStyle>
+			<scale>1.1</scale>
+			<Icon>
+				<href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+			</Icon>
+			<hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+		</IconStyle>
+		<LineStyle>
+			<color>ff00ff00</color>
+		</LineStyle>
+		<PolyStyle>
+			<color>7f00ff00</color>
+		</PolyStyle>
+	</Style>
+	<Placemark>
+		<name>Jd Esperança</name>
+		<styleUrl>#msn_ylw-pushpin0000</styleUrl>
+		<Polygon>
+			<tessellate>1</tessellate>
+			<outerBoundaryIs>
+				<LinearRing>
+					<coordinates>
+						-45.18107647947442,-22.7833408525467,0 -45.18222715296547,-22.78977118497684,0 -45.18215864375947,-22.78982669326576,0 -45.18207933382104,-22.78991454842024,0 -45.18148493810216,-22.78992799905813,0 -45.1803371479151,-22.78980985923219,0 -45.17950843993994,-22.78954783246574,0 -45.17963246596448,-22.7899299768087,0 -45.17982202503359,-22.79014179060554,0 -45.17992312482721,-22.79042226150952,0 -45.17985157792101,-22.79123738967436,0 -45.18031718517375,-22.79341480748698,0 -45.18025231190641,-22.79620581324974,0 -45.18011041850572,-22.79707935583373,0 -45.17990287718898,-22.79706482270844,0 -45.17999331655371,-22.79641203811713,0 -45.18007536591906,-22.7945524341059,0 -45.17973759394253,-22.79225802775953,0 -45.17958769324794,-22.79137136457332,0 -45.17941995073783,-22.79062853783735,0 -45.17866766513427,-22.78933503679346,0 -45.17832602122397,-22.78843291540238,0 -45.17724859420734,-22.78703369401347,0 -45.17520535271996,-22.78468201194902,0 -45.17515232052928,-22.78459283712135,0 -45.17502596923264,-22.784482482226,0 -45.17500067998158,-22.78446039575325,0 -45.17487414308108,-22.78434987796401,0 -45.17481849654008,-22.7842154357126,0 -45.17474185923135,-22.78412722826028,0 -45.1747131579979,-22.78403784874075,0 -45.17458604990151,-22.78390561279762,0 -45.17458367131141,-22.78386058182733,0 -45.17457772214153,-22.78374794428614,0 -45.17439647700549,-22.78305124988254,0 -45.17432764576863,-22.78262477487942,0 -45.17454551588794,-22.78224990857681,0 -45.17514428567768,-22.7827487962238,0 -45.18102258948277,-22.7831396815529,0 -45.18107647947442,-22.7833408525467,0 
+					</coordinates>
+				</LinearRing>
+			</outerBoundaryIs>
+		</Polygon>
+		<atom:link rel="app" href="https://www.google.com/earth/about/versions/#earth-pro" title="Google Earth Pro 7.3.6.10441"></atom:link>
+	</Placemark>
+</Document>
+</kml>
