@@ -417,7 +417,6 @@ def carregar_usuarios():
         st.error(f"Erro ao carregar usuarios: {e}")
         return {ADMIN_USERNAME: {"senha": ADMIN_DEFAULT_PASSWORD, "role": "admin"}}
 
-
 def validar_login(username, password):
     users = carregar_usuarios()
     if username in users:
@@ -426,10 +425,8 @@ def validar_login(username, password):
         return senha_salva == password
     return False
 
-
 def is_admin():
     return st.session_state.get('username') == ADMIN_USERNAME
-
 
 # --- FUNÇÕES GLOBAIS DE DADOS E UTILITÁRIAS ---
 def formatar_nome(nome_completo):
@@ -3487,47 +3484,54 @@ def modulo_contas():
 
 def login_screen():
     """Renderiza a tela de login e o mapa embutido."""
-    st.markdown("""
-        <div class="login-container">
-            <div class="login-logo">🏥</div>
-            <div class="login-title">Sistema de Gestao</div>
-            <div class="login-subtitle">Vigilancia Epidemiologica — Guaratingueta/SP</div>
-        </div>
-    """, unsafe_allow_html=True)
     
-    col_spacer1, col_login, col_spacer2 = st.columns([1.2, 1, 1.2])
-    with col_login:
-        with st.form("login_form"):
-            st.markdown('<div class="sys-card">', unsafe_allow_html=True)
-            username = st.text_input("Usuario", key="login_username")
-            password = st.text_input("Senha", type="password", key="login_password")
-            submit_button = st.form_submit_button("Entrar", use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-            if submit_button:
-                if validar_login(username, password):
-                    st.session_state['logged_in'] = True
-                    st.session_state['username'] = username
-                    st.rerun()
-                else:
-                    st.error("Usuario ou senha invalidos.")
-        
-        # Botão para abrir o mapa embutido
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🗺️ Abrir Mapa de Bairros", use_container_width=True):
-            # Alterna o estado de visualização do mapa
-            st.session_state.mostrar_mapa_login = not st.session_state.get('mostrar_mapa_login', False)
-
-    # Renderiza o mapa dentro do app caso o botão tenha sido clicado
+    # Se o usuário clicou para ver o mapa
     if st.session_state.get('mostrar_mapa_login', False):
+        # CSS para forçar a tela a usar 100% do espaço (removendo margens laterais do Streamlit)
         st.markdown("""
-            <div style="margin-top: 20px; background: white; border-radius: 14px; padding: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); border: 1px solid #E5E8EB;">
+            <style>
+                .block-container { padding-top: 2rem; padding-bottom: 0rem; padding-left: 1rem; padding-right: 1rem; max-width: 100%; }
+            </style>
         """, unsafe_allow_html=True)
         
-        # Iframe carrega a página do GitHub sem sair do sistema. 
-        # O ?v=2 ou ?v=3 força a limpeza do cache!
-        components.iframe("https://fernandafrisson.github.io/sistema-gestao/mapa.html?v=3", height=600, scrolling=True)
+        # Botão para voltar
+        if st.button("⬅️ Voltar para o Login", key="btn_voltar_login"):
+            st.session_state.mostrar_mapa_login = False
+            st.rerun()
+            
+        # Mostra o iframe ocupando quase a tela toda (850px de altura)
+        components.iframe("https://fernandafrisson.github.io/sistema-gestao/mapa.html?v=5", height=850, scrolling=True)
         
-        st.markdown("</div>", unsafe_allow_html=True)
+    else:
+        # Mostra a tela de login normal
+        st.markdown("""
+            <div class="login-container">
+                <div class="login-logo">🏥</div>
+                <div class="login-title">Sistema de Gestao</div>
+                <div class="login-subtitle">Vigilancia Epidemiologica — Guaratingueta/SP</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        col_spacer1, col_login, col_spacer2 = st.columns([1.2, 1, 1.2])
+        with col_login:
+            with st.form("login_form"):
+                st.markdown('<div class="sys-card">', unsafe_allow_html=True)
+                username = st.text_input("Usuario", key="login_username")
+                password = st.text_input("Senha", type="password", key="login_password")
+                submit_button = st.form_submit_button("Entrar", use_container_width=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+                if submit_button:
+                    if validar_login(username, password):
+                        st.session_state['logged_in'] = True
+                        st.session_state['username'] = username
+                        st.rerun()
+                    else:
+                        st.error("Usuario ou senha invalidos.")
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("🗺️ Abrir Mapa de Bairros", use_container_width=True):
+                st.session_state.mostrar_mapa_login = True
+                st.rerun()
 
 def main_app():
     if 'evento_para_editar_id' not in st.session_state:
