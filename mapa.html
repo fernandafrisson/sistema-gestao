@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa de Quarteirões — Vigilância Epidemiológica</title>
+    <title>Mapa de Bairros — Vigilância Epidemiológica</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
@@ -16,7 +16,7 @@
             font-family: 'Nunito', sans-serif;
             background: #F0F2F8;
             color: #3D2D68;
-            overflow: hidden; /* Evitar barra de rolagem dupla com o Streamlit */
+            overflow: hidden;
         }
 
         /* Header Modernizado */
@@ -52,29 +52,27 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
             padding: 6px !important;
             font-family: 'Nunito', sans-serif !important;
-            font-weight: 600 !important;
+            font-weight: 700 !important;
             color: #3D2D68 !important;
             border: none !important;
         }
 
-        /* O Segredo do Rótulo sem Ponto (Alfinete) */
-        .quarteirao-label {
-            background: rgba(255,255,255,0.95) !important;
-            border: 2px solid #FF6B8B !important;
-            border-radius: 6px !important;
-            padding: 2px 6px !important;
+        /* Estilo do Texto do Bairro (Sem fundo branco, apenas o texto flutuante com borda branca) */
+        .bairro-label {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
             font-family: 'Nunito', sans-serif !important;
-            font-size: 0.75rem !important;
+            font-size: 0.95rem !important;
             font-weight: 800 !important;
-            color: #5B4897 !important;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.15) !important;
-            text-align: center;
-            white-space: nowrap;
-            /* Centraliza a caixinha exatamente em cima da coordenada */
-            width: fit-content !important;
-            height: fit-content !important;
-            margin-left: -15px !important; 
-            margin-top: -10px !important;
+            color: #3D2D68 !important;
+            /* Cria um contorno branco no texto para facilitar a leitura por cima das cores */
+            text-shadow: 
+                2px 2px 0 #FFF, 
+                -1px -1px 0 #FFF, 
+                1px -1px 0 #FFF, 
+                -1px 1px 0 #FFF, 
+                1px 1px 0 #FFF !important;
         }
     </style>
 </head>
@@ -82,7 +80,7 @@
 
     <div class="header">
         <div class="header-title">
-            🗺️ Mapa Interativo de Quarteirões
+            🗺️ Mapa Interativo de Bairros
         </div>
     </div>
 
@@ -92,11 +90,11 @@
     <script src="https://api.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.3.1/leaflet-omnivore.min.js"></script>
 
     <script>
-        // 1. INICIALIZAÇÃO DO MAPA COM CANVAS (Evita o travamento do navegador)
+        // 1. INICIALIZAÇÃO DO MAPA
         var map = L.map('map', {
-            preferCanvas: true,
+            preferCanvas: true, 
             zoomControl: true
-        }).setView([-22.8136, -45.1917], 14); // Coordenadas Iniciais
+        }).setView([-22.8136, -45.1917], 13);
 
         // 2. MAPA BASE
         var basemap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -104,10 +102,9 @@
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // 3. GRUPOS PARA GUARDAR AS CAMADAS
+        // 3. GRUPOS DE CAMADAS
         var camadaRuas = L.layerGroup();
-        var camadaQuarteiroesPoligonos = L.layerGroup();
-        var rotulosQuarteiroes = L.layerGroup(); // Grupo isolado para os textos
+        var camadaBairros = L.featureGroup();
 
         // 4. CARREGAR RUAS
         omnivore.kml('Ruas.kml').on('ready', function() {
@@ -118,76 +115,76 @@
             map.addLayer(camadaRuas);
         });
 
-        // 5. A MÁGICA: REGRA CUSTOMIZADA PARA LER OS QUARTEIRÕES
-        var estiloKml = L.geoJson(null, {
-            // pointToLayer substitui o Ponto original (alfinete azul) pelo nosso rótulo HTML!
-            pointToLayer: function(feature, latlng) {
-                if (feature.properties && feature.properties.name) {
-                    return L.marker(latlng, {
-                        icon: L.divIcon({
-                            className: 'quarteirao-label',
-                            html: feature.properties.name,
-                            iconSize: null // O tamanho fica automático de acordo com o texto
-                        }),
-                        interactive: false // Essencial: tira eventos de clique do texto, deixando o mapa mais leve
+        // 5. LISTA DOS NOVOS ARQUIVOS KML (POLÍGONOS DOS BAIRROS)
+        var arquivosBairros = [
+            'Pingo de Ouro.kml',
+            'Rocinha.kml',
+            'São Dimas.kml',
+            'São Manoel.kml',
+            'Sta Edwirges.kml',
+            'Tamandaré.kml',
+            'Vista Alegre.kml',
+            'Jd do Vale.kml',
+            'Jd Esperança.kml'
+        ];
+
+        // 6. CARREGAR CADA BAIRRO E APLICAR ESTILO + NOME CENTRALIZADO
+        arquivosBairros.forEach(function(arquivo) {
+            var layerBairro = omnivore.kml(arquivo).on('ready', function() {
+                this.eachLayer(function(layer) {
+                    
+                    // Extrair nome (se não tiver no KML, usa o nome do arquivo)
+                    var nomeBairro = "";
+                    if (layer.feature && layer.feature.properties && layer.feature.properties.name) {
+                        nomeBairro = layer.feature.properties.name;
+                    } else {
+                        nomeBairro = arquivo.replace('.kml', '');
+                    }
+
+                    // Estilo do Polígono
+                    if (layer.setStyle) {
+                        layer.setStyle({
+                            color: '#5B4897',      // Borda roxa
+                            fillColor: '#FF6B8B',  // Preenchimento rosa
+                            fillOpacity: 0.25,
+                            weight: 2
+                        });
+                    }
+
+                    // Adicionar Rótulo de Texto Fixo no Centro do Polígono
+                    if (layer.bindTooltip) {
+                        layer.bindTooltip(nomeBairro, {
+                            permanent: true, 
+                            direction: "center",
+                            className: "bairro-label"
+                        });
+                    }
+
+                    // Efeito Hover (Brilho ao passar o mouse)
+                    layer.on({
+                        mouseover: function(e) {
+                            var l = e.target;
+                            l.setStyle({ fillOpacity: 0.5, weight: 3 });
+                        },
+                        mouseout: function(e) {
+                            var l = e.target;
+                            l.setStyle({ fillOpacity: 0.25, weight: 2 });
+                        }
                     });
-                }
-                return null;
-            },
-            // Estilo para caso o KML possua também áreas desenhadas (polígonos)
-            style: function(feature) {
-                return {
-                    color: '#5B4897',
-                    fillColor: '#765EBC',
-                    fillOpacity: 0.2,
-                    weight: 1.5
-                };
-            }
-        });
 
-        // 6. CARREGA OS QUARTEIRÕES USANDO A REGRA CRIADA ACIMA
-        omnivore.kml('Quadras de Guará.kml', null, estiloKml).on('ready', function() {
-            this.eachLayer(function(layer) {
-                // Verifica se é o texto (rótulo) ou se é um polígono
-                if (layer instanceof L.Marker) {
-                    rotulosQuarteiroes.addLayer(layer);
-                } else {
-                    camadaQuarteiroesPoligonos.addLayer(layer);
-                }
+                });
             });
-
-            // Adiciona as áreas ao mapa
-            map.addLayer(camadaQuarteiroesPoligonos);
-            
-            // Só exibe os textos de início se o zoom já estiver perto (Zoom >= 16)
-            if (map.getZoom() >= 16) {
-                map.addLayer(rotulosQuarteiroes);
-            }
+            camadaBairros.addLayer(layerBairro);
         });
+
+        map.addLayer(camadaBairros);
 
         // 7. CAIXINHA DE FILTROS NO CANTO DIREITO
         var overlayMaps = {
-            "Quadras": camadaQuarteiroesPoligonos,
-            "Ruas": camadaRuas
+            "Bairros (Polígonos)": camadaBairros,
+            "Ruas (Linhas)": camadaRuas
         };
         L.control.layers(null, overlayMaps, { collapsed: false }).addTo(map);
-
-        // 8. CONTROLE ANTI-TRAVAMENTO (SÓ MOSTRA NÚMEROS QUANDO APROXIMAR A TELA)
-        map.on('zoomend', function() {
-            var zoomAtual = map.getZoom();
-            
-            // Se chegou perto (16 ou mais), adiciona os rótulos
-            if (zoomAtual >= 16) {
-                if (!map.hasLayer(rotulosQuarteiroes)) {
-                    map.addLayer(rotulosQuarteiroes);
-                }
-            } else {
-                // Se afastou (menos de 16), remove os rótulos para não poluir nem travar
-                if (map.hasLayer(rotulosQuarteiroes)) {
-                    map.removeLayer(rotulosQuarteiroes);
-                }
-            }
-        });
 
     </script>
 </body>
