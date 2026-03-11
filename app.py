@@ -3507,10 +3507,10 @@ def login_screen():
         components.iframe("https://fernandafrisson.github.io/sistema-gestao/mapa.html?v=6", height=850, scrolling=True)
         
     else:
-        # Mostra a tela de login normal
+        # Mostra a tela de login normal com a sua logo personalizada
         st.markdown("""
             <div class="login-container">
-                <div class="login-logo">🏥</div>
+                <img src="https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/logo.png" width="130" style="margin-bottom: 10px;">
                 <div class="login-title">Sistema de Gestao</div>
                 <div class="login-subtitle">Vigilancia Epidemiologica — Guaratingueta/SP</div>
             </div>
