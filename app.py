@@ -3817,14 +3817,27 @@ def main_app():
             
             calendar_events = []
 
+            # Lógica atualizada para quebrar as férias em dias individuais
             if not df_folgas.empty:
                 for _, row in df_folgas.iterrows():
-                    calendar_events.append({
-                        "title": f"AUSÊNCIA: {formatar_nome(row['nome_funcionario'])} ({row['tipo']})",
-                        "start": row['data_inicio'],
-                        "end": (pd.to_datetime(row['data_fim']) + timedelta(days=1)).strftime("%Y-%m-%d"),
-                        "color": "#FF4B4B" if row['tipo'] == "Férias" else "#FFA07A",
-                    })
+                    tipo_ausencia = row.get('tipo', 'Ausência')
+                    nome_ausente = formatar_nome(row.get('nome_funcionario', ''))
+                    cor_evento = "#FF4B4B" if tipo_ausencia == "Férias" else "#FFA07A"
+                    
+                    data_inicio_obj = pd.to_datetime(row['data_inicio']).date()
+                    data_fim_obj = pd.to_datetime(row['data_fim']).date()
+                    
+                    # Calcula o total de dias e cria um evento para CADA DIA
+                    dias_total = (data_fim_obj - data_inicio_obj).days + 1
+                    for i in range(dias_total):
+                        dia_atual = data_inicio_obj + timedelta(days=i)
+                        
+                        # Note que removemos o "end", forçando a ser evento de dia único
+                        calendar_events.append({
+                            "title": f"AUSÊNCIA: {nome_ausente} ({tipo_ausencia})",
+                            "start": dia_atual.strftime("%Y-%m-%d"),
+                            "color": cor_evento,
+                        })
             
             if not df_avisos_cal.empty:
                 event_colors = {
