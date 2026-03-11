@@ -3511,7 +3511,7 @@ def login_screen():
         st.markdown("""
             <div class="login-container">
                 <img src="https://raw.githubusercontent.com/fernandafrisson/sistema-gestao/main/logo.png" width="130" style="margin-bottom: 10px;">
-                <div class="login-title">Sistema de Gestao</div>
+                <div class="login-title">Sistema Vigilância em Saúde</div>
                 <div class="login-subtitle">Vigilancia Epidemiologica — Guaratingueta/SP</div>
             </div>
         """, unsafe_allow_html=True)
