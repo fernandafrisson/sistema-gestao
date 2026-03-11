@@ -3812,15 +3812,7 @@ def main_app():
         with col_cal:
             st.subheader("📅 Calendário Geral de Eventos e Ausências")
             
-            # --- NOVO: BOTÃO DE E-MAIL ---
-            if st.button("📧 Enviar Lembrete por E-mail", use_container_width=True):
-                with st.spinner("Buscando eventos e enviando e-mail..."):
-                    sucesso, mensagem = disparar_email_lembrete()
-                    if sucesso:
-                        st.success(mensagem)
-                        log_atividade(st.session_state.get('username'), "Enviou e-mail", "Disparou lembretes do mural.")
-                    else:
-                        st.error(mensagem)
+
             
             # --- NOVO: FILTRO TIPO LISTA (SELECTBOX) ---
             tipos_disponiveis = ["Todos", "Férias", "Abonada", "Aviso", "Compromisso", "Reunião", "Curso", "Educativa"]
