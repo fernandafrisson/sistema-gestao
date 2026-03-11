@@ -3812,12 +3812,21 @@ def main_app():
         with col_cal:
             st.subheader("📅 Calendário Geral de Eventos e Ausências")
             
-            # --- NOVO: FILTRO DO CALENDÁRIO ---
-            tipos_disponiveis = ["Férias", "Abonada", "Aviso", "Compromisso", "Reunião", "Curso", "Educativa"]
-            tipos_selecionados = st.multiselect(
-                "Filtre o que deseja ver no calendário:", 
-                options=tipos_disponiveis, 
-                default=tipos_disponiveis # Já vem tudo selecionado por padrão
+            # --- NOVO: BOTÃO DE E-MAIL ---
+            if st.button("📧 Enviar Lembrete por E-mail", use_container_width=True):
+                with st.spinner("Buscando eventos e enviando e-mail..."):
+                    sucesso, mensagem = disparar_email_lembrete()
+                    if sucesso:
+                        st.success(mensagem)
+                        log_atividade(st.session_state.get('username'), "Enviou e-mail", "Disparou lembretes do mural.")
+                    else:
+                        st.error(mensagem)
+            
+            # --- NOVO: FILTRO TIPO LISTA (SELECTBOX) ---
+            tipos_disponiveis = ["Todos", "Férias", "Abonada", "Aviso", "Compromisso", "Reunião", "Curso", "Educativa"]
+            filtro_selecionado = st.selectbox(
+                "Selecione o que deseja ver no calendário:", 
+                options=tipos_disponiveis
             )
             st.markdown("<br>", unsafe_allow_html=True)
             
@@ -3831,14 +3840,15 @@ def main_app():
                 for _, row in df_folgas.iterrows():
                     tipo_ausencia = row.get('tipo', 'Ausência')
                     
-                    # Checa se o usuário deixou essa opção marcada no filtro
-                    if tipo_ausencia in tipos_selecionados:
+                    # Exibe se o filtro for "Todos" ou se bater exatamente com o tipo selecionado
+                    if filtro_selecionado == "Todos" or filtro_selecionado == tipo_ausencia:
                         nome_ausente = formatar_nome(row.get('nome_funcionario', ''))
                         cor_evento = "#FF4B4B" if tipo_ausencia == "Férias" else "#FFA07A"
                         
                         data_inicio_obj = pd.to_datetime(row['data_inicio']).date()
                         data_fim_obj = pd.to_datetime(row['data_fim']).date()
                         
+                        # Lógica para quebrar as férias dia por dia (evita faixas longas poluidoras)
                         dias_total = (data_fim_obj - data_inicio_obj).days + 1
                         for i in range(dias_total):
                             dia_atual = data_inicio_obj + timedelta(days=i)
@@ -3860,8 +3870,8 @@ def main_app():
                 for _, row in df_avisos_cal.iterrows():
                     event_type = row.get('tipo_aviso', 'Aviso')
                     
-                    # Checa se o usuário deixou essa opção marcada no filtro
-                    if event_type in tipos_selecionados:
+                    # Exibe se o filtro for "Todos" ou se bater exatamente com o tipo selecionado
+                    if filtro_selecionado == "Todos" or filtro_selecionado == event_type:
                         calendar_events.append({
                             "title": f"{event_type.upper()}: {row['titulo']}",
                             "start": row['data'],
@@ -3886,7 +3896,7 @@ def main_app():
                 }
             }
             
-            # Renderiza se houver eventos na lista filtrada
+            # Renderiza o calendário
             if calendar_events:
                 calendar(events=calendar_events, options=calendar_options, key="calendario_mural_atualizado")
             else:
