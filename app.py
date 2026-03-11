@@ -3812,33 +3812,43 @@ def main_app():
         with col_cal:
             st.subheader("📅 Calendário Geral de Eventos e Ausências")
             
+            # --- NOVO: FILTRO DO CALENDÁRIO ---
+            tipos_disponiveis = ["Férias", "Abonada", "Aviso", "Compromisso", "Reunião", "Curso", "Educativa"]
+            tipos_selecionados = st.multiselect(
+                "Filtre o que deseja ver no calendário:", 
+                options=tipos_disponiveis, 
+                default=tipos_disponiveis # Já vem tudo selecionado por padrão
+            )
+            st.markdown("<br>", unsafe_allow_html=True)
+            
             df_folgas = carregar_dados_firebase('folgas_ferias')
             df_avisos_cal = carregar_dados_firebase('avisos')
             
             calendar_events = []
 
-            # Lógica atualizada para quebrar as férias em dias individuais
+            # 1. Carrega e filtra Férias/Abonadas
             if not df_folgas.empty:
                 for _, row in df_folgas.iterrows():
                     tipo_ausencia = row.get('tipo', 'Ausência')
-                    nome_ausente = formatar_nome(row.get('nome_funcionario', ''))
-                    cor_evento = "#FF4B4B" if tipo_ausencia == "Férias" else "#FFA07A"
                     
-                    data_inicio_obj = pd.to_datetime(row['data_inicio']).date()
-                    data_fim_obj = pd.to_datetime(row['data_fim']).date()
-                    
-                    # Calcula o total de dias e cria um evento para CADA DIA
-                    dias_total = (data_fim_obj - data_inicio_obj).days + 1
-                    for i in range(dias_total):
-                        dia_atual = data_inicio_obj + timedelta(days=i)
+                    # Checa se o usuário deixou essa opção marcada no filtro
+                    if tipo_ausencia in tipos_selecionados:
+                        nome_ausente = formatar_nome(row.get('nome_funcionario', ''))
+                        cor_evento = "#FF4B4B" if tipo_ausencia == "Férias" else "#FFA07A"
                         
-                        # Note que removemos o "end", forçando a ser evento de dia único
-                        calendar_events.append({
-                            "title": f"AUSÊNCIA: {nome_ausente} ({tipo_ausencia})",
-                            "start": dia_atual.strftime("%Y-%m-%d"),
-                            "color": cor_evento,
-                        })
+                        data_inicio_obj = pd.to_datetime(row['data_inicio']).date()
+                        data_fim_obj = pd.to_datetime(row['data_fim']).date()
+                        
+                        dias_total = (data_fim_obj - data_inicio_obj).days + 1
+                        for i in range(dias_total):
+                            dia_atual = data_inicio_obj + timedelta(days=i)
+                            calendar_events.append({
+                                "title": f"AUSÊNCIA: {nome_ausente} ({tipo_ausencia})",
+                                "start": dia_atual.strftime("%Y-%m-%d"),
+                                "color": cor_evento,
+                            })
             
+            # 2. Carrega e filtra Eventos do Mural
             if not df_avisos_cal.empty:
                 event_colors = {
                     "Aviso": "#ffc107",
@@ -3849,13 +3859,17 @@ def main_app():
                 }
                 for _, row in df_avisos_cal.iterrows():
                     event_type = row.get('tipo_aviso', 'Aviso')
-                    calendar_events.append({
-                        "title": f"{event_type.upper()}: {row['titulo']}",
-                        "start": row['data'],
-                        "end": (pd.to_datetime(row['data']) + timedelta(days=1)).strftime("%Y-%m-%d"),
-                        "color": event_colors.get(event_type, "#6c757d"),
-                    })
+                    
+                    # Checa se o usuário deixou essa opção marcada no filtro
+                    if event_type in tipos_selecionados:
+                        calendar_events.append({
+                            "title": f"{event_type.upper()}: {row['titulo']}",
+                            "start": row['data'],
+                            "end": (pd.to_datetime(row['data']) + timedelta(days=1)).strftime("%Y-%m-%d"),
+                            "color": event_colors.get(event_type, "#1B4F72"),
+                        })
 
+            # Opções de renderização do calendário
             calendar_options = {
                 "initialView": "dayGridMonth",
                 "height": "800px",
@@ -3872,10 +3886,11 @@ def main_app():
                 }
             }
             
+            # Renderiza se houver eventos na lista filtrada
             if calendar_events:
                 calendar(events=calendar_events, options=calendar_options, key="calendario_mural_atualizado")
             else:
-                st.info("Nenhum evento no mural ou ausência registrada para exibir no calendário.")
+                st.info("Nenhum evento corresponde ao filtro selecionado.")
 
 if __name__ == "__main__":
     if 'logged_in' not in st.session_state:
