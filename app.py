@@ -26,7 +26,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 import streamlit.components.v1 as components  
 
 # --- INTERFACE PRINCIPAL ---
-st.set_page_config(layout="wide", page_title="Sistema de Gestao - CCZ", page_icon="🏥")
+st.set_page_config(layout="wide", page_title="Sistema de Gestao - CCZ", page_icon="logo.png")
 
 # --- CSS GLOBAL DO SISTEMA (VISUAL ORIGINAL - AZUL) ---
 st.markdown("""
