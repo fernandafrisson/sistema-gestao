@@ -23,7 +23,7 @@ from reportlab.lib.units import mm, cm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
-import streamlit.components.v1 as components  # Adicionado para o mapa
+import streamlit.components.v1 as components  
 
 # --- INTERFACE PRINCIPAL ---
 st.set_page_config(layout="wide", page_title="Sistema de Gestao - CCZ", page_icon="🏥")
@@ -381,7 +381,8 @@ try:
             cred = credentials.Certificate("denuncias-48660-firebase-adminsdk-fbsvc-9f27fef1c8.json")
 
         firebase_admin.initialize_app(cred, {
-            'databaseURL': 'https://denuncias-48660-default-rtdb.firebaseio.com/'
+            'databaseURL': 'https://denuncias-48660-default-rtdb.firebaseio.com/',
+            'projectId': 'denuncias-48660'
         })
 except Exception as e:
     st.error(f"Erro ao inicializar o Firebase: {e}. Verifique as suas credenciais.")
@@ -1690,7 +1691,10 @@ def modulo_boletim():
     if 'num_equipes_pe_ie' not in st.session_state:
         st.session_state.num_equipes_pe_ie = 1
 
-    tab1, tab_pe_ie, tab2, tab3, tab4 = st.tabs(["🗓️ Criar Boletim", "📍 P.E e I.E", "🔍 Visualizar/Editar Boletim", "🗺️ Mapa de Atividades", "📊 Dashboard"])
+    tab1, tab_pe_ie, tab2, tab3, tab4 = st.tabs([
+        "🗓️ Criar Boletim", "📍 P.E e I.E", "🔍 Visualizar/Editar Boletim", 
+        "🗺️ Mapa de Atividades", "📊 Dashboard"
+    ])
 
     with tab1:
         st.header("Novo Boletim de Programação")
@@ -1835,7 +1839,7 @@ def modulo_boletim():
         st.markdown("""
             <div class="mod-header">
                 <h2>Pontos Estrategicos e Imoveis Especiais</h2>
-                <p>P.E = Ponto de Encontro (quinzenal) &nbsp;&middot;&nbsp; I.E = Imovel Especial (trimestral)</p>
+                <p>P.E = Ponto de Encontro (quinzenal)  ·  I.E = Imovel Especial (trimestral)</p>
             </div>
         """, unsafe_allow_html=True)
 
@@ -2165,7 +2169,7 @@ def modulo_boletim():
                     <div class="sys-card">
                         <div class="sys-card-title">🟢 Controle de P.E — Quinzenal</div>
                         <div style="font-size:0.9rem; color:#566573; margin-bottom:16px;">
-                            Periodo atual: <strong>{quinzena_label}</strong> &nbsp;·&nbsp;
+                            Periodo atual: <strong>{quinzena_label}</strong>  · 
                             Dias restantes: <strong>{(fim_quinzena - hoje).days}</strong>
                         </div>
                     </div>
@@ -2264,7 +2268,7 @@ def modulo_boletim():
                     <div class="sys-card">
                         <div class="sys-card-title">🔵 Controle de I.E — Trimestral</div>
                         <div style="font-size:0.9rem; color:#566573; margin-bottom:16px;">
-                            Periodo atual: <strong>{trimestre_label}</strong> &nbsp;·&nbsp;
+                            Periodo atual: <strong>{trimestre_label}</strong>  · 
                             Dias restantes: <strong>{(fim_trimestre - hoje).days}</strong>
                         </div>
                     </div>
@@ -2603,7 +2607,7 @@ def modulo_boletim():
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div>
                                     <div class="info-value" style="font-size:1.05rem;font-weight:600;color:#1B4F72">📅 {data_fmt}</div>
-                                    <div class="info-label">{qtd_imoveis} imovel(is) &middot; Criado por: {criado_por}</div>
+                                    <div class="info-label">{qtd_imoveis} imovel(is) · Criado por: {criado_por}</div>
                                 </div>
                             </div>
                             <div class="sys-divider"></div>
@@ -3500,7 +3504,7 @@ def login_screen():
             st.rerun()
             
         # Mostra o iframe ocupando quase a tela toda (850px de altura)
-        components.iframe("https://fernandafrisson.github.io/sistema-gestao/mapa.html?v=5", height=850, scrolling=True)
+        components.iframe("https://fernandafrisson.github.io/sistema-gestao/mapa.html?v=6", height=850, scrolling=True)
         
     else:
         # Mostra a tela de login normal
